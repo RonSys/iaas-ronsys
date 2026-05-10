@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Node
+node_modules/
+.next/
+npm-debug.log*
+
+# React Native
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Logs
+*.log
+
+# Test
+.coverage
+htmlcov/
+.pytest_cache/
+playwright-report/
+test-results/
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Database
+*.db
+*.sqlite3
+
+# Monitoring
+grafana-data/
+prometheus-data/
+
+# Playwright
+apps/web/playwright/.auth/

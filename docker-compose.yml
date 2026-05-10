@@ -1,0 +1,116 @@
+version: "3.9"
+
+# ═══════════════════════════════════════════════════════════════
+#  IaaS-RonSys — Docker Compose
+#  Lee variables de .env (raíz del proyecto).
+#  Un solo comando levanta todo:  docker-compose up -d
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  # ─── Base de Datos ──────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: iaas-postgres
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Cache ──────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: iaas-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Cola de Mensajes ──────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: iaas-rabbitmq
+    ports:
+      - "5672:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Backend ────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: iaas-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      # En Docker, los hostnames son los nombres de servicio
+      APP_NAME: ${APP_NAME}
+      APP_VERSION: ${APP_VERSION}
+      DEBUG: ${DEBUG}
+      DATABASE_URL: ${DATABASE_URL_DOCKER}
+      REDIS_URL: ${REDIS_URL_DOCKER}
+      RABBITMQ_URL: ${RABBITMQ_URL_DOCKER}
+      RABBITMQ_QUEUE: ${RABBITMQ_QUEUE}
+      METRICS_ENABLED: ${METRICS_ENABLED}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED}
+      RATE_LIMIT_DEFAULT: ${RATE_LIMIT_DEFAULT}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      # Hot-reload en desarrollo: monta el código local
+      - ./apps/backend:/app
+    command: uvicorn app.main:app --host ${BACKEND_HOST:-0.0.0.0} --port 8000 --reload
+    restart: unless-stopped
+
+  # ─── Monitoreo ──────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: iaas-prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./infra/docker/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: iaas-grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:

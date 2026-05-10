@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS Custom Properties (Branding dinámico) ─── */
+:root {
+  --color-primary: #1a365d;
+  --color-secondary: #2b6cb0;
+  --color-accent: #e53e3e;
+  --color-background: #f7fafc;
+  --color-surface: #ffffff;
+  --color-text-primary: #1a202c;
+  --color-text-secondary: #718096;
+  --color-success: #38a169;
+  --color-warning: #d69e2e;
+  --color-error: #e53e3e;
+}
+
+/* ─── Base ─── */
+body {
+  @apply bg-brand-background text-brand-text-primary antialiased;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-text-secondary);
+  border-radius: 3px;
+}
+
+/* ─── Animaciones ─── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(56, 161, 105, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(56, 161, 105, 0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out;
+}
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+/* ─── Cards ─── */
+.card {
+  @apply bg-brand-surface rounded-xl shadow-sm border border-gray-100 p-5;
+}
+
+/* ─── Form inputs ─── */
+.input-field {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input-field::placeholder {
+  color: var(--color-text-secondary);
+}
+.input-field:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
+.input-error {
+  border-color: var(--color-error);
+}
+.input-error:focus {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-error) 30%, transparent);
+}
+
+/* ─── Buttons ─── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+  outline: none;
+  border: none;
+  cursor: pointer;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn:focus {
+  box-shadow: 0 0 0 3px var(--tw-ring-color, transparent);
+}
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  --tw-ring-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+}
+.btn-primary:hover {
+  filter: brightness(1.1);
+}
+.btn-secondary {
+  background: var(--color-secondary);
+  color: #fff;
+  --tw-ring-color: color-mix(in srgb, var(--color-secondary) 40%, transparent);
+}
+.btn-secondary:hover {
+  filter: brightness(1.1);
+}
+.btn-accent {
+  background: var(--color-accent);
+  color: #fff;
+  --tw-ring-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+.btn-accent:hover {
+  filter: brightness(1.1);
+}
+.btn-outline {
+  border: 2px solid var(--color-primary);
+  color: var(--color-primary);
+  background: transparent;
+  --tw-ring-color: color-mix(in srgb, var(--color-primary) 40%, transparent);
+}
+.btn-outline:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+.btn-ghost {
+  color: var(--color-text-secondary);
+  background: transparent;
+}
+.btn-ghost:hover {
+  background: #f3f4f6;
+}
+.btn-ghost:focus {
+  box-shadow: 0 0 0 3px #d1d5db;
+}
+
+/* ─── Traffic light ─── */
+.traffic-dot {
+  @apply inline-block w-3 h-3 rounded-full;
+}
+.traffic-dot-green { background: var(--color-success); }
+.traffic-dot-yellow { background: var(--color-warning); }
+.traffic-dot-red { background: var(--color-error); }
