@@ -27,6 +27,7 @@ def upgrade() -> None:
         sa.Column("address", sa.String(300), nullable=True),
         sa.Column("economic_activity", sa.String(200), nullable=True),
         sa.Column("setup_complete", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("settings", sa.JSON(), nullable=True),
         sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint("id"),

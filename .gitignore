@@ -12,6 +12,8 @@ env/
 
 # Environment
 .env
+.env.qa
+.env.prod
 .env.local
 .env.*.local
 

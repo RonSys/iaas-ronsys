@@ -1,0 +1,63 @@
+# ═══════════════════════════════════════════════════════════════
+#  IaaS-RonSys — Entorno Producción
+#
+#  Backend estable sin reload + Frontend servido por nginx (build estático).
+#  NO monta código — usa la imagen construida tal cual.
+#
+#  Uso:
+#    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+#  Puertos:
+#    Backend:  8000
+#    Frontend: 80 (nginx)
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: iaas-backend-prod
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env.prod
+    environment:
+      APP_NAME: ${APP_NAME:-IaaS-RonSys}
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+      DEBUG: ${DEBUG:-false}
+      DATABASE_URL: ${DATABASE_URL_DOCKER}
+      REDIS_URL: ${REDIS_URL_DOCKER}
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_DEFAULT: ${RATE_LIMIT_DEFAULT:-100/hour}
+      SECRET_KEY: ${SECRET_KEY}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: iaas-frontend-prod
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

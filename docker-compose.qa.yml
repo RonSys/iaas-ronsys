@@ -1,0 +1,52 @@
+# ═══════════════════════════════════════════════════════════════
+#  IaaS-RonSys — Entorno QA
+#
+#  Backend con hot-reload (volumen montado).
+#  Frontend se levanta manualmente con Vite (cd apps/web && npm run dev).
+#
+#  Uso:
+#    docker compose -f docker-compose.yml -f docker-compose.qa.yml up -d
+#
+#  Puertos QA (no chocar con prod):
+#    Backend: 8001
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: iaas-backend-qa
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env.qa
+    environment:
+      APP_NAME: ${APP_NAME:-IaaS-RonSys-QA}
+      APP_VERSION: ${APP_VERSION:-0.1.0-qa}
+      DEBUG: ${DEBUG:-true}
+      DATABASE_URL: ${DATABASE_URL_DOCKER}
+      REDIS_URL: ${REDIS_URL_DOCKER}
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_DEFAULT: ${RATE_LIMIT_DEFAULT:-100/hour}
+      SECRET_KEY: ${SECRET_KEY}
+    ports:
+      - "${BACKEND_PORT:-8001}:8000"
+    volumes:
+      # Hot-reload: monta el código local para desarrollo rápido
+      - ./apps/backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Nota: El frontend QA (Vite dev server) NO se levanta con Docker.
+  # Se ejecuta manualmente para tener hot-reload y debug:
+  #   cd apps/web && npm run dev
