@@ -29,6 +29,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -55,6 +56,9 @@ class Company(Base):
     ruc: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     address: Mapped[str | None] = mapped_column(String(300))
     economic_activity: Mapped[str | None] = mapped_column(String(200))
+    business_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="restaurant", default="restaurant"
+    )  # restaurant | hardware | retail | service
     setup_complete: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
@@ -237,4 +241,39 @@ class KardexMovement(Base):
 
     __table_args__ = (
         Index("idx_kardex_product_date", "product_id", "date"),
+    )
+
+
+# ═══════════════════════════════════════════════════════════════
+# Proyecciones de Flujo de Caja (HU-F1-008)
+# ═══════════════════════════════════════════════════════════════
+
+
+class CashflowProjection(Base):
+    """Proyección mensual de flujo de caja persistida en DB."""
+
+    __tablename__ = "cashflow_projections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("companies.id"), nullable=False, index=True
+    )
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    month: Mapped[int] = mapped_column(Integer, nullable=False)
+    concept: Mapped[str] = mapped_column(String(100), nullable=False)
+    category: Mapped[str] = mapped_column(
+        String(20), nullable=False
+    )  # income | expense
+    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "company_id", "year", "month", "concept",
+            name="uq_cashflow_projection"
+        ),
+        Index("idx_cf_proj_company_year", "company_id", "year"),
     )

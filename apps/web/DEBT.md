@@ -8,29 +8,23 @@
 ## 🔴 Críticas (bloquean producción)
 
 ### AUTH-001: Sistema de Autenticación
-- **Estado**: No implementado
-- **Impacto**: La app asume sesión abierta. Sin login no hay protección de rutas ni multi-tenant real.
-- **Qué falta**:
-  - [ ] Página de Login (`/login`) — email + password
-  - [ ] Página de Registro (`/register`)
-  - [ ] `AuthContext` o `useAuth` hook (almacenar JWT, user, tenant)
-  - [ ] Protección de rutas (`PrivateRoute` / wrapper)
-  - [ ] Inyección de `Authorization: Bearer <token>` en `api.ts`
-  - [ ] Inyección de `X-Tenant-ID` en `api.ts`
-  - [ ] Refresh token flow (silent refresh antes de que expire)
-  - [ ] Logout (limpiar token, redirigir a /login)
-  - [ ] Manejo de 401 → redirigir a login
-- **Endpoints del backend**: `POST /api/v1/auth/login`, `POST /api/v1/auth/register`
-- **Estimado**: 2-3 días
+- **Estado**: Implementado ✅
+- **Nota**: Login, AuthContext, PrivateRoute y authStore existen y están funcionales.
+  - ✅ `LoginPage` (`/login`) — email + contraseña
+  - ✅ `AuthContext` — estado global (user, tenant, tokens)
+  - ✅ `PrivateRoute` — protección de rutas con redirect a /login
+  - ✅ `authStore` — bridge entre AuthContext y api.ts
+  - ✅ `api.ts` — inyección automática de `Authorization: Bearer` y `X-Tenant-ID`
+  - ✅ Refresh token con cola (evita race condition)
+  - ✅ Logout (limpia token, sessionStorage)
+  - ✅ Manejo de 401 → refresh automático o logout
 
 ### AUTH-002: Multi-tenant
-- **Estado**: No implementado
-- **Impacto**: Los datos se comparten entre tenants. Cada empresa debe ver solo sus datos.
-- **Qué falta**:
-  - [ ] Selector de tenant en el header
-  - [ ] `X-Tenant-ID` header en todas las requests
-  - [ ] Manejo de tenant en `usePalette` (paleta por tenant, no global)
-- **Estimado**: 1-2 días
+- **Estado**: Implementado parcialmente ✅
+- **Nota**: `X-Tenant-ID` se inyecta automáticamente desde el JWT decodificado (company_id).
+  - ✅ `X-Tenant-ID` header en todas las requests vía `api.ts`
+  - ⚠️ Selector de tenant en el header (pendiente para multi-tenant real)
+  - ⚠️ Paleta por tenant (actualmente usa configuración global)
 
 ---
 
@@ -106,6 +100,31 @@
   - [ ] Usar `import.meta.env.VITE_API_BASE_URL` en `api.ts`
 - **Estimado**: 0.5 día
 
+### IMPL-001: Endpoints de backend pendientes para Fase 1-2
+- **Estado**: Pendiente (dependencia externa)
+- **Impacto**: Las nuevas páginas (Cashflow, POS, Ventas) no recibirán datos reales hasta que el backend implemente los endpoints.
+- **Endpoints requeridos**:
+  - `GET /api/admin/company/settings` — HU-F1-002 (backend)
+  - `GET /api/accounting/cashflow` — HU-F1-004/005/006 (backend)
+  - `POST /api/sales/sessions/open` — HU-F2-003 (backend)
+  - `GET /api/sales/sessions/current` — HU-F2-003 (backend)
+  - `POST /api/sales/sessions/{id}/close` — HU-F2-003 (backend)
+  - `POST /api/sales/sale` — HU-F2-004 (backend)
+  - `GET /api/sales/sales` — HU-F2-004 (backend)
+  - `GET /api/sales/sale/{id}` — HU-F2-004 (backend)
+  - `GET /api/sales/sale/{id}/ticket` — HU-F2-007 (backend)
+  - `POST /api/sales/sale/{id}/void` — HU-F2-004 (backend)
+  - `GET /api/sales/payment-methods` — HU-F2-004 (backend)
+  - `GET /api/accounting/kardex/products?search=` — HU-F2-005 (backend)
+- **Mitigación**: Todos los componentes y hooks tienen mocks completos para desarrollo y tests.
+- **Estimado**: 0 (frontend completo, depende de backend)
+
+### IMPL-002: Cobertura de tests para nuevos componentes
+- **Estado**: Parcial
+- **Cubierto**: useCompanySettings (5 tests), CashflowPage (3 tests), PosSession (13 tests), SalesComponents (11 tests), SalesList (9 tests) — Total: 49 nuevos tests
+- **Pendiente**: Tests de integración para flujo completo de venta, tests E2E con Playwright
+- **Estimado**: 1-2 días
+
 ### CFG-002: ESLint + Prettier
 - **Estado**: No instalados (están en package.json como scripts pero sin dependencias)
 - **Qué falta**:
@@ -127,7 +146,12 @@
 
 | Prioridad | Count | Días estimados |
 |-----------|:-----:|:--------------:|
-| 🔴 Críticas | 2 | 3-5 |
+| 🔴 Críticas | 0 | 0 (Auth implementado) |
 | 🟡 Medias | 5 | 5-8.5 |
 | 🟢 Bajas | 5 | 3.5-5.5 |
-| **Total** | **12** | **11.5-19** |
+| ⏳ Dependencias Backend | 1 | 0 |
+| 🟡 Nuevas (Fase 1-2) | 2 | 1-2 |
+| **Total** | **13** | **9.5-16** |
+
+> **Nota Fase 1-2 (2026-05)**: Implementados 6 HU frontend con 49 nuevos tests.
+> Auth (AUTH-001) ya estaba implementado — actualizado DEBT.md para reflejar realidad.

@@ -1,8 +1,8 @@
 # 🚀 Guía de Inicio Rápido — IaaS-RonSys
 
-> **Versión:** 1.0  
-> **Fecha:** 2026-05-10  
-> **Sistema:** IaaS-RonSys v0.1.0 — ERP SaaS Financiero-Contable  
+> **Versión:** 2.0  
+> **Fecha:** 2026-05-12  
+> **Sistema:** IaaS-RonSys v0.2.0 — ERP SaaS Financiero-Contable + POS  
 > **Franquicia:** El Segoviano 🐟
 
 ---
@@ -11,20 +11,24 @@
 
 IaaS-RonSys es el sistema ERP financiero-contable de la franquicia **"El Segoviano"**. Te permite:
 
-- Simular la inversión de una cevichería nueva 🔧
+- Simular la inversión de un negocio nuevo 🔧
 - Generar estados financieros automáticamente (PYG, Balance, Ratios) 📊
 - Controlar inventarios con kárdex valorizado 📦
+- **Visualizar flujo de caja proyectado vs real** 💰
+- **Gestionar ventas con POS integrado** 🧾
+- **Adaptar la interfaz según tu tipo de negocio** (restaurante/ferretería/retail) 🏪
 - Personalizar la apariencia del sistema 🎨
 
 ---
 
 ## 🔗 Acceso al Sistema
 
-| Elemento | URL |
-|----------|-----|
-| **Aplicación Web** | `http://localhost:5173` |
+| Elemento | 🚀 Producción |
+|----------|:---:|
+| **Aplicación Web** | `http://localhost` |
 | **API / Backend** | `http://localhost:8000` |
-| **Documentación API (Swagger)** | `http://localhost:8000/docs` |
+| **Swagger Docs** | `http://localhost:8000/docs` |
+| **RabbitMQ Management** | `http://localhost:15672` (guest/guest) |
 
 ### Credenciales de Demostración
 
@@ -32,8 +36,9 @@ IaaS-RonSys es el sistema ERP financiero-contable de la franquicia **"El Segovia
 |--------|-------|
 | **Email** | `admin@elsegoviano.pe` |
 | **Contraseña** | `admin123` |
+| **Rol** | admin (acceso total al sistema) |
 
-> ⚠️ Esta es una cuenta demo de administrador. Cambia la contraseña apenas ingreses por seguridad.
+> ⚠️ Cambia la contraseña al ingresar por seguridad.
 
 ---
 
@@ -41,16 +46,16 @@ IaaS-RonSys es el sistema ERP financiero-contable de la franquicia **"El Segovia
 
 ### Paso 1: Iniciar Sesión
 
-1. Abre `http://localhost:5173` en tu navegador
-2. Ingresa el email `admin@elsegoviano.pe` y la contraseña `admin123`
+1. Abre `http://localhost` en tu navegador
+2. Ingresa `admin@elsegoviano.pe` / `admin123`
 3. Haz clic en **Iniciar Sesión**
 
-Verás el **Dashboard** con KPIs en cero — es normal, todavía no hay simulación.
+La sesión dura **15 minutos** y se **renueva automáticamente**.
 
 ### Paso 2: Configurar una Empresa (Setup Wizard)
 
-1. En la barra de navegación superior, haz clic en **🏗️ Setup**
-2. Llena los datos de inversión de tu cevichería:
+1. En la barra de navegación, haz clic en **🏗️ Setup**
+2. Llena los datos de inversión de tu negocio:
 
 | Sección | Qué configurar | Ejemplo |
 |---------|---------------|---------|
@@ -60,67 +65,129 @@ Verás el **Dashboard** con KPIs en cero — es normal, todavía no hay simulaci
 | **Proyección** | Ventas por mes, costo de insumos | S/ 25,000/mes, 40% costo |
 
 3. Haz clic en **⚡ Ejecutar Simulación**
-4. Verás un resumen con KPIs financieros: ventas totales, utilidad neta, payback
+4. Verás un resumen con KPIs financieros
 
-### Paso 3: Explorar Resultados
+### Paso 3: Explorar el Dashboard
 
 Después de la simulación, visita:
 
 | Sección | Qué ver |
 |---------|---------|
-| **📊 Dashboard** | 4 KPIs principales (ventas, utilidad neta, EBITDA, activos), gráficos de flujo de caja |
-| **📋 Reportes** | Estado de Resultados (PYG), Balance General, BCSS, Ratios con semáforo 🟢🟡🔴 |
-| **🎮 Simulador** | Sliders interactivos para probar escenarios "¿qué pasa si...?" |
+| **📊 Dashboard** | 4 KPIs principales, gráficos de flujo de caja |
+| **💰 Flujo de Caja** | Proyectado, Real y Comparativa con alertas automáticas |
+| **📋 Reportes** | PYG, Balance, BCSS, Ratios con semáforo 🟢🟡🔴 |
+| **🎮 Simulador** | Sliders interactivos para probar escenarios |
 
 ---
 
 ## 🧭 Navegación General
 
-La barra superior tiene 6 secciones:
+La barra superior cambia según tu **tipo de negocio**:
 
 | Menú | Ruta | ¿Qué hace? |
 |------|------|-----------|
-| 📊 **Dashboard** | `/` | Panel principal — KPIs, gráficos, ratios |
-| 🏗️ **Setup** | `/setup` | Configuración inicial de inversión |
-| 🎮 **Simulador** | `/simulador` | Sliders interactivos + escenarios comparativos |
-| 📋 **Reportes** | `/reportes` | PYG, Balance, BCSS, Ratios detallados |
+| 📊 **Dashboard** | `/` | Panel principal — KPIs, gráficos |
+| 💰 **Flujo de Caja** | `/cashflow` | Proyectado / Real / Comparativa |
+| 🧾 **Caja** | `/caja` | Turno POS — abrir/cerrar caja |
+| ➕ **Nueva Venta** | `/ventas/nueva` | Registrar venta con items + pagos |
+| 📋 **Ventas** | `/ventas` | Historial de ventas + filtros |
 | 📦 **Kárdex** | `/kardex` | Inventario — productos, entradas, salidas |
-| ⚙️ **Ajustes** | `/settings` | Paleta de colores, branding (solo admin/manager) |
+| 🏗️ **Setup** | `/setup` | Configuración inicial de inversión |
+| 🎮 **Simulador** | `/simulador` | Sliders interactivos |
+| 📋 **Reportes** | `/reportes` | PYG, Balance, BCSS, Ratios |
+| ⚙️ **Ajustes** | `/settings` | Paleta de colores, branding |
+
+### Navegación condicional según tipo de negocio
+
+| Feature Flag | Si está activo | Si está inactivo |
+|-------------|---------------|:----------------:|
+| `tables_enabled` | 🪑 Menú **Mesas** (/mesas) visible | Oculto |
+| `invoice_required` | Selector boleta/factura en ventas | Solo boleta |
+| `tips_enabled` | 💵 Campo propina en ventas | Oculto |
+| `warranty_tracking` | 🔧 Campos garantía en ventas | Oculto |
+
+---
+
+## 🧾 POS — Punto de Venta
+
+### Abrir Turno de Caja
+
+1. Ve a **🧾 Caja**
+2. Ingresa el monto de apertura (efectivo inicial en caja)
+3. Haz clic en **Abrir Turno**
+
+### Registrar una Venta
+
+1. Con el turno abierto, ve a **➕ Nueva Venta**
+2. Agrega productos (buscador automático de inventario)
+3. Selecciona el método de pago: Efectivo, Tarjeta, Yape, Plin o Transferencia
+4. Confirma la venta — el sistema:
+   - ✅ Descuenta del inventario automáticamente
+   - ✅ Genera el asiento contable
+   - ✅ Muestra el ticket resumen
+
+### Cerrar Turno
+
+1. Ve a **🧾 Caja**
+2. Ingresa el efectivo final en caja
+3. El sistema calcula: `diferencia = cierre_esperado - cierre_real`
+4. Confirma el cierre
+
+### Especialización por tipo de negocio
+
+| Tipo | Campos adicionales en venta |
+|------|---------------------------|
+| 🍽️ **Restaurante** | Mesa #, comensales, tipo orden (en mesa/llevar/delivery), mesero, propina, notas de cocina |
+| 🔧 **Ferretería** | Boleta/Factura, RUC/DNI cliente, meses de garantía, dirección de despacho, requiere instalación |
+
+---
+
+## 💰 Flujo de Caja
+
+### Vista Proyectada
+- Muestra 12 meses de ingresos y egresos basados en el setup
+- Barras verdes (ingresos) y rojas (egresos)
+- 8 conceptos: Ventas, Costo de Ventas, Alquiler, Servicios, Salarios, Marketing, Administración, Mantenimiento
+
+### Vista Real
+- Datos de transacciones contables reales
+- Requiere ventas registradas (POS) o asientos manuales
+
+### Vista Comparativa
+- Barras lado a lado: Proyectado (azul) vs Real (naranja)
+- Alertas automáticas:
+  - 🟢 Desviación < 5%
+  - 🟡 Desviación 5-20%
+  - 🔴 Desviación ≥ 20% o liquidez negativa
 
 ---
 
 ## 👤 Roles de Usuario
 
-El sistema tiene 4 roles con permisos diferenciados:
-
-| Rol | Capacidades |
-|-----|------------|
-| 👑 **admin** | Acceso total — crear usuarios, configurar empresa, ver todo |
-| 🧑‍💼 **manager** | Operar sistema + cambiar branding (no administra usuarios) |
-| 👨‍🍳 **operator** | Registrar operaciones diarias (kárdex, ventas) |
-| 👀 **viewer** | Solo lectura — ver reportes, dashboard |
+Actualmente el sistema cuenta con un usuario **admin** con acceso total:
+- Ver y operar todos los módulos
+- Configurar empresa y branding
+- Gestionar usuarios
 
 ---
 
-## 📦 Kárdex / Inventario (Básico)
-
-Para registrar productos en inventario:
+## 📦 Kárdex / Inventario
 
 1. Ve a **📦 Kárdex**
-2. Haz clic en **+ Producto** — ingresa código, nombre, stock inicial y costo unitario
-3. Selecciona un producto y usa **+ Entrada** para compras o **- Salida** para ventas/mermas
-4. El sistema calcula automáticamente el **costo promedio ponderado**
+2. **+ Producto** — ingresa código, nombre, stock inicial y costo unitario
+3. **+ Entrada** para compras
+4. **- Salida** para ventas/mermas
+5. El sistema calcula automáticamente el **costo promedio ponderado**
+6. Los datos ahora **persisten en base de datos** (no en memoria)
 
 ---
 
 ## 🎨 Personalización Rápida
 
-Para cambiar los colores del sistema:
-
-1. Ve a **⚙️ Ajustes** (requiere rol admin o manager)
+1. Ve a **⚙️ Ajustes** (solo admin)
 2. Elige una paleta predefinida: Azul Marino, Verde Bosque, Rojizo Cálido o Púrpura
-3. O personaliza cada color individualmente con los selectores de color
-4. Los cambios se aplican al instante en toda la interfaz
+3. O personaliza cada color individualmente
+4. Los cambios se aplican al instante
 
 ---
 
@@ -129,21 +196,21 @@ Para cambiar los colores del sistema:
 | Problema | Solución |
 |----------|----------|
 | **No veo datos en el Dashboard** | Ejecuta primero el Setup Wizard (🏗️ Setup) |
-| **"Email o contraseña inválidos"** | Verifica email y contraseña. Si falla 10 veces, la cuenta se bloquea 15 min |
-| **"Cuenta bloqueada"** | Espera 15 minutos o pide a un admin que la desbloquee |
-| **La página se ve rara / sin colores** | Recarga con F5. Si persiste, el backend puede estar caído |
-| **Error al guardar producto en Kárdex** | Asegúrate de que el código del producto no esté duplicado |
-| **No puedo acceder a Ajustes** | Solo roles `admin` y `manager`. Pide cambio de rol a tu admin |
+| **No puedo registrar ventas** | Debes abrir un turno en **🧾 Caja** primero |
+| **"Stock insuficiente"** | Registra una entrada en **📦 Kárdex** antes de vender |
+| **Flujo de Caja en 0** | Ejecuta el Setup primero. La vista real necesita ventas registradas |
+| **Login falla** | Verifica email y contraseña. Si falla 10 veces, la cuenta se bloquea 15 min |
+| **No veo menús de ventas** | Depende del `business_type` configurado en tu empresa |
+| **Error 500 en cashflow** | Asegúrate de que las migraciones se aplicaron (reinicie contenedor) |
 
 ---
 
 ## 📞 ¿Necesitas Ayuda?
 
-- **Manual completo**: consulta `manual-usuario.md` para guía detallada de cada módulo
-- **Manual de administrador**: consulta `manual-admin.md` para gestión de usuarios y troubleshooting avanzado
-- **API Reference**: `http://localhost:8000/docs` — documentación técnica de todos los endpoints
+- **Manual completo**: `manual-usuario.md` para guía detallada de cada módulo
+- **Manual de administrador**: `manual-admin.md` para gestión de usuarios y troubleshooting
+- **API Reference**: `http://localhost:8000/docs` — todos los endpoints documentados
 
 ---
 
-> IaaS-RonSys · El Segoviano · v0.1.0  
-> *"Inteligencia financiera al alcance de tu cevichería"*
+> IaaS-RonSys · El Segoviano · v0.2.0

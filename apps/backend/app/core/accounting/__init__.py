@@ -64,3 +64,12 @@ from app.core.accounting.ports import (  # noqa: F401
     KardexMovementRecord,
     ProductRecord,
 )
+
+from app.core.accounting.cashflow import (  # noqa: F401
+    CashflowAlert,
+    CashflowLine,
+    CashflowReport,
+    CashflowService,
+    INCOME_CONCEPTS,
+    EXPENSE_CONCEPTS,
+)

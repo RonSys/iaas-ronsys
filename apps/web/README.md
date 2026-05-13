@@ -229,15 +229,36 @@ La carga inicial es **77 KB** (sin Recharts). Recharts (D3) solo se carga al ent
 
 ## 🚀 Despliegue (Deploy)
 
+El frontend se despliega en **dos entornos** usando el script `deploy.sh` desde la raíz:
+
+```bash
+# Entorno QA — Vite dev server (:5173)
+cd ../.. && ./deploy.sh --env qa
+# → Hot-reload | Proxy /api → localhost:8001
+
+# Entorno Producción — Nginx (:80)
+cd ../.. && ./deploy.sh --env prod
+# → Archivos compilados | Proxy /api → localhost:8000
+```
+
+### Entornos
+
+| Entorno | Frontend URL | Backend | Build | Comando |
+|---------|-------------|---------|-------|---------|
+| 🧪 **QA** | `http://localhost:5173` | `:8001` | Vite dev (HMR) | `./deploy.sh --env qa` |
+| 🚀 **Prod** | `http://localhost` | `:8000` | Nginx (compilado) | `./deploy.sh --env prod` |
+
+> 💡 Ambos entornos pueden coexistir sin conflictos. Ver [`docs/manuales/guia-despliegue.md`](../../docs/manuales/guia-despliegue.md).
+
 ### Desarrollo Local
 
 ```bash
-# Dev server con hot-reload + proxy al backend
+# Dev server con hot-reload + proxy al backend QA
 npm run dev                # → http://localhost:5173
 
-# El proxy de Vite redirige /api/* → http://localhost:8000
-# Asegurate de que el backend esté corriendo:
-#   cd ../.. && docker-compose up -d
+# El proxy de Vite redirige /api/* → http://localhost:8001 (QA)
+# Asegurate de que el backend QA esté corriendo:
+#   cd ../.. && ./deploy.sh --env qa
 ```
 
 ### Build de Producción
@@ -252,17 +273,14 @@ npm run build              # → dist/
 #   dist/assets/*.css
 ```
 
-### Docker
+### Docker + Nginx
 
 ```bash
-# Build de la imagen
-docker build -t iaas-web .
-
-# Ejecutar (asume que el backend está en http://backend:8000)
-docker run -p 80:80 iaas-web
+# Desplegar con nginx (incluido en deploy.sh --prod)
+docker compose -f ../../docker-compose.yml -f ../../docker-compose.prod.yml up -d frontend
 
 # Verificar
-curl http://localhost:80/
+curl http://localhost/
 ```
 
 La imagen usa **multistage build**:

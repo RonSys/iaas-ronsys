@@ -127,6 +127,65 @@ IaaS-RonSys/
 
 ---
 
+## 🏭 Entornos
+
+IaaS-RonSys tiene **2 entornos** separados, gestionados con `deploy.sh`:
+
+| Característica | 🧪 QA | 🚀 Producción |
+|---------------|-------|---------------|
+| **Comando** | `./deploy.sh --env qa` | `./deploy.sh --env prod` |
+| **Backend** | `:8001` (hot-reload) | `:8000` |
+| **Frontend** | Vite dev server `:5173` | Nginx `:80` |
+| **Base de datos** | `iaas_ronsys_qa` | `iaas_ronsys` |
+| **SSL** | ❌ | Configurable |
+| **Propósito** | Desarrollo y pruebas | Demo / cliente final |
+| **Env file** | `.env.qa` | `.env.prod` |
+
+```bash
+# Entorno QA (pruebas)
+./deploy.sh --env qa
+# → Backend: http://localhost:8001
+# → Frontend: http://localhost:5173
+
+# Entorno Producción
+./deploy.sh --env prod
+# → Frontend: http://localhost (nginx :80)
+# → Backend: http://localhost:8000
+```
+
+> 💡 Ambos entornos pueden correr **al mismo tiempo** sin conflictos — usan puertos y bases de datos separadas.
+
+---
+
+## 🚀 Deploy
+
+El despliegue se automatiza con `deploy.sh`, un script **idempotente** (se puede ejecutar múltiples veces sin romper):
+
+```bash
+# Desplegar en producción
+./deploy.sh --env prod
+
+# Desplegar en QA
+./deploy.sh --env qa
+
+# Actualizar (pull + redeploy)
+git pull && ./deploy.sh --env prod
+```
+
+**Qué hace el script (8 pasos):**
+1. Verifica dependencias (Docker, Docker Compose)
+2. Configura variables de entorno (genera SECRET_KEY si no existe)
+3. Levanta infraestructura base (PostgreSQL + Redis)
+4. Construye y levanta servicios del entorno
+5. Ejecuta migraciones Alembic
+6. Carga seed data (solo si BD vacía)
+7. Verifica credenciales demo
+8. Muestra resumen con URLs y comandos
+
+📖 Manual completo: [`docs/manuales/guia-despliegue.md`](docs/manuales/guia-despliegue.md)
+
+---
+
 ## 🚀 Cómo empezar
 
 > ⚠️ **REQUISITO: Python 3.12.x**  
@@ -212,16 +271,50 @@ docker-compose exec backend alembic upgrade head
 
 ## 🧪 Tests
 
+### Suites
+
+| Suite | Tests | Tecnología | Comando |
+|-------|:-----:|------------|---------|
+| 🧠 **Backend** | **66** (6 suites) | pytest | `pytest -v` |
+| ⚛️ **Frontend** | **43** (8 suites) | Jest + RTL | `npx jest --verbose` |
+| 🎭 **E2E** | **31** (6 flujos) | Playwright | `npx playwright test` |
+| **TOTAL** | **140** | — | `make test-all` |
+
+### Comandos
+
 ```bash
 # Backend
 cd apps/backend
-pytest -v                          # Todos los tests
+pytest -v                          # Todos los tests (66)
 pytest tests/test_accounting_engine.py  # Solo motor contable
 pytest -v --cov=app --cov-report=term   # Con cobertura
+
+# Frontend
+cd apps/web
+npx jest --verbose                 # 43 tests, 8 suites
+npx jest --coverage                # Con cobertura
+npx tsc --noEmit                   # TypeScript check
+
+# E2E (Playwright)
+cd apps/web
+npx playwright test                # 31 tests, 6 flujos
+npx playwright test --ui           # Con interfaz gráfica
+npx playwright show-report         # Ver reporte HTML
 
 # Desde la raíz
 make test
 ```
+
+### Flujos E2E
+
+| # | Flujo | Tests |
+|---|-------|:-----:|
+| 1 | Login / Logout | 5 |
+| 2 | Dashboard KPIs | 3 |
+| 3 | Setup Wizard → Simulación | 4 |
+| 4 | Reportes (PYG, Balance, BCSS, Ratios) | 7 |
+| 5 | Kárdex (CRUD productos, entradas, salidas) | 8 |
+| 6 | Settings / Branding | 4 |
 
 ---
 
@@ -246,9 +339,10 @@ make test
 | 6 | 🗄️ **DB Adapters + Alembic** | ✅ | `apps/backend/app/adapters/` |
 | 7 | 📡 **Monitoreo (Prometheus + Logging)** | ✅ | `apps/backend/app/monitoring/` |
 | 8 | 🎨 **API Settings / Branding** | ✅ | `apps/backend/app/routers/setup.py` |
-| 9 | 💰 **Flujo de Caja** | 🟡 Parcial | `simulador-financiero/docs/05-flujo-caja.md` |
-| 10 | 🤖 **Agentes IA (skills)** | 🟡 Puerto diseñado | `simulador-financiero/docs/07-integracion-erp.md` |
-| 11 | 🧾 **Sales / POS** | ⬜ Futuro | — |
+| 9 | 🔐 **Auth Multi-Tenant (JWT + RBAC)** | ✅ | `docs/architecture/auth-multi-tenant-design.md` |
+| 10 | 💰 **Flujo de Caja** | 🟡 Parcial | `simulador-financiero/docs/05-flujo-caja.md` |
+| 11 | 🤖 **Agentes IA (skills)** | 🟡 Puerto diseñado | `simulador-financiero/docs/07-integracion-erp.md` |
+| 12 | 🧾 **Sales / POS** | ⬜ Futuro | — |
 
 ---
 
@@ -261,6 +355,20 @@ Base URL: `http://localhost:8000`
 |--------|------|-------------|
 | `GET` | `/api/health` | Health check básico |
 | `GET` | `/api/ready` | Readiness (verifica DB) |
+
+### Auth (Multi-Tenant)
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `POST` | `/api/auth/login` | Login — retorna access + refresh tokens |
+| `POST` | `/api/auth/refresh` | Renovar access token (refresh rotativo) |
+| `POST` | `/api/auth/logout` | Revocar refresh token |
+| `GET` | `/api/auth/me` | Perfil del usuario actual |
+
+### Admin Users
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `POST` | `/api/admin/users` | Crear usuario (admin) |
+| `GET` | `/api/admin/users` | Listar usuarios del tenant (admin) |
 
 ### Contabilidad
 | Método | Ruta | Descripción |
@@ -293,6 +401,17 @@ Base URL: `http://localhost:8000`
 
 > 📖 Schemas completos en `apps/backend/app/schemas/__init__.py`  
 > 📖 Swagger UI en `http://localhost:8000/docs`
+
+## 📘 Manuales de Usuario
+
+| Documento | Audiencia | Contenido |
+|-----------|-----------|-----------|
+| [**Guía de Inicio Rápido**](docs/manuales/guia-inicio-rapido.md) | Todos los usuarios | Primeros pasos, credenciales, navegación |
+| [**Manual de Usuario**](docs/manuales/manual-usuario.md) | Todos los usuarios | Guía completa de cada módulo |
+| [**Manual de Administrador**](docs/manuales/manual-admin.md) | Rol `admin` | Gestión de usuarios, seguridad, troubleshooting |
+| [**Guía de Despliegue**](docs/manuales/guia-despliegue.md) | DevOps / TI | Entornos, deploy, infraestructura |
+
+---
 
 ## 👥 Equipo
 

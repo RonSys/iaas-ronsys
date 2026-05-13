@@ -1,8 +1,8 @@
 # 📘 Manual de Usuario — IaaS-RonSys
 
-> **Versión:** 1.0  
-> **Fecha:** 2026-05-10  
-> **Sistema:** IaaS-RonSys v0.1.0 — ERP SaaS Financiero-Contable  
+> **Versión:** 2.0  
+> **Fecha:** 2026-05-12  
+> **Sistema:** IaaS-RonSys v0.2.0 — ERP SaaS + POS + Cashflow  
 > **Franquicia:** El Segoviano 🐟  
 
 ---
@@ -16,9 +16,11 @@
 5. [Simulador Financiero](#5-simulador-financiero)
 6. [Reportes Financieros](#6-reportes-financieros)
 7. [Kárdex — Inventario](#7-kárdex--inventario)
-8. [Settings — Personalización](#8-settings--personalización)
-9. [Gestión de Usuarios (Admin)](#9-gestión-de-usuarios-admin)
-10. [FAQ / Problemas Comunes](#10-faq--problemas-comunes)
+8. [Flujo de Caja](#8-flujo-de-caja)
+9. [POS — Punto de Venta](#9-pos--punto-de-venta)
+10. [Settings — Personalización](#10-settings--personalización)
+11. [Gestión de Usuarios (Admin)](#11-gestión-de-usuarios-admin)
+12. [FAQ / Problemas Comunes](#12-faq--problemas-comunes)
 
 ---
 
@@ -54,11 +56,13 @@ Este manual es para **todos los usuarios** del sistema: administradores, gerente
 
 ### URLs
 
-| Servicio | URL | Propósito |
-|----------|-----|-----------|
-| **Aplicación Web** | `http://localhost:5173` | Interfaz de usuario principal |
-| **API / Backend** | `http://localhost:8000` | Endpoints REST |
-| **Swagger Docs** | `http://localhost:8000/docs` | Documentación interactiva de API |
+| Servicio | 🚀 Producción | 🧪 QA (Pruebas) |
+|----------|:---:|:---:|
+| **Aplicación Web** | `http://localhost` | `http://localhost:5173` |
+| **API / Backend** | `http://localhost:8000` | `http://localhost:8001` |
+| **Swagger Docs** | `http://localhost:8000/docs` | `http://localhost:8001/docs` |
+
+> 💡 Producción usa Nginx en el puerto 80 (sin número de puerto). QA usa Vite dev server en `:5173`.
 
 ### Credenciales de Demostración
 
@@ -70,27 +74,49 @@ Este manual es para **todos los usuarios** del sistema: administradores, gerente
 
 > ⚠️ **Cambia la contraseña** apenas ingreses. Esta cuenta tiene acceso total al sistema.
 
+### Cómo Funciona la Sesión
+
+IaaS-RonSys utiliza **JWT (JSON Web Tokens)** con dos tipos de token:
+
+| Token | Duración | Almacenamiento | Propósito |
+|-------|----------|---------------|-----------|
+| **Access Token** | 15 minutos | Memoria (variable JS) | Autorizar cada request a la API |
+| **Refresh Token** | 7 días | sessionStorage | Renovar access token sin re-login |
+
+**Renovación automática:** Cuando el access token expira (15 min), el frontend **usa automáticamente el refresh token** para obtener uno nuevo. Este proceso es invisible — no verás interrupciones ni pantallas de login mientras uses la aplicación activamente.
+
+**Al cerrar la pestaña del navegador**, el access token se pierde (está en memoria), pero el refresh token persiste en `sessionStorage`. Si vuelves a abrir la aplicación antes de que el refresh token expire (7 días), la sesión se restaura automáticamente sin pedir login.
+
 ### Iniciar Sesión
 
-1. Abre `http://localhost:5173` en tu navegador
+1. Abre la aplicación en tu navegador:
+   - **Producción**: `http://localhost`
+   - **QA**: `http://localhost:5173`
 2. Aparece la pantalla de login con los campos **Email** y **Contraseña**
 3. Ingresa tus credenciales
 4. Haz clic en **Iniciar Sesión** (o presiona Enter)
 
-La sesión dura **15 minutos** antes de requerir renovación automática del token. Si cierras la pestaña, deberás iniciar sesión nuevamente.
+### ### Roles y Permisos
 
-### Roles y Permisos
+Actualmente existe un usuario **admin** con acceso completo a todos los módulos del sistema:
+- Configuracion de empresa (Setup)
+- Dashboard y Reportes
+- Kardex / Inventario
+- POS / Ventas
+- Flujo de Caja
+- Ajustes de personalizacion
+- Gestion de usuarios
 
-| Rol | Crear Usuarios | Setup/Simulador | Kárdex | Ajustes (Branding) | Ver Reportes |
-|-----|:---:|:---:|:---:|:---:|:---:|
-| 👑 **admin** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 🧑‍💼 **manager** | ❌ | ✅ | ✅ | ✅ | ✅ |
-| 👨‍🍳 **operator** | ❌ | ✅ | ✅ | ❌ | ✅ |
-| 👀 **viewer** | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 ### Cerrar Sesión
 
-Para cerrar sesión, simplemente cierra la pestaña del navegador. El sistema utiliza tokens de sesión que expiran automáticamente tras 7 días de inactividad.
+Para cerrar sesión de forma segura, haz clic en el botón de **Cerrar Sesión** en la barra de navegación. Esto:
+
+1. **Revoca el refresh token** en el servidor (nadie más puede usarlo)
+2. **Limpia el estado local** (access token y datos de usuario)
+3. **Redirige a la pantalla de login**
+
+Si solo cierras la pestaña sin hacer logout, el refresh token sigue siendo válido en el servidor hasta que expire (7 días) o sea revocado explícitamente.
 
 ---
 
@@ -144,9 +170,7 @@ El Dashboard incluye dos gráficos generados automáticamente:
 - **📊 Flujo de Caja Mensual**: barras apiladas (ingresos vs egresos por mes)
 - **📈 Flujo de Caja Acumulado**: línea de tendencia del efectivo acumulado
 
-> 💡 Si no ves datos, haz clic en **🔄 Actualizar** o ejecuta primero el **Setup Wizard**.
-
----
+> 💡 Para la vista completa con proyección, datos reales y comparativa con alertas, ve a **💰 Flujo de Caja** en la navegación (ver [Sección 8](#8-flujo-de-caja)).
 
 ## 4. Setup Wizard — Configuración Inicial
 
@@ -420,11 +444,151 @@ Al seleccionar un producto, se despliega su historial completo:
 
 ---
 
-## 8. Settings — Personalización
+## 8. Flujo de Caja
+
+La página **Flujo de Caja** (💰 en la navegación) te permite visualizar la liquidez de tu negocio en tres vistas diferentes, con alertas automáticas de desviaciones.
+
+### 8.1 Selector de Vista y Período
+
+En la parte superior de la página encontrarás:
+
+- **Selector de vista**: Proyectado / Real / Comparativa
+- **Selector de período**: Mes inicio y Mes fin (AAAA-MM)
+- **Año**: para la vista proyectada
+
+### 8.2 Vista Proyectada
+
+Muestra 12 meses de ingresos y egresos basados en los datos del **Setup Wizard**.
+
+- Barras **verdes** = ingresos (Ventas)
+- Barras **rojas** = egresos (Costo de Ventas, Alquiler, Servicios, Salarios, Marketing, Administración, Mantenimiento)
+- El saldo final de cada mes se calcula como: `saldo_inicial + ingresos - egresos`
+
+> 💡 Si ves "No hay datos de proyección", ejecuta primero el **Setup Wizard** (🏗️ Setup).
+
+### 8.3 Vista Real
+
+Muestra los datos basados en transacciones contables reales:
+
+- Ventas en efectivo registradas
+- Costos de venta del kárdex
+- Gastos operativos
+
+> ⚠️ Requiere que hayas registrado ventas (POS) o asientos contables manuales en el período.
+
+### 8.4 Vista Comparativa
+
+Compara lado a lado lo proyectado vs lo real:
+
+- Barras **azules** = proyectado
+- Barras **naranjas** = real
+
+Incluye **alertas automáticas** con semáforo:
+| Alerta | Significado |
+|:------:|-------------|
+| 🟢 | Desviación < 5% — todo正常 |
+| 🟡 | Desviación entre 5% y 20% — monitorear |
+| 🔴 | Desviación ≥ 20% o flujo de caja neto negativo — requiere acción |
+
+### 8.5 AlertsBanner
+
+Cuando hay alertas activas, un banner de color se muestra en la parte superior:
+
+- **Severidad red**: fondo rojo suave, texto "Requiere atención"
+- **Severidad yellow**: fondo amarillo suave, texto "Monitorear"
+- **Severidad green**: fondo verde suave, texto "Dentro de lo esperado"
+
+Cada alerta incluye: concepto, valor proyectado, valor real y diferencia.
+
+---
+
+## 9. POS — Punto de Venta (ruta `/caja`)
+
+El módulo POS (🧾) te permite gestionar turnos de caja y registrar ventas con integración automática a kárdex y contabilidad.
+
+### 9.1 Abrir Turno de Caja
+
+1. Ve a **🧾 Caja** (ruta `/caja`) en la navegación
+2. Si no hay turno abierto, verás el botón **Abrir Turno**
+3. Ingresa el monto de apertura (efectivo inicial en la caja)
+4. El sistema crea el turno y muestra el estado actual
+
+> Solo puede haber **un turno abierto a la vez**. Si ya hay uno, deberás cerrarlo primero.
+
+### 9.2 Registrar una Venta
+
+1. Con el turno abierto, ve a **➕ Nueva Venta**
+2. **Agregar items**:
+   - Busca productos en el campo de búsqueda (autocompletado del kárdex)
+   - Selecciona producto, ingresa cantidad y el precio se llena automáticamente
+   - Puedes modificar el precio si es necesario
+3. **Seleccionar pagos**:
+   | Método | Cómo se registra |
+   |--------|------------------|
+   | 💵 Efectivo | Ingresa monto recibido — el sistema calcula el vuelto |
+   | 💳 Tarjeta | Ingresa monto — opcional: últimos 4 dígitos |
+   | 📱 Yape | Ingresa monto — opcional: #operación |
+   | 📱 Plin | Ingresa monto — opcional: #operación |
+   | 🏦 Transferencia | Ingresa monto — opcional: referencia |
+4. El sistema valida que los pagos cubran el total
+5. Confirma la venta
+
+**Lo que pasa automáticamente:**
+- ✅ Se descuenta del inventario (kárdex)
+- ✅ Se genera el asiento contable (Caja, Ventas, IGV, Costo de Ventas, Inventarios)
+- ✅ Se muestra el ticket resumen
+
+### 9.3 Campos Especializados por Tipo de Negocio
+
+Dependiendo del `business_type` de tu empresa, aparecen campos adicionales:
+
+#### 🍽️ Restaurante (business_type = restaurant)
+| Campo | Descripción |
+|-------|-------------|
+| **Mesa #** | Número de mesa del comensal |
+| **Comensales** | Cantidad de personas en la mesa |
+| **Tipo de Orden** | En Mesa / Para Llevar / Delivery |
+| **Mesero** | Nombre del mesero que tomó el pedido |
+| **Propina** | Monto o porcentaje de propina (visible si `tips_enabled = true`) |
+| **Notas de Cocina** | Instrucciones especiales para la cocina |
+
+#### 🔧 Ferretería/Retail (business_type = hardware)
+| Campo | Descripción |
+|-------|-------------|
+| **Tipo Comprobante** | Boleta o Factura |
+| **RUC/DNI** | Documento del cliente (requerido para factura) |
+| **Meses de Garantía** | 0, 3, 6, 12, 24 o 36 meses (visible si `warranty_tracking = true`) |
+| **Dirección de Despacho** | Dirección de entrega (opcional) |
+| **Requiere Instalación** | Sí/No |
+
+### 9.4 Cerrar Turno de Caja
+
+1. Ve a **🧾 Caja** (ruta `/caja`)
+2. Haz clic en **Cerrar Turno**
+3. Ingresa el efectivo final en caja (cuenta física)
+4. El sistema calcula:
+   - `efectivo_esperado = apertura + total_ventas_efectivo_del_turno`
+   - `diferencia = efectivo_final - efectivo_esperado`
+5. Confirma el cierre
+
+> Si la diferencia es significativa, el sistema lo resalta para que tomes acción.
+
+### 9.5 Listado de Ventas
+
+Ve a **📋 Ventas** para ver el historial completo:
+
+- **Filtros**: por fecha (desde/hasta), tipo de negocio, método de pago
+- **Tabla**: #venta, fecha, cliente, subtotal, IGV, total, método de pago
+- **Acciones**: ver detalle completo o anular venta
+- La anulación genera un asiento contable de reversión
+
+---
+
+## 10. Settings — Personalización
 
 El módulo de Ajustes permite personalizar la apariencia visual del sistema.
 
-> ⚠️ Solo accesible para roles **admin** y **manager**.
+> ⚠️ Solo accesible para el rol **admin**.
 
 ### 8.1 Paletas Predefinidas
 
@@ -468,20 +632,21 @@ La sección inferior muestra datos de configuración (solo lectura):
 
 ---
 
-## 9. Gestión de Usuarios (Admin)
+## 11. Gestión de Usuarios (Admin)
 
 > 👑 Esta sección es **exclusiva del rol admin**. Si no eres admin, no verás estas opciones.
 
 ### 9.1 Crear un Usuario
 
-1. Accede al panel de administración de usuarios (requiere implementación de UI de admin)
-2. Completa los datos requeridos:
+1. En la barra de navegación, haz clic en **👥 Admin Users** (solo visible para rol `admin`)
+2. Haz clic en **+ Crear Usuario**
+3. Completa los datos requeridos:
 
 | Campo | Descripción | Restricciones |
 |-------|-------------|---------------|
 | **Email** | Correo electrónico del usuario | Único, formato válido |
 | **Nombre completo** | Nombre y apellido | Mínimo 2 caracteres |
-| **Rol** | admin / manager / operator / viewer | Debe ser un rol válido |
+| **Rol** | admin | Rol con acceso completo |
 | **Contraseña** | Contraseña temporal | Mínimo 8 caracteres, 1 mayúscula, 1 número |
 
 3. El usuario se crea en el mismo tenant (empresa) que el admin
@@ -506,7 +671,7 @@ Filtros disponibles: por rol, por estado (activo/inactivo), búsqueda por texto.
 
 ---
 
-## 10. FAQ / Problemas Comunes
+## 12. FAQ / Problemas Comunes
 
 ### Acceso y Login
 

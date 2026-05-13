@@ -20,11 +20,20 @@ from app.routers.accounting import router as accounting_router, kardex_router
 from app.routers.setup import router as settings_router
 from app.routers.auth import router as auth_router
 from app.routers.admin import router as admin_router
+from app.routers.sales import router as sales_router
+from app.routers.simulator import router as simulator_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan: inicialización y apagado limpio."""
+    """Lifespan: inicialización, migraciones DB, y apagado limpio."""
+    # ─── QA-05/DEV-02: Ejecutar migraciones al arrancar ──────
+    try:
+        from app.adapters.alembic.env import run_async_migrations
+        await run_async_migrations()
+        print("[startup] Alembic upgrade head — OK")
+    except Exception as e:
+        print(f"[startup] ⚠️ Alembic migration failed (non-fatal): {e}")
     yield
 
 
@@ -65,6 +74,8 @@ app.include_router(kardex_router)
 app.include_router(settings_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(sales_router)
+app.include_router(simulator_router)
 
 
 @app.get("/")

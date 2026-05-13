@@ -20,6 +20,14 @@ from app.core.security import hash_password
 from app.models.user import User
 from app.adapters.db.repositories.user import UserRepository
 from app.schemas.auth import AdminUserResponse, CreateUserRequest, UserResponse
+from app.schemas.sales import (
+    CompanyFeaturesSettings,
+    CompanySettingsUpdateRequest,
+    FeatureFlags,
+    TaxConfig,
+    BUSINESS_TYPE_DEFAULTS,
+)
+from app.adapters.db.models.accounting import Company
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -100,3 +108,94 @@ async def list_users(
         offset=offset,
     )
     return [AdminUserResponse.model_validate(u) for u in users]
+
+
+# ═══════════════════════════════════════════════════════════════
+# HU-F1-002: Company Settings (Feature Flags + Tax Config)
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.put("/company/settings")
+async def update_company_settings(
+    data: CompanySettingsUpdateRequest,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(require_role("admin"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    HU-F1-002: Actualiza feature flags y tax_config de la empresa.
+
+    PUT /api/admin/company/settings
+
+    Valida que los feature flags sean permitidos y persiste en settings JSON.
+    """
+    result = await db.execute(
+        select(Company).where(Company.id == tenant_id)
+    )
+    company = result.scalar_one_or_none()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
+    current_settings = dict(company.settings) if company.settings else {}
+
+    # Merge features
+    if data.features is not None:
+        current_settings["features"] = data.features.model_dump()
+
+    # Merge tax_config
+    if data.tax_config is not None:
+        current_settings["tax_config"] = data.tax_config.model_dump()
+
+    # QA-02: Persistencia explícita — asignar + flag_modified para JSON columns
+    company.settings = current_settings
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(company, "settings")
+    await db.flush()
+
+    return {
+        "company_id": company.id,
+        "business_type": company.business_type,
+        "settings": company.settings,
+    }
+
+
+@router.get("/company/settings")
+async def get_company_settings(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Obtiene la configuración completa de la empresa (features + tax + defaults).
+    """
+    result = await db.execute(
+        select(Company).where(Company.id == tenant_id)
+    )
+    company = result.scalar_one_or_none()
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
+    # Merge con defaults del business_type
+    defaults = BUSINESS_TYPE_DEFAULTS.get(
+        company.business_type, BUSINESS_TYPE_DEFAULTS["retail"]
+    )
+
+    stored = company.settings or {}
+    features_raw = stored.get("features", {})
+    tax_raw = stored.get("tax_config", {})
+
+    # Merge: stored overrides defaults
+    merged_features = defaults.features.model_dump()
+    merged_features.update(features_raw)
+
+    merged_tax = defaults.tax_config.model_dump()
+    merged_tax.update(tax_raw)
+
+    return {
+        "company_id": company.id,
+        "business_type": company.business_type,
+        "settings": {
+            "features": merged_features,
+            "tax_config": merged_tax,
+        },
+    }

@@ -21,8 +21,12 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.db.database import get_db
 from app.core.accounting import (
+    CashflowReport,
+    CashflowService,
     FinancialStatementService,
     InvestmentVariables,
     KardexEngine,
@@ -518,3 +522,364 @@ async def close_warehouse(
     """
     result = _kardex_engine.warehouse_close(accounting_balance)
     return WarehouseCloseResponse(**result)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Kárdex DB-backed (HU-F2-012) — persistencia real en PostgreSQL
+# ═══════════════════════════════════════════════════════════════
+
+from app.services.kardex_service import KardexDBService, get_kardex_service  # noqa: E402
+
+
+@kardex_router.post("/db/products", response_model=KardexProductResponse)
+async def register_product_db(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    kardex: Annotated[KardexDBService, Depends(get_kardex_service)],
+    data: ProductInput,
+):
+    """HU-F2-012: Registra producto en DB (persistente)."""
+    try:
+        p = await kardex.register_product(
+            code=data.code, name=data.name, unit=data.unit,
+            initial_stock=data.initial_stock, initial_cost=data.initial_cost,
+        )
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+    return KardexProductResponse(
+        code=p.code, name=p.name, unit=p.unit_of_measure,
+        current_stock=p.current_stock, average_cost=p.average_cost,
+        total_value=round(p.current_stock * p.average_cost, 2),
+    )
+
+
+@kardex_router.post("/db/entry", response_model=KardexRecordResponse)
+async def kardex_entry_db(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    kardex: Annotated[KardexDBService, Depends(get_kardex_service)],
+    data: KardexEntryInput,
+):
+    """HU-F2-012: Registra entrada de inventario en DB."""
+    try:
+        record = await kardex.record_entry(
+            product_code=data.product_code, quantity=data.quantity,
+            unit_cost=data.unit_cost, concept=data.concept,
+            movement_date=data.date, reference_type=data.reference_type,
+        )
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+    return KardexRecordResponse(
+        product_code="",  # Se infiere del product_id
+        movement_type=record.movement_type,
+        concept=record.concept,
+        quantity=record.quantity,
+        unit_cost=record.unit_cost,
+        total=record.total,
+        balance_quantity=record.balance_quantity,
+        balance_avg_cost=record.balance_avg_cost,
+        balance_total=record.balance_total,
+        date=record.date_,
+    )
+
+
+@kardex_router.post("/db/exit", response_model=KardexRecordResponse)
+async def kardex_exit_db(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    kardex: Annotated[KardexDBService, Depends(get_kardex_service)],
+    data: KardexExitInput,
+):
+    """HU-F2-012: Registra salida de inventario en DB."""
+    try:
+        record = await kardex.record_exit(
+            product_code=data.product_code, quantity=data.quantity,
+            concept=data.concept, movement_date=data.date,
+            reference_type=data.reference_type,
+        )
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+    return KardexRecordResponse(
+        product_code="",
+        movement_type=record.movement_type,
+        concept=record.concept,
+        quantity=record.quantity,
+        unit_cost=record.unit_cost,
+        total=record.total,
+        balance_quantity=record.balance_quantity,
+        balance_avg_cost=record.balance_avg_cost,
+        balance_total=record.balance_total,
+        date=record.date_,
+    )
+
+
+@kardex_router.get("/db/inventory", response_model=list[KardexProductResponse])
+async def get_inventory_summary_db(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    kardex: Annotated[KardexDBService, Depends(get_kardex_service)],
+):
+    """HU-F2-012: Resumen inventario desde DB."""
+    summary = await kardex.get_inventory_summary()
+    return [KardexProductResponse(**item) for item in summary]
+
+
+@kardex_router.get("/db/{product_code}", response_model=list[KardexRecordResponse])
+async def get_kardex_db(
+    product_code: str,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    kardex: Annotated[KardexDBService, Depends(get_kardex_service)],
+):
+    """HU-F2-012: Historial kárdex desde DB."""
+    try:
+        records = await kardex.get_kardex(product_code)
+    except KeyError:
+        raise HTTPException(404, f"Producto {product_code} no encontrado")
+
+    return [
+        KardexRecordResponse(
+            product_code=product_code,
+            movement_type=r.movement_type,
+            concept=r.concept,
+            quantity=r.quantity,
+            unit_cost=r.unit_cost,
+            total=r.total,
+            balance_quantity=r.balance_quantity,
+            balance_avg_cost=r.balance_avg_cost,
+            balance_total=r.balance_total,
+            date=r.date_,
+        )
+        for r in records
+    ]
+
+
+@kardex_router.post("/db/warehouse-close", response_model=WarehouseCloseResponse)
+async def close_warehouse_db(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    kardex: Annotated[KardexDBService, Depends(get_kardex_service)],
+    accounting_balance: float = Query(..., ge=0, description="Saldo de Cuenta 12"),
+):
+    """HU-F2-012: Cierre de almacén desde DB."""
+    result = await kardex.warehouse_close(accounting_balance)
+    return WarehouseCloseResponse(**result)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Flujo de Caja (HU-F1-004, F1-005, F1-006)
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.get("/cashflow")
+async def get_cashflow(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    view: str = Query("projected", description="projected | actual | comparison"),
+    year: int | None = Query(None, ge=2020, le=2100),
+    from_date: str | None = Query(None, alias="from", description="YYYY-MM"),
+    to_date: str | None = Query(None, alias="to", description="YYYY-MM"),
+):
+    """
+    Flujo de Caja — vista proyectada, real o comparativa.
+
+    Query params:
+        view=projected:  Requiere year (default año actual)
+        view=actual:     Requiere from y to (YYYY-MM)
+        view=comparison: Requiere from, to y calcula ambas
+    """
+    import calendar
+    from datetime import date as date_type
+    from app.schemas.sales import (
+        CashflowLineResponse,
+        CashflowAlertResponse,
+        CashflowReportResponse,
+    )
+    from app.adapters.db.models.accounting import CashflowProjection
+    from sqlalchemy import select as sa_select
+
+    current_year = date.today().year
+    target_year = year or current_year
+
+    if view == "projected":
+        # HU-F1-004: Intentar cargar desde DB, si no hay, generar desde variables en memoria
+        lines = await CashflowService.load_projection(db, tenant_id, target_year)
+
+        if lines:
+            report = CashflowReport(
+                company_id=tenant_id,
+                from_date=date_type(target_year, 1, 1),
+                to_date=date_type(target_year, 12, 31),
+                lines=lines,
+                opening_balance=0.0,
+                total_income=sum(l.projected for l in lines if l.category == "income"),
+                total_expenses=sum(l.projected for l in lines if l.category == "expense"),
+                view="projected",
+            )
+            report.net_cashflow = round(report.total_income - report.total_expenses, 2)
+            report.closing_balance = round(report.opening_balance + report.net_cashflow, 2)
+        else:
+            # Fallback: generar desde datos en memoria (setup simulado)
+            if not _investment:
+                raise HTTPException(
+                    404,
+                    detail="No hay datos de proyección. Ejecute el setup contable primero.",
+                )
+            report = CashflowService.generate_projection(_investment, target_year)
+            report.company_id = tenant_id
+
+        return CashflowReportResponse(
+            company_id=report.company_id,
+            from_date=report.from_date,
+            to_date=report.to_date,
+            view=report.view,
+            opening_balance=report.opening_balance,
+            total_income=report.total_income,
+            total_expenses=report.total_expenses,
+            net_cashflow=report.net_cashflow,
+            closing_balance=report.closing_balance,
+            is_balanced=report.is_balanced,
+            lines=[
+                CashflowLineResponse(
+                    month=l.month, year=l.year,
+                    concept=l.concept, category=l.category,
+                    projected=l.projected, actual=l.actual,
+                    difference=l.difference, difference_pct=l.difference_pct,
+                )
+                for l in report.lines
+            ],
+            alerts=[
+                CashflowAlertResponse(
+                    severity=a.severity, category=a.category,
+                    message=a.message, month=a.month,
+                )
+                for a in report.alerts
+            ],
+        )
+
+    elif view == "actual":
+        # HU-F1-005: Vista real desde journal_entries
+        if not from_date or not to_date:
+            raise HTTPException(400, detail="view=actual requiere 'from' y 'to' (YYYY-MM)")
+
+        try:
+            fd_parts = from_date.split("-")
+            td_parts = to_date.split("-")
+            fd = date_type(int(fd_parts[0]), int(fd_parts[1]), 1)
+            _, last_day = calendar.monthrange(int(td_parts[0]), int(td_parts[1]))
+            td = date_type(int(td_parts[0]), int(td_parts[1]), last_day)
+        except (ValueError, IndexError):
+            raise HTTPException(400, detail="Formato de fecha inválido. Use YYYY-MM")
+
+        report = CashflowService.calculate_real(_journal, tenant_id, fd, td)
+
+        return CashflowReportResponse(
+            company_id=report.company_id,
+            from_date=report.from_date,
+            to_date=report.to_date,
+            view=report.view,
+            opening_balance=report.opening_balance,
+            total_income=report.total_income,
+            total_expenses=report.total_expenses,
+            net_cashflow=report.net_cashflow,
+            closing_balance=report.closing_balance,
+            is_balanced=report.is_balanced,
+            lines=[
+                CashflowLineResponse(
+                    month=l.month, year=l.year,
+                    concept=l.concept, category=l.category,
+                    projected=l.projected, actual=l.actual,
+                    difference=l.difference, difference_pct=l.difference_pct,
+                )
+                for l in report.lines
+            ],
+            alerts=[
+                CashflowAlertResponse(
+                    severity=a.severity, category=a.category,
+                    message=a.message, month=a.month,
+                )
+                for a in report.alerts
+            ],
+        )
+
+    elif view == "comparison":
+        # HU-F1-006: Comparativa proyectado vs real
+        if not from_date or not to_date:
+            raise HTTPException(400, detail="view=comparison requiere 'from' y 'to' (YYYY-MM)")
+
+        try:
+            fd_parts = from_date.split("-")
+            td_parts = to_date.split("-")
+            fd = date_type(int(fd_parts[0]), int(fd_parts[1]), 1)
+            _, last_day = calendar.monthrange(int(td_parts[0]), int(td_parts[1]))
+            td = date_type(int(td_parts[0]), int(td_parts[1]), last_day)
+            comp_year = int(fd_parts[0])
+        except (ValueError, IndexError):
+            raise HTTPException(400, detail="Formato de fecha inválido. Use YYYY-MM")
+
+        # Cargar/calcular proyectado
+        lines = await CashflowService.load_projection(db, tenant_id, comp_year)
+        if lines:
+            proj = CashflowReport(
+                company_id=tenant_id,
+                from_date=fd, to_date=td,
+                lines=lines,
+                opening_balance=0.0,
+                total_income=sum(l.projected for l in lines if l.category == "income"),
+                total_expenses=sum(l.projected for l in lines if l.category == "expense"),
+                view="projected",
+            )
+            proj.net_cashflow = round(proj.total_income - proj.total_expenses, 2)
+            proj.closing_balance = round(proj.opening_balance + proj.net_cashflow, 2)
+        elif _investment:
+            proj = CashflowService.generate_projection(_investment, comp_year)
+            proj.company_id = tenant_id
+        else:
+            raise HTTPException(
+                404,
+                detail="No hay datos de proyección. Ejecute el setup contable primero.",
+            )
+
+        # Calcular real
+        actual = CashflowService.calculate_real(_journal, tenant_id, fd, td)
+
+        # Comparar
+        report = CashflowService.compare(proj, actual)
+
+        return CashflowReportResponse(
+            company_id=report.company_id,
+            from_date=report.from_date,
+            to_date=report.to_date,
+            view=report.view,
+            opening_balance=report.opening_balance,
+            total_income=report.total_income,
+            total_expenses=report.total_expenses,
+            net_cashflow=report.net_cashflow,
+            closing_balance=report.closing_balance,
+            is_balanced=report.is_balanced,
+            lines=[
+                CashflowLineResponse(
+                    month=l.month, year=l.year,
+                    concept=l.concept, category=l.category,
+                    projected=l.projected, actual=l.actual,
+                    difference=l.difference, difference_pct=l.difference_pct,
+                )
+                for l in report.lines
+            ],
+            alerts=[
+                CashflowAlertResponse(
+                    severity=a.severity, category=a.category,
+                    message=a.message, month=a.month,
+                )
+                for a in report.alerts
+            ],
+        )
+
+    else:
+        raise HTTPException(
+            400, detail="view debe ser 'projected', 'actual' o 'comparison'"
+        )

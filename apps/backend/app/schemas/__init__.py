@@ -250,3 +250,38 @@ class CompanySettings(BaseModel):
     date_format: str = Field("DD/MM/YYYY", description="Formato de fecha")
     currency: str = Field("PEN", description="Moneda (PEN, USD)")
     timezone: str = Field("America/Lima", description="Zona horaria IANA")
+
+
+# ═══════════════════════════════════════════════════════════════
+# Importar schemas de ventas (HU-F2)
+# ═══════════════════════════════════════════════════════════════
+
+from app.schemas.sales import (  # noqa: F401, E402
+    BUSINESS_TYPE_DEFAULTS,
+    CashflowAlertResponse,
+    CashflowLineResponse,
+    CashflowReportResponse,
+    CompanyFeaturesSettings,
+    CompanySettingsUpdateRequest,
+    FeatureFlags,
+    HardwareSaleCreate,
+    HardwareSaleResponse,
+    PaymentMethodInfo,
+    PaymentMethodsResponse,
+    PosSessionClose,
+    PosSessionOpen,
+    PosSessionResponse,
+    RestaurantSaleCreate,
+    RestaurantSaleResponse,
+    SaleCreate,
+    SaleDetailResponse,
+    SaleItemCreate,
+    SaleItemResponse,
+    SaleListResponse,
+    SalePaymentCreate,
+    SalePaymentResponse,
+    SaleResponse,
+    SaleVoidRequest,
+    TaxConfig,
+    TicketResponse,
+)

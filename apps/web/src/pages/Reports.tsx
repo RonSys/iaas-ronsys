@@ -404,6 +404,29 @@ function SkeletonReport({ rows }: { rows: number }) {
 }
 
 function ErrorBox({ message }: { message: string }) {
+  // Si el backend responde que no hay datos → mensaje amigable con link a setup
+  const isNoData =
+    message.includes("No hay asientos") ||
+    message.includes("No hay datos") ||
+    message.includes("Ejecuta");
+
+  if (isNoData) {
+    return (
+      <div className="card text-center py-8">
+        <span className="text-4xl">📊</span>
+        <h3 className="mt-3 text-lg font-medium text-brand-text-primary">
+          No hay datos contables cargados
+        </h3>
+        <p className="mt-2 text-sm text-brand-text-secondary max-w-md mx-auto">
+          Ejecutá la simulación inicial para generar los estados financieros.
+        </p>
+        <a href="/setup" className="btn-primary mt-4 inline-block text-sm">
+          ⚙️ Ir a Configuración Inicial
+        </a>
+      </div>
+    );
+  }
+
   return (
     <div className="card border-brand-error bg-brand-error/5 text-brand-error text-sm">
       ⚠️ {message}

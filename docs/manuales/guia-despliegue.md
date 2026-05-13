@@ -1,6 +1,7 @@
 # 🚀 Guía de Despliegue — IaaS-RonSys
 
-> ERP SaaS con motor contable, autenticación multi-tenant, kárdex y simulador financiero.
+> ERP SaaS con motor contable, autenticación multi-tenant, flujo de caja, kárdex, POS y simulador financiero.
+> Versión: v0.2.0 | Stack: FastAPI + React 19 + PostgreSQL 16 + Redis 7 + RabbitMQ 4
 
 ---
 
@@ -241,6 +242,20 @@ docker compose down -v  # ⚠️ Borra TODOS los datos
 
 ## 7. Troubleshooting
 
+### "Puerto 80 requiere permisos de root"
+
+El puerto 80 es privilegiado (requiere sudo). Si Nginx no puede bindear:
+
+```bash
+# Opción 1: Usar puerto alternativo
+# En .env.prod: FRONTEND_PORT=8080
+# → Acceder en http://localhost:8080
+
+# Opción 2: Dar capabilities a Nginx
+sudo setcap 'cap_net_bind_service=+ep' /usr/bin/docker
+# (Requiere reiniciar Docker)
+```
+
 ### "Puerto 5432/6379/8000 ya está en uso"
 
 ```bash
@@ -309,26 +324,153 @@ Vite dev server no está corriendo:
 cd apps/web && npm run dev &
 ```
 
----
-
-## 8. Entornos
-
-### Desarrollo Local (este deploy)
-
-- Backend: Docker (Python 3.12-slim) con hot-reload
-- Frontend: Vite dev server con hot-reload + proxy `/api` → backend
-- BD: Docker PostgreSQL 16
-- Redis: Docker Redis 7
-
-### Producción (pendiente)
+### "No se encuentra .env.qa o .env.prod"
 
 ```bash
-# Frontend compilado servido por nginx
-cd apps/web && npm run build
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Crear a partir del template
+cp .env.example .env.qa
+cp .env.example .env.prod
+
+# Editar variables específicas:
+# .env.qa → POSTGRES_DB=iaas_ronsys_qa, BACKEND_PORT=8001
+# .env.prod → POSTGRES_DB=iaas_ronsys, BACKEND_PORT=8000
 ```
 
-(Archivo `docker-compose.prod.yml` pendiente de crear — incluirá nginx para el frontend.)
+### "Nginx no sirve archivos estáticos"
+
+```bash
+# Verificar que dist/ existe
+docker exec iaas-frontend-prod ls /usr/share/nginx/html/
+# Debe mostrar: index.html, assets/
+
+# Si no, reconstruir:
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache frontend
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d frontend
+```
+
+### "QA y Prod en conflicto"
+
+Si ambos entornos intentan usar el mismo puerto:
+- QA backend usa `:8001`, Prod usa `:8000` → sin conflicto
+- QA frontend usa `:5173` (Vite en host), Prod usa `:80` (Nginx en Docker) → sin conflicto
+- Ambos comparten PostgreSQL `:5432` y Redis `:6379` pero con bases de datos diferentes
+
+---
+
+## 8. Entornos (QA vs Producción)
+
+IaaS-RonSys tiene **2 entornos independientes** que pueden correr simultáneamente:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                     ENTORNO QA (:5173 + :8001)               │
+│                                                              │
+│  ┌──────────┐   ┌──────────┐   ┌─────────────────────┐     │
+│  │ postgres │   │  redis   │   │  backend-qa (:8001) │     │
+│  │  :5432   │   │  :6379   │   │  Python 3.12-slim   │     │
+│  └────┬─────┘   └────┬─────┘   └──────────┬──────────┘     │
+│       │              │                     │                 │
+│       └──────────────┼─────────────────────┘                 │
+│                      │                                       │
+│  BD: iaas_ronsys_qa  │                                       │
+│                                                              │
+│  ┌────────────────────┴────────────────────────────────┐    │
+│  │  Frontend QA: Vite dev server (:5173)               │    │
+│  │  Hot-reload activo  |  Proxy /api → :8001            │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│                 ENTORNO PRODUCCIÓN (:80 + :8000)             │
+│                                                              │
+│  ┌──────────┐   ┌──────────┐   ┌─────────────────────┐     │
+│  │ postgres │   │  redis   │   │  backend-prod (:8000)│     │
+│  │  :5432   │   │  :6379   │   │  Python 3.12-slim   │     │
+│  └────┬─────┘   └────┬─────┘   └──────────┬──────────┘     │
+│       │              │                     │                 │
+│       └──────────────┼─────────────────────┘                 │
+│                      │                                       │
+│  BD: iaas_ronsys     │                                       │
+│                                                              │
+│  ┌────────────────────┴────────────────────────────────┐    │
+│  │  Frontend Prod: Nginx (:80) ← proxy /api → :8000   │    │
+│  │  Archivos estáticos compilados con Vite              │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Tabla Comparativa
+
+| Característica | 🧪 QA | 🚀 Producción |
+|---------------|-------|---------------|
+| **Comando** | `./deploy.sh --env qa` | `./deploy.sh --env prod` |
+| **Frontend** | Vite dev server `:5173` | Nginx `:80` |
+| **Backend** | `:8001` (uvicorn reload) | `:8000` |
+| **Base de datos** | `iaas_ronsys_qa` | `iaas_ronsys` |
+| **Env file** | `.env.qa` | `.env.prod` |
+| **Hot-reload backend** | ✅ | ❌ |
+| **Hot-reload frontend** | ✅ (HMR + Vite) | ❌ (compilado) |
+| **SSL** | ❌ | Configurable |
+| **Propósito** | Pruebas y desarrollo | Demo / cliente final |
+
+### Desplegar Cada Entorno
+
+```bash
+# QA — entorno de pruebas
+./deploy.sh --env qa
+# → Backend:  http://localhost:8001
+# → Frontend: http://localhost:5173
+# → Swagger:  http://localhost:8001/docs
+
+# Producción
+./deploy.sh --env prod
+# → Frontend: http://localhost       (nginx :80)
+# → Backend:  http://localhost:8000
+# → Swagger:  http://localhost:8000/docs
+```
+
+> 💡 Ambos entornos pueden ejecutarse **al mismo tiempo** sin conflictos de puertos ni datos.
+
+### Verificar Cada Entorno
+
+```bash
+# QA
+curl http://localhost:8001/health
+# → {"status":"ok","service":"IaaS-RonSys","version":"0.1.0"}
+curl http://localhost:5173/  # Frontend QA
+
+# Producción
+curl http://localhost:8000/health
+curl http://localhost/       # Frontend Prod
+```
+
+### Parar Cada Entorno
+
+```bash
+# Parar QA
+docker compose -f docker-compose.yml -f docker-compose.qa.yml down
+
+# Parar Producción
+docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+
+# Parar TODO (ambos entornos + infraestructura compartida)
+docker compose -f docker-compose.yml -f docker-compose.qa.yml down
+docker compose -f docker-compose.yml -f docker-compose.prod.yml down
+docker compose down  # Infraestructura base (postgres, redis)
+```
+
+### Puertos de Cada Entorno
+
+| Entorno | Servicio | Puerto | Contenedor |
+|---------|----------|--------|------------|
+| **Compartido** | PostgreSQL | 5432 | `iaas-postgres` |
+| **Compartido** | Redis | 6379 | `iaas-redis` |
+| **QA** | Backend | 8001 | `iaas-backend-qa` |
+| **QA** | Frontend (Vite) | 5173 | Host (`npm run dev`) |
+| **Prod** | Backend | 8000 | `iaas-backend-prod` |
+| **Prod** | Frontend (Nginx) | 80 | `iaas-frontend-prod` |
 
 ---
 

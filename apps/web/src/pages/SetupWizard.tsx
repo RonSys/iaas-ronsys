@@ -90,6 +90,7 @@ export function SetupWizard() {
             />
             <FormField
               label="Tasa de interés anual (%)"
+              prefix=""
               value={((input.loan_rate_annual ?? 0) * 100)}
               onChange={(v) => handleChange("loan_rate_annual", v / 100)}
               suffix="%"
@@ -97,6 +98,7 @@ export function SetupWizard() {
             />
             <FormField
               label="Plazo del préstamo (meses)"
+              prefix=""
               value={input.loan_term_months ?? 12}
               onChange={(v) => handleChange("loan_term_months", v)}
               isInt
@@ -147,6 +149,7 @@ export function SetupWizard() {
             />
             <FormField
               label="Costo de insumos (% de ventas)"
+              prefix=""
               value={((input.monthly_cost_pct ?? 0.40) * 100)}
               onChange={(v) => handleChange("monthly_cost_pct", v / 100)}
               suffix="%"
@@ -154,6 +157,7 @@ export function SetupWizard() {
             />
             <FormField
               label="Meses a proyectar"
+              prefix=""
               value={input.months ?? 12}
               onChange={(v) => handleChange("months", v)}
               isInt
@@ -169,10 +173,10 @@ export function SetupWizard() {
             ⏳ Vida Útil de Activos (años)
           </legend>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <FormField label="Equipamiento" value={input.equipment_life_years ?? 8} onChange={(v) => handleChange("equipment_life_years", v)} isInt min={1} />
-            <FormField label="Mobiliario" value={input.furniture_life_years ?? 10} onChange={(v) => handleChange("furniture_life_years", v)} isInt min={1} />
-            <FormField label="Cómputo" value={input.computer_life_years ?? 5} onChange={(v) => handleChange("computer_life_years", v)} isInt min={1} />
-            <FormField label="Software" value={input.software_life_years ?? 3} onChange={(v) => handleChange("software_life_years", v)} isInt min={1} />
+            <FormField label="Equipamiento" prefix="" value={input.equipment_life_years ?? 8} onChange={(v) => handleChange("equipment_life_years", v)} isInt min={1} />
+            <FormField label="Mobiliario" prefix="" value={input.furniture_life_years ?? 10} onChange={(v) => handleChange("furniture_life_years", v)} isInt min={1} />
+            <FormField label="Cómputo" prefix="" value={input.computer_life_years ?? 5} onChange={(v) => handleChange("computer_life_years", v)} isInt min={1} />
+            <FormField label="Software" prefix="" value={input.software_life_years ?? 3} onChange={(v) => handleChange("software_life_years", v)} isInt min={1} />
           </div>
         </fieldset>
 
@@ -219,6 +223,7 @@ function FormField({
   label,
   value,
   onChange,
+  prefix = "S/",
   suffix,
   isInt,
   min,
@@ -228,35 +233,47 @@ function FormField({
   label: string;
   value: number;
   onChange: (v: number) => void;
+  prefix?: string;
   suffix?: string;
   isInt?: boolean;
   min?: number;
   max?: number;
   decimals?: number;
 }) {
+  const hasPrefix = prefix !== "";
+  const hasSuffix = suffix !== undefined;
   return (
     <label className="flex flex-col gap-1">
       <span className="text-xs font-medium text-brand-text-secondary">{label}</span>
-      <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-brand-text-secondary">
-          S/
-        </span>
+      <div
+        className={
+          hasPrefix || hasSuffix
+            ? "input-field flex items-center gap-1.5 px-3"
+            : "input-field"
+        }
+      >
+        {hasPrefix && (
+          <span className="text-sm text-brand-text-secondary shrink-0">{prefix}</span>
+        )}
         <input
-          type="number"
+          type="text"
+          inputMode={isInt ? "numeric" : "decimal"}
           value={isInt ? Math.round(value) : decimals ? value.toFixed(decimals) : value}
           min={min}
           max={max}
-          step={isInt ? 1 : "any"}
           onChange={(e) => {
-            const v = parseFloat(e.target.value);
+            const raw = e.target.value;
+            if (raw === "" || raw === "-") {
+              onChange(0);
+              return;
+            }
+            const v = parseFloat(raw);
             if (!isNaN(v)) onChange(v);
           }}
-          className="input-field pl-8"
+          className="flex-1 border-none outline-none bg-transparent p-0 text-sm text-brand-text-primary w-full"
         />
-        {suffix && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-brand-text-secondary">
-            {suffix}
-          </span>
+        {hasSuffix && (
+          <span className="text-sm text-brand-text-secondary shrink-0">{suffix}</span>
         )}
       </div>
     </label>

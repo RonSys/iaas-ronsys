@@ -124,25 +124,31 @@ export function Settings() {
           {PALETTE_KEYS.map(({ key, label, cssVar }) => {
             const color = palette?.[key] ?? "#000";
             return (
-              <div key={key} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
-                <div className="relative">
-                  <input
-                    type="color"
-                    value={color}
-                    onChange={(e) => handleColorChange(key, e.target.value)}
-                    className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-brand-text-primary">{label}</div>
-                  <div className="flex items-center gap-1.5">
-                    <code className="text-xs text-brand-text-secondary bg-gray-100 px-1.5 py-0.5 rounded font-mono">
+              <div key={key} className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-gray-50">
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(e) => handleColorChange(key, e.target.value)}
+                  className="w-9 h-9 rounded border border-gray-300 cursor-pointer shrink-0 mt-0.5"
+                />
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="text-sm font-medium text-brand-text-primary">
+                    {label}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <code className="text-[11px] text-brand-text-secondary bg-gray-100 px-1.5 py-0.5 rounded font-mono">
                       {color}
                     </code>
-                    <span className="text-[10px] text-brand-text-secondary">{cssVar}</span>
+                    <span className="text-[10px] text-brand-text-secondary/60">
+                      {cssVar}
+                    </span>
                   </div>
                 </div>
-                <div className="w-8 h-8 rounded-lg border border-gray-200" style={{ background: color }} />
+                <div
+                  className="w-7 h-7 rounded ring-1 ring-black/10 shrink-0"
+                  style={{ background: color }}
+                  title={label}
+                />
               </div>
             );
           })}

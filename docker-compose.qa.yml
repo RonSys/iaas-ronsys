@@ -27,8 +27,8 @@ services:
       APP_NAME: ${APP_NAME:-IaaS-RonSys-QA}
       APP_VERSION: ${APP_VERSION:-0.1.0-qa}
       DEBUG: ${DEBUG:-true}
-      DATABASE_URL: ${DATABASE_URL_DOCKER}
-      REDIS_URL: ${REDIS_URL_DOCKER}
+      DATABASE_URL: postgresql+asyncpg://ron:ron123@postgres:5432/iaas_ronsys_qa
+      REDIS_URL: redis://redis:6379/0
       METRICS_ENABLED: ${METRICS_ENABLED:-true}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}

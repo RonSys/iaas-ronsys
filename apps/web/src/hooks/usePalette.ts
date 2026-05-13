@@ -2,8 +2,22 @@ import { useEffect, useState } from "react";
 import { getPalette, updatePalette } from "@/services";
 import type { ColorPalette } from "@/types";
 
+const DEFAULT_PALETTE: ColorPalette = {
+  primary: "#1a365d",
+  secondary: "#2b6cb0",
+  accent: "#e53e3e",
+  background: "#f7fafc",
+  surface: "#ffffff",
+  text_primary: "#1a202c",
+  text_secondary: "#718096",
+  success: "#38a169",
+  warning: "#d69e2e",
+  error: "#e53e3e",
+};
+
 /**
  * Carga la paleta desde el backend y la aplica como CSS custom properties.
+ * Si falla (ej: 400 por falta de X-Tenant-ID), usa defaults hardcodeados.
  */
 export function usePalette() {
   const [palette, setPalette] = useState<ColorPalette | null>(null);
@@ -19,6 +33,8 @@ export function usePalette() {
       .catch((err) => {
         setError(err.message);
         console.warn("usePalette: usando defaults", err);
+        // Aplicar defaults para evitar CSS sin variables → página blanca
+        applyPalette(DEFAULT_PALETTE);
       })
       .finally(() => setLoading(false));
   }, []);

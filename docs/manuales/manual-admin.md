@@ -1,8 +1,8 @@
 # 🛡️ Manual de Administrador — IaaS-RonSys
 
-> **Versión:** 1.0  
-> **Fecha:** 2026-05-10  
-> **Sistema:** IaaS-RonSys v0.1.0 — ERP SaaS Financiero-Contable  
+> **Versión:** 2.0  
+> **Fecha:** 2026-05-12  
+> **Sistema:** IaaS-RonSys v0.2.0 — ERP SaaS + POS + Cashflow + Kárdex Persistente  
 > **Audiencia:** Administradores del sistema (rol `admin`)  
 > **Franquicia:** El Segoviano 🐟
 

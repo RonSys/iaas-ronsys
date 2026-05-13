@@ -47,6 +47,9 @@ def setup_logging_middleware(app: FastAPI) -> None:
 # En memoria (sin Redis por ahora — se conecta cuando Redis esté disponible)
 _rate_limit_store: dict[str, list[float]] = {}
 
+# Endpoints excluidos de rate limiting (health checks de Docker, readiness)
+_RATE_LIMIT_EXEMPT_PATHS = {"/health", "/ready", "/docs", "/redoc", "/openapi.json"}
+
 
 def setup_rate_limiting(
     app: FastAPI,
@@ -81,6 +84,10 @@ def setup_rate_limiting(
 
     @app.middleware("http")
     async def rate_limit(request: Request, call_next: Callable):
+        # Eximir endpoints de health check y documentación
+        if request.url.path in _RATE_LIMIT_EXEMPT_PATHS:
+            return await call_next(request)
+
         client_ip = request.client.host if request.client else "unknown"
         key = f"{client_ip}:{request.url.path}"
         now = time.monotonic()

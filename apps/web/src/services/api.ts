@@ -12,6 +12,38 @@
  */
 
 import { authStore } from "./authStore";
+import type {
+  HealthResponse,
+  BCSSResponse,
+  IncomeStatementResponse,
+  BalanceSheetResponse,
+  RatioItem,
+  KardexProduct,
+  KardexRecord,
+  WarehouseCloseResponse,
+  CompanySettings,
+  ColorPalette,
+  InvestmentInput,
+  FinancialReportResponse,
+  CompanySettingsResponse,
+  CashflowQueryParams,
+  CashflowResponse,
+  PosSession,
+  PosSessionOpenRequest,
+  PosSessionCloseResponse,
+  PosSessionCloseRequest,
+  Sale,
+  SaleDetail,
+  SaleCreateRequest,
+  SaleListResponse,
+  SaleFilters,
+  TicketResponse,
+  VoidSaleRequest,
+  PaymentMethodsResponse,
+  Scenario,
+  ScenarioCreateRequest,
+  ScenarioUpdateRequest,
+} from "@/types";
 
 const BASE = "/api";
 
@@ -50,13 +82,11 @@ async function request<T>(
 ): Promise<T> {
   const url = `${BASE}${path}`;
 
-  // Headers base
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> ?? {}),
   };
 
-  // Inyectar auth headers (excepto rutas excluidas)
   if (!shouldSkipAuth(path)) {
     const token = authStore.getAccessToken();
     const tenantId = authStore.getTenantId();
@@ -66,33 +96,32 @@ async function request<T>(
 
   let res = await fetch(url, { ...options, headers });
 
-  // ─── Interceptor 401 ──────────────────────────────────
   if (res.status === 401 && !shouldSkipRetry(path)) {
     const newToken = await getRefreshPromise();
 
     if (newToken) {
-      // Reintentar con nuevo token
       headers["Authorization"] = `Bearer ${newToken}`;
       const tenantId = authStore.getTenantId();
       if (tenantId) headers["X-Tenant-ID"] = String(tenantId);
-
       res = await fetch(url, { ...options, headers });
     } else {
-      // Refresh falló → logout
       authStore.triggerLogout();
       throw new Error("Sesión expirada");
     }
   }
 
-  // ─── Error handling ───────────────────────────────────
   if (!res.ok) {
-    // Para errores de auth, incluir el status en el mensaje
-    // para que LoginPage pueda parsearlo
+    const errorData = await res.json().catch(() => null);
+    const detail = errorData?.detail;
+
     if (res.status === 401 || res.status === 423 || res.status === 429) {
-      const errorData = await res.json().catch(() => ({}));
-      const detail = errorData.detail ?? res.statusText;
-      throw new Error(`${res.status} ${detail}`);
+      throw new Error(`${res.status} ${detail ?? res.statusText}`);
     }
+
+    if (detail) {
+      throw new Error(detail);
+    }
+
     const errorText = await res.text().catch(() => res.statusText);
     throw new Error(`API Error ${res.status}: ${errorText}`);
   }
@@ -104,7 +133,7 @@ async function request<T>(
 // Health
 // ═══════════════════════════════════════════════════════════
 
-export async function getHealth(): Promise<{ status: string; service: string; version: string }> {
+export async function getHealth(): Promise<HealthResponse> {
   return request("/health");
 }
 
@@ -113,8 +142,8 @@ export async function getHealth(): Promise<{ status: string; service: string; ve
 // ═══════════════════════════════════════════════════════════
 
 export async function setupAccounting(
-  data: import("@/types").InvestmentInput,
-): Promise<import("@/types").FinancialReportResponse> {
+  data: InvestmentInput,
+): Promise<FinancialReportResponse> {
   return request("/accounting/setup", {
     method: "POST",
     body: JSON.stringify(data),
@@ -125,19 +154,19 @@ export async function setupAccounting(
 // Consultas Contables
 // ═══════════════════════════════════════════════════════════
 
-export async function getBCSS(): Promise<import("@/types").BCSSResponse> {
+export async function getBCSS(): Promise<BCSSResponse> {
   return request("/accounting/bcss");
 }
 
-export async function getIncomeStatement(): Promise<import("@/types").IncomeStatementResponse> {
+export async function getIncomeStatement(): Promise<IncomeStatementResponse> {
   return request("/accounting/pyg");
 }
 
-export async function getBalanceSheet(): Promise<import("@/types").BalanceSheetResponse> {
+export async function getBalanceSheet(): Promise<BalanceSheetResponse> {
   return request("/accounting/balance");
 }
 
-export async function getRatios(): Promise<import("@/types").RatioItem[]> {
+export async function getRatios(): Promise<RatioItem[]> {
   return request("/accounting/ratios");
 }
 
@@ -145,13 +174,13 @@ export async function getRatios(): Promise<import("@/types").RatioItem[]> {
 // Kárdex
 // ═══════════════════════════════════════════════════════════
 
-export async function getKardexInventory(): Promise<import("@/types").KardexProduct[]> {
+export async function getKardexInventory(): Promise<KardexProduct[]> {
   return request("/accounting/kardex/inventory/summary");
 }
 
 export async function getKardex(
   productCode: string,
-): Promise<import("@/types").KardexRecord[]> {
+): Promise<KardexRecord[]> {
   return request(`/accounting/kardex/${encodeURIComponent(productCode)}`);
 }
 
@@ -162,7 +191,7 @@ export async function registerKardexEntry(data: {
   concept: string;
   date: string;
   reference_type?: string;
-}): Promise<import("@/types").KardexRecord> {
+}): Promise<KardexRecord> {
   return request("/accounting/kardex/entry", {
     method: "POST",
     body: JSON.stringify(data),
@@ -175,7 +204,7 @@ export async function registerKardexExit(data: {
   concept: string;
   date: string;
   reference_type?: string;
-}): Promise<import("@/types").KardexRecord> {
+}): Promise<KardexRecord> {
   return request("/accounting/kardex/exit", {
     method: "POST",
     body: JSON.stringify(data),
@@ -188,7 +217,7 @@ export async function registerProduct(data: {
   unit?: string;
   initial_stock?: number;
   initial_cost?: number;
-}): Promise<import("@/types").KardexProduct> {
+}): Promise<KardexProduct> {
   return request("/accounting/kardex/products", {
     method: "POST",
     body: JSON.stringify(data),
@@ -197,7 +226,7 @@ export async function registerProduct(data: {
 
 export async function warehouseClose(
   accountingBalance: number,
-): Promise<import("@/types").WarehouseCloseResponse> {
+): Promise<WarehouseCloseResponse> {
   return request(
     `/accounting/kardex/warehouse-close?accounting_balance=${accountingBalance}`,
     { method: "POST" },
@@ -208,28 +237,186 @@ export async function warehouseClose(
 // Configuración / Branding
 // ═══════════════════════════════════════════════════════════
 
-export async function getSettings(): Promise<import("@/types").CompanySettings> {
+export async function getSettings(): Promise<CompanySettings> {
   return request("/settings");
 }
 
 export async function updateSettings(
-  data: Partial<import("@/types").CompanySettings>,
-): Promise<import("@/types").CompanySettings> {
+  data: Partial<CompanySettings>,
+): Promise<CompanySettings> {
   return request("/settings", {
     method: "PATCH",
     body: JSON.stringify(data),
   });
 }
 
-export async function getPalette(): Promise<import("@/types").ColorPalette> {
+export async function getPalette(): Promise<ColorPalette> {
   return request("/settings/palette");
 }
 
 export async function updatePalette(
-  palette: import("@/types").ColorPalette,
-): Promise<import("@/types").ColorPalette> {
+  palette: ColorPalette,
+): Promise<ColorPalette> {
   return request("/settings/palette", {
     method: "PATCH",
     body: JSON.stringify(palette),
   });
+}
+
+// ═══════════════════════════════════════════════════════════
+// Company Settings (feature flags + tax config)
+// ═══════════════════════════════════════════════════════════
+
+export async function getCompanySettings(): Promise<CompanySettingsResponse> {
+  return request("/admin/company/settings");
+}
+
+export async function updateCompanySettings(
+  data: Partial<Pick<CompanySettingsResponse, "features" | "tax_config">>,
+): Promise<CompanySettingsResponse> {
+  return request("/admin/company/settings", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// Cashflow
+// ═══════════════════════════════════════════════════════════
+
+export async function getCashflow(
+  params: CashflowQueryParams,
+): Promise<CashflowResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.view) searchParams.set("view", params.view);
+  if (params.from) searchParams.set("from", params.from);
+  if (params.to) searchParams.set("to", params.to);
+  if (params.year) searchParams.set("year", String(params.year));
+  const qs = searchParams.toString();
+  return request(`/accounting/cashflow${qs ? `?${qs}` : ""}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// POS Sessions
+// ═══════════════════════════════════════════════════════════
+
+export async function openPosSession(
+  data: PosSessionOpenRequest,
+): Promise<PosSession> {
+  return request("/sales/sessions/open", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getCurrentPosSession(): Promise<PosSession> {
+  return request("/sales/sessions/current");
+}
+
+export async function closePosSession(
+  sessionId: number,
+  data: PosSessionCloseRequest,
+): Promise<PosSessionCloseResponse> {
+  return request(`/sales/sessions/${sessionId}/close`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// Sales
+// ═══════════════════════════════════════════════════════════
+
+export async function createSale(
+  data: SaleCreateRequest,
+): Promise<SaleDetail> {
+  return request("/sales/sale", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getSales(
+  filters: SaleFilters = {},
+): Promise<SaleListResponse> {
+  const sp = new URLSearchParams();
+  if (filters.from) sp.set("from", filters.from);
+  if (filters.to) sp.set("to", filters.to);
+  if (filters.business_type) sp.set("business_type", filters.business_type);
+  if (filters.session_id) sp.set("session_id", String(filters.session_id));
+  if (filters.is_voided !== undefined) sp.set("is_voided", String(filters.is_voided));
+  if (filters.payment_method) sp.set("payment_method", filters.payment_method);
+  if (filters.page) sp.set("page", String(filters.page));
+  if (filters.limit) sp.set("limit", String(filters.limit));
+  const qs = sp.toString();
+  return request(`/sales/sales${qs ? `?${qs}` : ""}`);
+}
+
+export async function getSaleDetail(saleId: number): Promise<SaleDetail> {
+  return request(`/sales/sale/${saleId}`);
+}
+
+export async function getSaleTicket(
+  saleId: number,
+  format: "json" | "text" = "text",
+): Promise<TicketResponse> {
+  return request(`/sales/sale/${saleId}/ticket?format=${format}`);
+}
+
+export async function voidSale(
+  saleId: number,
+  data: VoidSaleRequest,
+): Promise<Sale> {
+  return request(`/sales/sale/${saleId}/void`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getPaymentMethods(): Promise<PaymentMethodsResponse> {
+  return request("/sales/payment-methods");
+}
+
+// ═══════════════════════════════════════════════════════════
+// Kárdex Products (for product search in POS)
+// ═══════════════════════════════════════════════════════════
+
+export async function searchKardexProducts(
+  query: string,
+): Promise<KardexProduct[]> {
+  return request(
+    `/accounting/kardex/products?search=${encodeURIComponent(query)}`,
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// Simulator Scenarios (HU-SIM-002)
+// ═══════════════════════════════════════════════════════════
+
+export async function getScenarios(): Promise<Scenario[]> {
+  const data = await request<{ scenarios: Scenario[]; total: number; max_allowed: number }>("/simulator/scenarios");
+  return data.scenarios;
+}
+
+export async function createScenario(
+  data: ScenarioCreateRequest,
+): Promise<Scenario> {
+  return request("/simulator/scenarios", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateScenario(
+  id: number,
+  data: ScenarioUpdateRequest,
+): Promise<Scenario> {
+  return request(`/simulator/scenarios/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteScenario(id: number): Promise<void> {
+  return request(`/simulator/scenarios/${id}`, { method: "DELETE" });
 }

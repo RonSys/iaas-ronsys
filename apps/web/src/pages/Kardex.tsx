@@ -40,13 +40,13 @@ export function KardexPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">📦 Kárdex — Inventario</h2>
         <div className="flex gap-2">
-          <button onClick={() => setShowNewProduct(true)} className="btn-primary text-sm">
+          <button onClick={() => setShowNewProduct(true)} className="btn btn-primary text-sm">
             + Producto
           </button>
-          <button onClick={() => setShowEntry(true)} className="btn-secondary text-sm" disabled={!selectedCode}>
+          <button onClick={() => setShowEntry(true)} className="btn btn-secondary text-sm" disabled={!selectedCode}>
             + Entrada
           </button>
-          <button onClick={() => setShowExit(true)} className="btn-accent text-sm" disabled={!selectedCode}>
+          <button onClick={() => setShowExit(true)} className="btn btn-accent text-sm" disabled={!selectedCode}>
             - Salida
           </button>
         </div>

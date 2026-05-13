@@ -42,6 +42,19 @@ const Settings = lazy(() =>
 const LoginPage = lazy(() =>
   import("@/pages/Login").then((m) => ({ default: m.LoginPage })),
 );
+// ─── Nuevas páginas Fase 1 + Fase 2 ───
+const CashflowPage = lazy(() =>
+  import("@/pages/Cashflow").then((m) => ({ default: m.CashflowPage })),
+);
+const PosPage = lazy(() =>
+  import("@/pages/Pos").then((m) => ({ default: m.PosPage })),
+);
+const SalesNewPage = lazy(() =>
+  import("@/pages/SalesNew").then((m) => ({ default: m.SalesNewPage })),
+);
+const SalesListPage = lazy(() =>
+  import("@/pages/SalesListPage").then((m) => ({ default: m.SalesListPage })),
+);
 
 function PageLoader() {
   return (
@@ -153,6 +166,50 @@ function AppRoutes() {
             <PrivateRoute allowedRoles={["admin", "manager"]}>
               <SuspendedPage title="Ajustes">
                 <Settings />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+
+        {/* ─── Fase 1: Cashflow ─── */}
+        <Route
+          path="/cashflow"
+          element={
+            <PrivateRoute>
+              <SuspendedPage title="Flujo de Caja">
+                <CashflowPage />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+
+        {/* ─── Fase 2: POS ─── */}
+        <Route
+          path="/caja"
+          element={
+            <PrivateRoute allowedRoles={["admin", "manager", "operator"]}>
+              <SuspendedPage title="Caja">
+                <PosPage />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/ventas/nueva"
+          element={
+            <PrivateRoute allowedRoles={["admin", "manager", "operator"]}>
+              <SuspendedPage title="Nueva Venta">
+                <SalesNewPage />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/ventas"
+          element={
+            <PrivateRoute>
+              <SuspendedPage title="Ventas">
+                <SalesListPage />
               </SuspendedPage>
             </PrivateRoute>
           }

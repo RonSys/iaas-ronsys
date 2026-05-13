@@ -13,6 +13,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSimulation } from "@/hooks/useAccounting";
+import { useScenarios } from "@/hooks/useScenarios";
 import { fmtCurrency, fmtPct, TrafficLight, Skeleton } from "@/components/dashboard/KPICard";
 import type { InvestmentInput } from "@/types";
 
@@ -65,9 +66,38 @@ export function Simulator() {
   const [costPct, setCostPct] = useState(40);
   const [rent, setRent] = useState(2500);
   const [salaries, setSalaries] = useState(5000);
-  const [scenarios, setScenarios] = useState<ScenarioSnapshot[]>([]);
 
   const { result, loading, error, simulate } = useSimulation();
+
+  const {
+    scenarios: apiScenarios,
+    isLoading: scenariosLoading,
+    isSaving,
+    error: scenariosError,
+    saveScenario: saveToApi,
+    deleteScenario: deleteFromApi,
+  } = useScenarios();
+
+  // Map API scenarios to UI snapshots (extract computed values from input_data)
+  const scenarios: ScenarioSnapshot[] = apiScenarios.map((s) => {
+    const d = s.input_data ?? {};
+    return {
+      id: String(s.id),
+      name: s.name,
+      price: d.price ?? 0,
+      platesPerDay: d.platesPerDay ?? 0,
+      costPct: d.costPct ?? 0,
+      rent: d.rent ?? 0,
+      salaries: d.salaries ?? 0,
+      revenue: d.revenue ?? 0,
+      grossProfit: d.grossProfit ?? 0,
+      netIncome: d.netIncome ?? 0,
+      payback: d.payback ?? null,
+      van: d.van ?? null,
+      tir: d.tir ?? null,
+      timestamp: new Date(s.created_at),
+    };
+  });
 
   const recalcMonthlySales = useCallback(
     () => Array(12).fill(price * platesPerDay * daysPerMonth),
@@ -103,15 +133,15 @@ export function Simulator() {
   const vanRatio = ratios?.find((r) => r.name.toLowerCase().includes("van"));
   const tirRatio = ratios?.find((r) => r.name.toLowerCase().includes("tir"));
 
-  const saveScenario = () => {
+  const saveScenario = async () => {
     if (!incomeStmt) return;
-    const snapshot: ScenarioSnapshot = {
-      id: Date.now().toString(),
-      name: scenarios.length === 0
-        ? "Realista"
-        : scenarios.length === 1
-          ? "Optimista"
-          : `Escenario ${scenarios.length + 1}`,
+    const name = scenarios.length === 0
+      ? "Realista"
+      : scenarios.length === 1
+        ? "Optimista"
+        : `Escenario ${scenarios.length + 1}`;
+
+    const inputData = {
       price,
       platesPerDay,
       costPct,
@@ -123,16 +153,29 @@ export function Simulator() {
       payback: paybackRatio?.value ?? null,
       van: vanRatio?.value ?? null,
       tir: tirRatio?.value ?? null,
-      timestamp: new Date(),
     };
-    setScenarios((prev) => [...prev, snapshot]);
+    try {
+      await saveToApi(name, inputData);
+    } catch {
+      // error handled by hook
+    }
   };
 
-  const deleteScenario = (id: string) => {
-    setScenarios((prev) => prev.filter((s) => s.id !== id));
+  const deleteScenario = async (id: string) => {
+    try {
+      await deleteFromApi(Number(id));
+    } catch {
+      // error handled by hook
+    }
   };
 
-  const clearScenarios = () => setScenarios([]);
+  const clearScenarios = async () => {
+    // Delete all scenarios one by one
+    const ids = [...scenarios.map((s) => s.id)];
+    for (const id of ids) {
+      try { await deleteFromApi(Number(id)); } catch { /* continue */ }
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
@@ -267,17 +310,30 @@ export function Simulator() {
             <a href="/reportes?tab=ratios" className="btn-ghost text-sm">🚦 Ver Ratios</a>
             <button
               onClick={saveScenario}
-              disabled={scenarios.length >= 4}
+              disabled={scenarios.length >= 4 || isSaving}
               className="btn-primary text-sm ml-auto"
               title={scenarios.length >= 4 ? "Máximo 4 escenarios" : "Guardar configuración actual"}
             >
-              💾 Guardar Escenario
+              {isSaving ? "⏳ Guardando..." : "💾 Guardar Escenario"}
             </button>
           </div>
         </div>
       )}
 
+      {/* Error de red al cargar/guardar escenarios */}
+      {scenariosError && (
+        <div className="card border-brand-error bg-brand-error/5 text-brand-error text-sm">
+          ⚠️ {scenariosError}
+        </div>
+      )}
+
       {/* Comparativa de Escenarios */}
+      {scenariosLoading && scenarios.length === 0 && (
+        <div className="card space-y-3">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-8 w-full" />
+        </div>
+      )}
       {scenarios.length > 0 && (
         <div className="card animate-fade-in">
           <div className="flex items-center justify-between mb-4">

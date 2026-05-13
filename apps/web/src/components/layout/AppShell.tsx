@@ -4,6 +4,10 @@
  * Provee el header con navegación (desktop + mobile), el área de contenido
  * principal y el footer. Todas las páginas se renderizan dentro de este shell.
  *
+ * HU-F1-003: Navegación condicional por feature flags
+ * - tables_enabled → link "Mesas"
+ * - invoice_required → link "Ventas" (selector boleta/factura)
+ *
  * @param title - Título opcional que se muestra en el breadcrumb del header
  * @param children - Contenido de la página
  *
@@ -13,6 +17,8 @@
  * </AppShell>
  */
 import type { ReactNode } from "react";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AppShellProps {
   children: ReactNode;
@@ -20,6 +26,9 @@ interface AppShellProps {
 }
 
 export function AppShell({ children, title }: AppShellProps) {
+  const { features } = useCompanySettings();
+  const { logout } = useAuth();
+
   return (
     <div className="min-h-screen bg-brand-background flex flex-col">
       {/* Header */}
@@ -43,8 +52,24 @@ export function AppShell({ children, title }: AppShellProps) {
             <NavLink href="/simulador">🎮 Simulador</NavLink>
             <NavLink href="/reportes">📋 Reportes</NavLink>
             <NavLink href="/kardex">📦 Kárdex</NavLink>
+            <NavLink href="/cashflow">💰 Cashflow</NavLink>
+            <NavLink href="/caja">🧾 Caja</NavLink>
+            <NavLink href="/ventas/nueva">➕ Nueva Venta</NavLink>
+            <NavLink href="/ventas">📋 Ventas</NavLink>
+            {/* Feature-flag conditional links (HU-F1-003) */}
+            {features.tables_enabled && (
+              <NavLink href="/mesas">🪑 Mesas</NavLink>
+            )}
             <NavLink href="/settings">⚙️ Ajustes</NavLink>
           </nav>
+          <button
+            onClick={logout}
+            className="hidden md:inline-flex ml-2 px-3 py-1.5 rounded-lg text-sm
+              border border-white/20 hover:bg-white/10 transition-colors"
+            title="Cerrar sesión"
+          >
+            🚪 Salir
+          </button>
           {/* Mobile menu button */}
           <button
             className="md:hidden p-1.5 rounded-lg hover:bg-white/10"
@@ -70,7 +95,23 @@ export function AppShell({ children, title }: AppShellProps) {
             <MobileNavLink href="/simulador">🎮 Simulador</MobileNavLink>
             <MobileNavLink href="/reportes">📋 Reportes</MobileNavLink>
             <MobileNavLink href="/kardex">📦 Kárdex</MobileNavLink>
+            <MobileNavLink href="/cashflow">💰 Cashflow</MobileNavLink>
+            <MobileNavLink href="/caja">🧾 Caja</MobileNavLink>
+            <MobileNavLink href="/ventas/nueva">➕ Nueva Venta</MobileNavLink>
+            <MobileNavLink href="/ventas">📋 Ventas</MobileNavLink>
+            {features.tables_enabled && (
+              <MobileNavLink href="/mesas">🪑 Mesas</MobileNavLink>
+            )}
             <MobileNavLink href="/settings">⚙️ Ajustes</MobileNavLink>
+          </div>
+          <div className="border-t border-white/10 p-2">
+            <button
+              onClick={logout}
+              className="w-full px-3 py-2.5 rounded-lg text-sm
+                border border-white/20 hover:bg-white/10 transition-colors text-left"
+            >
+              🚪 Cerrar Sesión
+            </button>
           </div>
         </nav>
       </header>

@@ -1,13 +1,19 @@
 /**
- * Gráficos de flujo de caja con Recharts.
+ * Gráficos de flujo de caja con Recharts + selectores de período/vista.
  *
- * Componentes para visualizar la proyección financiera:
- * - CashflowBarChart: barras de ingresos vs egresos mensuales
- * - CashflowLineChart: líneas de saldo mensual y flujo acumulado
- * - generateCashflowData: helper para generar datos desde resúmenes
+ * HU-F1-007: UI de Flujo de Caja con selector de período/vista
+ *
+ * Componentes:
+ * - CashflowChart: componente principal con selectores y gráfico
+ * - CashflowBarChart: barras de ingresos vs egresos mensuales (proyectado/real)
+ * - CashflowComparisonChart: barras lado a lado (proyectado vs real) para comparativa
+ * - CashflowAlerts: banner de alertas para vista comparativa
+ * - CashflowSkeleton: skeleton loader
+ * - generateCashflowData: helper para datos locales
  *
  * @module dashboard/CashflowChart
  */
+import { useState, useCallback } from "react";
 import {
   BarChart,
   Bar,
@@ -20,7 +26,26 @@ import {
   LineChart,
   Line,
 } from "recharts";
-import { fmtCurrency } from "./KPICard";
+import { fmtCurrency, Skeleton } from "./KPICard";
+import { AlertsBanner } from "../ui/AlertsBanner";
+import type { CashflowResponse, CashflowQueryParams } from "@/types";
+
+// ─── Helpers ─────────────────────────────────────────────
+
+const MONTH_NAMES = [
+  "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+  "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+];
+
+const MONTHS = Array.from({ length: 12 }, (_, i) => ({
+  value: i + 1,
+  label: MONTH_NAMES[i],
+}));
+
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - 2 + i);
+
+// ─── Data types for charts ───────────────────────────────
 
 export interface CashflowDataPoint {
   month: string;
@@ -30,41 +55,22 @@ export interface CashflowDataPoint {
   acumulado: number;
 }
 
-interface CashflowChartProps {
+export interface CashflowComparisonPoint {
+  month: string;
+  proyectado: number;
+  real: number;
+  diferencia?: number;
+}
+
+// ─── Chart sub-components ────────────────────────────────
+
+function CashflowBarChartInner({
+  data,
+  title,
+}: {
   data: CashflowDataPoint[];
   title?: string;
-}
-
-/** Genera datos de flujo de caja proyectado a partir del resumen mensual */
-export function generateCashflowData(
-  monthlyRevenue: number,
-  monthlyCostPct: number,
-  monthlyFixedCosts: number,
-  months: number = 12,
-): CashflowDataPoint[] {
-  const monthNames = [
-    "Ene", "Feb", "Mar", "Abr", "May", "Jun",
-    "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
-  ];
-
-  const costOfSales = monthlyRevenue * monthlyCostPct;
-  const egresos = costOfSales + monthlyFixedCosts;
-  const saldo = monthlyRevenue - egresos;
-
-  let acumulado = 0;
-  return Array.from({ length: months }, (_, i) => {
-    acumulado += saldo;
-    return {
-      month: monthNames[i % 12],
-      ingresos: monthlyRevenue,
-      egresos,
-      saldo,
-      acumulado,
-    };
-  });
-}
-
-export function CashflowBarChart({ data, title }: CashflowChartProps) {
+}) {
   return (
     <div className="w-full">
       {title && (
@@ -109,7 +115,64 @@ export function CashflowBarChart({ data, title }: CashflowChartProps) {
   );
 }
 
-export function CashflowLineChart({ data, title }: CashflowChartProps) {
+function CashflowComparisonChartInner({
+  data,
+  title,
+}: {
+  data: CashflowComparisonPoint[];
+  title?: string;
+}) {
+  return (
+    <div className="w-full">
+      {title && (
+        <h3 className="font-bold text-brand-text-primary mb-3">{title}</h3>
+      )}
+      <div className="h-64 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#718096" }} />
+            <YAxis
+              tick={{ fontSize: 11, fill: "#718096" }}
+              tickFormatter={(v: number) =>
+                v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v.toString()
+              }
+            />
+            <Tooltip
+              formatter={(value: number) => [fmtCurrency(value), ""]}
+              contentStyle={{
+                borderRadius: "0.5rem",
+                border: "1px solid #e5e7eb",
+                fontSize: "0.8rem",
+              }}
+            />
+            <Legend wrapperStyle={{ fontSize: "0.75rem" }} />
+            <Bar
+              dataKey="proyectado"
+              name="Proyectado"
+              fill="var(--color-primary)"
+              radius={[4, 4, 0, 0]}
+            />
+            <Bar
+              dataKey="real"
+              name="Real"
+              fill="var(--color-accent)"
+              radius={[4, 4, 0, 0]}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function CashflowLineChartInner({
+  data,
+  title,
+}: {
+  data: CashflowDataPoint[];
+  title?: string;
+}) {
   return (
     <div className="w-full">
       {title && (
@@ -158,4 +221,411 @@ export function CashflowLineChart({ data, title }: CashflowChartProps) {
       </div>
     </div>
   );
+}
+
+// ─── Alerts (via ui/AlertsBanner) ───────────────────────
+
+// ─── Skeleton ────────────────────────────────────────────
+
+function CashflowSkeleton() {
+  return (
+    <div className="w-full space-y-4 animate-pulse">
+      <div className="flex gap-4">
+        <Skeleton className="h-9 w-32" />
+        <Skeleton className="h-9 w-32" />
+        <Skeleton className="h-9 w-40" />
+      </div>
+      <Skeleton className="h-64 w-full" />
+    </div>
+  );
+}
+
+// ─── Selectors ───────────────────────────────────────────
+
+interface CashflowSelectorsProps {
+  view: string;
+  fromYear: number;
+  fromMonth: number;
+  toYear: number;
+  toMonth: number;
+  onViewChange: (view: string) => void;
+  onPeriodChange: (fromYear: number, fromMonth: number, toYear: number, toMonth: number) => void;
+  loading: boolean;
+}
+
+function CashflowSelectors({
+  view,
+  fromYear,
+  fromMonth,
+  toYear,
+  toMonth,
+  onViewChange,
+  onPeriodChange,
+  loading,
+}: CashflowSelectorsProps) {
+  const views = [
+    { value: "projected", label: "Proyectado" },
+    { value: "actual", label: "Real" },
+    { value: "comparison", label: "Comparativa" },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-end gap-3 mb-4">
+      {/* Vista */}
+      <div>
+        <label htmlFor="cf-view" className="block text-xs font-medium text-brand-text-secondary mb-1">
+          Vista
+        </label>
+        <select
+          id="cf-view"
+          value={view}
+          onChange={(e) => onViewChange(e.target.value)}
+          disabled={loading}
+          className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white
+            text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20
+            disabled:opacity-50"
+        >
+          {views.map((v) => (
+            <option key={v.value} value={v.value}>
+              {v.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Desde */}
+      <div>
+        <label className="block text-xs font-medium text-brand-text-secondary mb-1">
+          Desde
+        </label>
+        <div className="flex gap-1">
+          <select
+            value={fromYear}
+            onChange={(e) =>
+              onPeriodChange(Number(e.target.value), fromMonth, toYear, toMonth)
+            }
+            disabled={loading}
+            className="px-2 py-1.5 text-sm rounded-lg border border-gray-300 bg-white
+              text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+          >
+            {YEARS.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+          <select
+            value={fromMonth}
+            onChange={(e) =>
+              onPeriodChange(fromYear, Number(e.target.value), toYear, toMonth)
+            }
+            disabled={loading}
+            className="px-2 py-1.5 text-sm rounded-lg border border-gray-300 bg-white
+              text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+          >
+            {MONTHS.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Hasta */}
+      <div>
+        <label className="block text-xs font-medium text-brand-text-secondary mb-1">
+          Hasta
+        </label>
+        <div className="flex gap-1">
+          <select
+            value={toYear}
+            onChange={(e) =>
+              onPeriodChange(fromYear, fromMonth, Number(e.target.value), toMonth)
+            }
+            disabled={loading}
+            className="px-2 py-1.5 text-sm rounded-lg border border-gray-300 bg-white
+              text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+          >
+            {YEARS.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+          <select
+            value={toMonth}
+            onChange={(e) =>
+              onPeriodChange(fromYear, fromMonth, toYear, Number(e.target.value))
+            }
+            disabled={loading}
+            className="px-2 py-1.5 text-sm rounded-lg border border-gray-300 bg-white
+              text-brand-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+          >
+            {MONTHS.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="self-center ml-2">
+          <div className="w-5 h-5 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Summary ─────────────────────────────────────────────
+
+function CashflowSummary({
+  response,
+}: {
+  response: CashflowResponse;
+}) {
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div className="card">
+        <div className="text-xs text-brand-text-secondary uppercase tracking-wider">
+          Saldo Inicial
+        </div>
+        <div className="text-lg font-bold text-brand-text-primary">
+          {fmtCurrency(response.opening_balance)}
+        </div>
+      </div>
+      <div className="card">
+        <div className="text-xs text-brand-text-secondary uppercase tracking-wider">
+          Flujo Neto
+        </div>
+        <div
+          className={`text-lg font-bold ${response.net_cashflow >= 0 ? "text-brand-success" : "text-brand-error"}`}
+        >
+          {fmtCurrency(response.net_cashflow)}
+        </div>
+      </div>
+      <div className="card">
+        <div className="text-xs text-brand-text-secondary uppercase tracking-wider">
+          Saldo Final
+        </div>
+        <div className="text-lg font-bold text-brand-text-primary">
+          {fmtCurrency(response.closing_balance)}
+        </div>
+      </div>
+      <div className="card">
+        <div className="text-xs text-brand-text-secondary uppercase tracking-wider">
+          Período
+        </div>
+        <div className="text-sm font-bold text-brand-text-primary">
+          {response.from_date} → {response.to_date}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Data Transformers ───────────────────────────────────
+
+function responseToBarData(response: CashflowResponse): CashflowDataPoint[] {
+  let acumulado = response.opening_balance;
+  const monthly: Record<number, { ingresos: number; egresos: number }> = {};
+
+  for (const line of response.lines) {
+    const m = line.month;
+    if (!monthly[m]) monthly[m] = { ingresos: 0, egresos: 0 };
+    // For comparison view, use projected as default bar display
+    const value = response.view === "actual" ? line.actual : line.projected;
+    if (line.category === "income") {
+      monthly[m].ingresos += value;
+    } else {
+      monthly[m].egresos += value;
+    }
+  }
+
+  return Object.entries(monthly)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([month, vals]) => {
+      const saldo = vals.ingresos - vals.egresos;
+      acumulado += saldo;
+      return {
+        month: MONTH_NAMES[Number(month) - 1] ?? `M${month}`,
+        ingresos: vals.ingresos,
+        egresos: vals.egresos,
+        saldo,
+        acumulado,
+      };
+    });
+}
+
+function responseToComparisonData(
+  response: CashflowResponse,
+): CashflowComparisonPoint[] {
+  const monthly: Record<
+    number,
+    { proyectado: number; real: number; diferencia: number }
+  > = {};
+
+  for (const line of response.lines) {
+    const m = line.month;
+    if (!monthly[m])
+      monthly[m] = { proyectado: 0, real: 0, diferencia: 0 };
+    monthly[m].proyectado += line.projected;
+    monthly[m].real += line.actual;
+    monthly[m].diferencia += line.difference;
+  }
+
+  return Object.entries(monthly)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([month, vals]) => ({
+      month: MONTH_NAMES[Number(month) - 1] ?? `M${month}`,
+      proyectado: vals.proyectado,
+      real: vals.real,
+      diferencia: vals.diferencia,
+    }));
+}
+
+// ─── Main Component ──────────────────────────────────────
+
+export interface CashflowChartProps {
+  data: CashflowResponse | null;
+  loading: boolean;
+  params: CashflowQueryParams;
+  onParamsChange: (params: CashflowQueryParams) => void;
+}
+
+export function CashflowChart({
+  data,
+  loading,
+  params,
+  onParamsChange,
+}: CashflowChartProps) {
+  const view = params.view ?? "projected";
+
+  const [fromYear, setFromYear] = useState(
+    params.from ? Number(params.from.split("-")[0]) : CURRENT_YEAR,
+  );
+  const [fromMonth, setFromMonth] = useState(
+    params.from ? Number(params.from.split("-")[1]) : 1,
+  );
+  const [toYear, setToYear] = useState(
+    params.to ? Number(params.to.split("-")[0]) : CURRENT_YEAR,
+  );
+  const [toMonth, setToMonth] = useState(
+    params.to ? Number(params.to.split("-")[1]) : 12,
+  );
+
+  const handlePeriodChange = useCallback(
+    (fy: number, fm: number, ty: number, tm: number) => {
+      setFromYear(fy);
+      setFromMonth(fm);
+      setToYear(ty);
+      setToMonth(tm);
+      onParamsChange({
+        ...params,
+        from: `${fy}-${String(fm).padStart(2, "0")}`,
+        to: `${ty}-${String(tm).padStart(2, "0")}`,
+      });
+    },
+    [params, onParamsChange],
+  );
+
+  const handleViewChange = useCallback(
+    (v: string) => {
+      onParamsChange({
+        ...params,
+        view: v as CashflowQueryParams["view"],
+      });
+    },
+    [params, onParamsChange],
+  );
+
+  if (loading && !data) {
+    return <CashflowSkeleton />;
+  }
+
+  return (
+    <div className="w-full">
+      <CashflowSelectors
+        view={view}
+        fromYear={fromYear}
+        fromMonth={fromMonth}
+        toYear={toYear}
+        toMonth={toMonth}
+        onViewChange={handleViewChange}
+        onPeriodChange={handlePeriodChange}
+        loading={loading}
+      />
+
+      {data && data.alerts && data.alerts.length > 0 && (
+        <AlertsBanner alerts={data.alerts} />
+      )}
+
+      {data && <CashflowSummary response={data} />}
+
+      {data && view === "comparison" ? (
+        <CashflowComparisonChartInner
+          data={responseToComparisonData(data)}
+          title="Comparativa: Proyectado vs Real"
+        />
+      ) : data ? (
+        <>
+          <CashflowBarChartInner
+            data={responseToBarData(data)}
+            title={
+              view === "projected"
+                ? "Flujo de Caja Proyectado"
+                : "Flujo de Caja Real"
+            }
+          />
+          <div className="mt-6">
+            <CashflowLineChartInner
+              data={responseToBarData(data)}
+              title="Tendencia de Flujo"
+            />
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+// ─── Legacy exports (backward compat) ────────────────────
+
+export function CashflowBarChart({
+  data,
+  title,
+}: {
+  data: CashflowDataPoint[];
+  title?: string;
+}) {
+  return <CashflowBarChartInner data={data} title={title} />;
+}
+
+export function CashflowLineChart({
+  data,
+  title,
+}: {
+  data: CashflowDataPoint[];
+  title?: string;
+}) {
+  return <CashflowLineChartInner data={data} title={title} />;
+}
+
+/** Helper para generar datos locales (backward compat) */
+export function generateCashflowData(
+  monthlyRevenue: number,
+  monthlyCostPct: number,
+  monthlyFixedCosts: number,
+  months: number = 12,
+): CashflowDataPoint[] {
+  const costOfSales = monthlyRevenue * monthlyCostPct;
+  const egresos = costOfSales + monthlyFixedCosts;
+  const saldo = monthlyRevenue - egresos;
+
+  let acumulado = 0;
+  return Array.from({ length: months }, (_, i) => {
+    acumulado += saldo;
+    return {
+      month: MONTH_NAMES[i % 12],
+      ingresos: monthlyRevenue,
+      egresos,
+      saldo,
+      acumulado,
+    };
+  });
 }
