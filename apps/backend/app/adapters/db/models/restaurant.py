@@ -48,6 +48,9 @@ class Table(Base):
         String(20), nullable=False, default="available"
     )  # available | occupied | reserved | cleaning
     section: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    guests: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    waiter_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

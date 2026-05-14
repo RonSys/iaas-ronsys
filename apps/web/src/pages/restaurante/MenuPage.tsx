@@ -131,8 +131,8 @@ export function MenuPage() {
       const url = editingItem
         ? `/api/v1/restaurant/menu/${editingItem.id}`
         : "/api/v1/restaurant/menu";
-      const method = editingItem ? "PUT" : "POST";
-      const res = await fetch(url, {
+      const method = editingItem ? "PATCH" : "POST";
+      const res = await authFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
@@ -150,7 +150,7 @@ export function MenuPage() {
   const toggleActive = async (item: MenuItem) => {
     try {
       const res = await authFetch(`/api/v1/restaurant/menu/${item.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !item.active }),
       });

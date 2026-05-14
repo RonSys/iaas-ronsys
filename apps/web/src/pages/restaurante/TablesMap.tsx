@@ -25,6 +25,23 @@ interface Table {
   waiter_name?: string;
   opened_at?: string;
   total_provisional?: number;
+  order_id?: number | null;
+}
+
+interface MenuItem {
+  id: number;
+  name: string;
+  price: number;
+  category: string;
+  active: boolean;
+}
+
+interface OrderItem {
+  id?: number;
+  menu_item_id: number;
+  name: string;
+  quantity: number;
+  unit_price: number;
 }
 
 interface TableFormData {
@@ -67,6 +84,15 @@ export function TablesMap() {
   const [formData, setFormData] = useState<TableFormData>({ number: "", capacity: 4, section: "" });
   const [formError, setFormError] = useState<string | null>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
+
+  // Menu / Order state
+  const [showMenuSelector, setShowMenuSelector] = useState(false);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [menuLoading, setMenuLoading] = useState(false);
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [addingItemId, setAddingItemId] = useState<number | null>(null);
+  const [sendingToKitchen, setSendingToKitchen] = useState(false);
+  const [orderToast, setOrderToast] = useState<string | null>(null);
 
   const fetchTables = useCallback(async () => {
     try {
@@ -235,13 +261,98 @@ export function TablesMap() {
     }
   };
 
+  // ─── Menu / Order handlers ───
+  const fetchMenu = useCallback(async () => {
+    setMenuLoading(true);
+    try {
+      const res = await authFetch("/api/v1/restaurant/menu");
+      if (!res.ok) throw new Error("Error al cargar menú");
+      const data = await res.json();
+      const items: MenuItem[] = (data.items ?? data).filter((i: MenuItem) => i.active);
+      setMenuItems(items);
+    } catch {
+      setMenuItems([]);
+    } finally {
+      setMenuLoading(false);
+    }
+  }, []);
+
+  const fetchOrder = useCallback(async (orderId: number) => {
+    try {
+      const res = await authFetch(`/api/v1/restaurant/orders/${orderId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setOrderItems(data.items ?? []);
+      }
+    } catch {
+      // order might not exist yet
+    }
+  }, []);
+
+  const addToOrder = async (menuItem: MenuItem) => {
+    if (!selectedTable) return;
+    setAddingItemId(menuItem.id);
+    try {
+      const res = await authFetch(`/api/v1/restaurant/tables/${selectedTable.id}/order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          menu_item_id: menuItem.id,
+          quantity: 1,
+          modifiers: [],
+          notes: "",
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? "Error al agregar");
+      }
+      const data = await res.json();
+      setOrderItems(data.items ?? [...orderItems, { menu_item_id: menuItem.id, name: menuItem.name, quantity: 1, unit_price: menuItem.price }]);
+      if (data.order_id && selectedTable.order_id !== data.order_id) {
+        setSelectedTable({ ...selectedTable, order_id: data.order_id });
+      }
+      setOrderToast(`✅ ${menuItem.name} agregado`);
+      setTimeout(() => setOrderToast(null), 2000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al agregar");
+    } finally {
+      setAddingItemId(null);
+    }
+  };
+
+  const sendToKitchen = async () => {
+    const orderId = selectedTable?.order_id;
+    if (!orderId) return;
+    setSendingToKitchen(true);
+    try {
+      const res = await authFetch(`/api/v1/restaurant/orders/${orderId}/send-to-kitchen`, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? "Error al enviar");
+      }
+      setOrderToast("📨 Pedido enviado a cocina");
+      setTimeout(() => setOrderToast(null), 3000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al enviar");
+    } finally {
+      setSendingToKitchen(false);
+    }
+  };
+
   // ─── Click handlers ───
   const handleTableClick = (table: Table) => {
     setSelectedTable(table);
+    setShowMenuSelector(false);
+    setOrderItems([]);
+    setShowOpenModal(true);
     if (table.status === "available" || table.status === "reserved") {
       setOpenGuests(2);
       setOpenWaiter("");
-      setShowOpenModal(true);
+    }
+    if (table.status === "occupied") {
+      fetchMenu();
+      if (table.order_id) fetchOrder(table.order_id);
     }
   };
 
@@ -459,15 +570,90 @@ export function TablesMap() {
               </>
             )}
 
-            {/* ─── OCCUPIED / CLEANING: solo info ─── */}
-            {(selectedTable.status === "occupied" || selectedTable.status === "cleaning") && (
+            {/* ─── OCCUPIED: tomar pedido + enviar cocina ─── */}
+            {selectedTable.status === "occupied" && (
+              <div className="space-y-3">
+                <div className="text-sm text-brand-text-secondary">
+                  <p>Capacidad: {selectedTable.capacity} pers.</p>
+                  <p>Sección: {selectedTable.section ?? "General"}</p>
+                  {selectedTable.guests && <p>Comensales: {selectedTable.guests}</p>}
+                  {selectedTable.waiter_name && <p>Mesero: {selectedTable.waiter_name}</p>}
+                  {selectedTable.total_provisional !== undefined && (
+                    <p className="font-bold text-brand-text-primary mt-1">
+                      Total prov: S/ {selectedTable.total_provisional.toFixed(2)}
+                    </p>
+                  )}
+                </div>
+
+                {/* Current order items */}
+                {orderItems.length > 0 && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <h4 className="text-xs font-bold text-brand-text-primary mb-2">📋 Pedido Actual</h4>
+                    {orderItems.map((item, i) => (
+                      <div key={i} className="flex justify-between text-xs py-0.5">
+                        <span>{item.quantity}x {item.name}</span>
+                        <span className="font-medium">S/ {((item.unit_price ?? 0) * item.quantity).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Toast confirmation */}
+                {orderToast && (
+                  <div className="p-2 rounded-lg bg-green-50 border border-green-200 text-green-700 text-xs text-center">
+                    {orderToast}
+                  </div>
+                )}
+
+                {/* Menu selector toggle */}
+                {!showMenuSelector ? (
+                  <button onClick={() => setShowMenuSelector(true)}
+                    className="w-full py-2.5 text-sm rounded-lg bg-brand-primary text-white font-medium
+                      hover:bg-brand-secondary">
+                    🍽️ Tomar Pedido
+                  </button>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg p-3 max-h-64 overflow-y-auto">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs font-bold text-brand-text-primary">📜 Menú</h4>
+                      <button onClick={() => setShowMenuSelector(false)}
+                        className="text-xs text-brand-text-secondary hover:underline">
+                        Ocultar
+                      </button>
+                    </div>
+                    {menuLoading ? (
+                      <p className="text-xs text-brand-text-secondary text-center py-4">Cargando menú...</p>
+                    ) : menuItems.length === 0 ? (
+                      <p className="text-xs text-brand-text-secondary text-center py-4">No hay ítems disponibles</p>
+                    ) : (
+                      <MenuGrouped items={menuItems} addingId={addingItemId} onAdd={addToOrder} />
+                    )}
+                  </div>
+                )}
+
+                {/* Send to kitchen */}
+                {orderItems.length > 0 && selectedTable.order_id && (
+                  <button onClick={sendToKitchen} disabled={sendingToKitchen}
+                    className="w-full py-2.5 text-sm rounded-lg bg-orange-500 text-white font-medium
+                      hover:bg-orange-600 disabled:opacity-50">
+                    {sendingToKitchen ? "Enviando..." : "📨 Enviar a Cocina"}
+                  </button>
+                )}
+
+                <button onClick={() => { setShowOpenModal(false); setSelectedTable(null); setShowMenuSelector(false); }}
+                  className="w-full py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50">
+                  Cerrar
+                </button>
+              </div>
+            )}
+
+            {/* ─── CLEANING: solo info ─── */}
+            {selectedTable.status === "cleaning" && (
               <>
                 <div className="mb-4 text-sm text-brand-text-secondary">
                   <p>Capacidad: {selectedTable.capacity} pers.</p>
                   <p>Sección: {selectedTable.section ?? "General"}</p>
-                  <p>Estado: {STATUS_LABELS[selectedTable.status]}</p>
-                  {selectedTable.guests && <p>Comensales: {selectedTable.guests}</p>}
-                  {selectedTable.waiter_name && <p>Mesero: {selectedTable.waiter_name}</p>}
+                  <p>Estado: Limpieza</p>
                 </div>
                 <div className="flex justify-end">
                   <button onClick={() => { setShowOpenModal(false); setSelectedTable(null); }}
@@ -531,6 +717,57 @@ export function TablesMap() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Menu items grouped by category with Add buttons */
+function MenuGrouped({
+  items,
+  addingId,
+  onAdd,
+}: {
+  items: MenuItem[];
+  addingId: number | null;
+  onAdd: (item: MenuItem) => void;
+}) {
+  const grouped = items.reduce<Record<string, MenuItem[]>>((acc, item) => {
+    const cat = item.category || "General";
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(item);
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-2">
+      {Object.entries(grouped).map(([cat, catItems]) => (
+        <div key={cat}>
+          <div className="text-[10px] font-semibold uppercase text-brand-text-secondary mb-1">
+            {cat}
+          </div>
+          <div className="space-y-0.5">
+            {catItems.map((item) => (
+              <div key={item.id} className="flex items-center justify-between py-1 px-2 rounded hover:bg-gray-50">
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs font-medium">{item.name}</span>
+                  <span className="text-xs text-brand-text-secondary ml-1">
+                    S/ {item.price.toFixed(2)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => onAdd(item)}
+                  disabled={addingId === item.id}
+                  className="ml-2 px-2 py-1 text-xs rounded bg-brand-primary/10 text-brand-primary
+                    hover:bg-brand-primary/20 disabled:opacity-50 flex-shrink-0"
+                  style={{ minWidth: 44, minHeight: 28 }}
+                >
+                  {addingId === item.id ? "..." : "➕"}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -46,7 +46,9 @@ class TablesService:
         result = await db.execute(stmt)
         return [
             {"id": t.id, "number": t.number, "capacity": t.capacity,
-             "status": t.status, "section": t.section}
+             "status": t.status, "section": t.section,
+             "guests": t.guests, "waiter_name": t.waiter_name,
+             "opened_at": t.opened_at.isoformat() if t.opened_at else None}
             for t in result.scalars().all()
         ]
 
@@ -125,6 +127,10 @@ class TablesService:
     ) -> dict:
         table = await TablesService.get_table(db, table_id, tenant_id)
         table.status = status
+        if status != "occupied":
+            table.guests = None
+            table.waiter_name = None
+            table.opened_at = None
         table.updated_at = datetime.now(UTC)
         await db.flush()
         return {"id": table.id, "number": table.number, "status": table.status}
@@ -141,13 +147,16 @@ class TablesService:
                 detail="La mesa ya está ocupada",
             )
         table.status = "occupied"
+        table.guests = guests
+        table.waiter_name = waiter_name
+        table.opened_at = datetime.now(UTC)
         await db.flush()
-        now = datetime.now(UTC)
         return {
             "id": table.id, "number": table.number,
-            "status": "occupied", "opened_at": now.isoformat(),
+            "status": "occupied",
+            "opened_at": table.opened_at.isoformat(),
             "guests": guests, "waiter_name": waiter_name,
-            "session_token": f"table_{table.id}_{int(now.timestamp())}",
+            "session_token": f"table_{table.id}_{int(table.opened_at.timestamp())}",
         }
 
 
@@ -578,6 +587,9 @@ class ClosePayService:
 
         # Liberar mesa
         table.status = "available"
+        table.guests = None
+        table.waiter_name = None
+        table.opened_at = None
         await db.flush()
 
         change = max(0, amount - summary["total"])

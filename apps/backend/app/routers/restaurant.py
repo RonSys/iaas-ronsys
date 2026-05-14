@@ -107,6 +107,8 @@ async def get_table(
         "id": table.id, "number": table.number,
         "capacity": table.capacity, "status": table.status,
         "section": table.section,
+        "guests": table.guests, "waiter_name": table.waiter_name,
+        "opened_at": table.opened_at.isoformat() if table.opened_at else None,
     }
 
 

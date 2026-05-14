@@ -98,8 +98,8 @@ export function PromotionsPage() {
       const url = editing
         ? `/api/v1/restaurant/promotions/${editing.id}`
         : "/api/v1/restaurant/promotions";
-      const method = editing ? "PUT" : "POST";
-      const res = await fetch(url, {
+      const method = editing ? "PATCH" : "POST";
+      const res = await authFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
@@ -117,7 +117,7 @@ export function PromotionsPage() {
   const toggleActive = async (p: Promotion) => {
     try {
       const res = await authFetch(`/api/v1/restaurant/promotions/${p.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !p.active }),
       });
