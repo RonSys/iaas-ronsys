@@ -67,7 +67,7 @@ export function MenuPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/restaurant/menu");
+      const res = await fetch("/api/v1/restaurant/menu");
       if (!res.ok) throw new Error("Error al cargar el menú");
       const data = await res.json();
       setItems(data.items ?? data);
@@ -128,8 +128,8 @@ export function MenuPage() {
     setSubmitting(true);
     try {
       const url = editingItem
-        ? `/api/restaurant/menu/${editingItem.id}`
-        : "/api/restaurant/menu";
+        ? `/api/v1/restaurant/menu/${editingItem.id}`
+        : "/api/v1/restaurant/menu";
       const method = editingItem ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
@@ -148,7 +148,7 @@ export function MenuPage() {
 
   const toggleActive = async (item: MenuItem) => {
     try {
-      const res = await fetch(`/api/restaurant/menu/${item.id}`, {
+      const res = await fetch(`/api/v1/restaurant/menu/${item.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !item.active }),

@@ -52,7 +52,7 @@ export function TablesMap() {
 
   const fetchTables = useCallback(async () => {
     try {
-      const res = await fetch("/api/restaurant/tables");
+      const res = await fetch("/api/v1/restaurant/tables");
       if (!res.ok) throw new Error("Error al cargar mesas");
       const data = await res.json();
       setTables(data.tables ?? data);
@@ -79,7 +79,7 @@ export function TablesMap() {
     setSubmitting(true);
     try {
       const res = await fetch(
-        `/api/restaurant/tables/${selectedTable.id}/open`,
+        `/api/v1/restaurant/tables/${selectedTable.id}/open`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

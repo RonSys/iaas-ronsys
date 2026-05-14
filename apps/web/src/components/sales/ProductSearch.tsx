@@ -34,7 +34,7 @@ export function ProductSearch({ onSelect, disabled }: ProductSearchProps) {
 
   // Load categories
   useEffect(() => {
-    fetch("/api/inventory/categories")
+    fetch("/api/v1/inventory/categories")
       .then((r) => r.json())
       .then((data) => setCategories(data.categories ?? data))
       .catch(() => {});

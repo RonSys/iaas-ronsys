@@ -48,7 +48,7 @@ export function PromotionsPage() {
 
   const fetchPromotions = useCallback(async () => {
     try {
-      const res = await fetch("/api/restaurant/promotions");
+      const res = await fetch("/api/v1/restaurant/promotions");
       if (!res.ok) throw new Error("Error al cargar promociones");
       const data = await res.json();
       setPromotions(data.promotions ?? data);
@@ -95,8 +95,8 @@ export function PromotionsPage() {
     setSubmitting(true);
     try {
       const url = editing
-        ? `/api/restaurant/promotions/${editing.id}`
-        : "/api/restaurant/promotions";
+        ? `/api/v1/restaurant/promotions/${editing.id}`
+        : "/api/v1/restaurant/promotions";
       const method = editing ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
@@ -115,7 +115,7 @@ export function PromotionsPage() {
 
   const toggleActive = async (p: Promotion) => {
     try {
-      const res = await fetch(`/api/restaurant/promotions/${p.id}`, {
+      const res = await fetch(`/api/v1/restaurant/promotions/${p.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !p.active }),

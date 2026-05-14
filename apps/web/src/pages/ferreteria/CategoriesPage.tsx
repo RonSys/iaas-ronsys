@@ -36,7 +36,7 @@ export function CategoriesPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/inventory/categories");
+      const res = await fetch("/api/v1/inventory/categories");
       if (!res.ok) throw new Error("Error al cargar categorías");
       const data = await res.json();
       setCategories(data.categories ?? data);
@@ -71,8 +71,8 @@ export function CategoriesPage() {
     setSubmitting(true);
     try {
       const url = editing
-        ? `/api/inventory/categories/${editing.id}`
-        : "/api/inventory/categories";
+        ? `/api/v1/inventory/categories/${editing.id}`
+        : "/api/v1/inventory/categories";
       const method = editing ? "PATCH" : "POST";
       const body: Record<string, unknown> = { name: categoryName.trim() };
       if (categoryDescription.trim()) {
@@ -96,7 +96,7 @@ export function CategoriesPage() {
   const handleDelete = async (cat: ProductCategory) => {
     if (!window.confirm(`¿Eliminar categoría "${cat.name}"?`)) return;
     try {
-      const res = await fetch(`/api/inventory/categories/${cat.id}`, {
+      const res = await fetch(`/api/v1/inventory/categories/${cat.id}`, {
         method: "DELETE",
       });
       if (!res.ok) {

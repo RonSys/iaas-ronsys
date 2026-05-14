@@ -63,7 +63,7 @@ export function TakeawayPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const res = await fetch("/api/restaurant/takeaway-orders");
+      const res = await fetch("/api/v1/restaurant/takeaway-orders");
       if (res.ok) {
         const data = await res.json();
         setOrders(data.orders ?? data);
@@ -75,7 +75,7 @@ export function TakeawayPage() {
 
   const fetchMenu = useCallback(async () => {
     try {
-      const res = await fetch("/api/restaurant/menu");
+      const res = await fetch("/api/v1/restaurant/menu");
       if (res.ok) {
         const data = await res.json();
         setMenuItems((data.items ?? data).filter((i: MenuItemSimple) => i.active));
@@ -148,7 +148,7 @@ export function TakeawayPage() {
           },
         ],
       };
-      const res = await fetch("/api/restaurant/takeaway-orders", {
+      const res = await fetch("/api/v1/restaurant/takeaway-orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
