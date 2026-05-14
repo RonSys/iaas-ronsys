@@ -50,6 +50,7 @@ interface OrderItem {
   name: string;
   quantity: number;
   unit_price: number;
+  modifiers?: { id: number; name: string; price_adjustment: number }[];
 }
 
 interface TableFormData {
@@ -383,17 +384,32 @@ export function TablesMap() {
     }
   };
 
-  // Agrupar items por menu_item_id para el ticket
+  // Agrupar items por menu_item_id + modifiers para el ticket
   const groupedItems = useMemo(() => {
-    return orderItems.reduce<OrderItem[]>((acc, item) => {
-      const existing = acc.find((i) => i.menu_item_id === item.menu_item_id);
-      if (existing) {
+    const map = new Map<string, OrderItem & { displayModifiers: string; unitPriceWithMods: number }>();
+    orderItems.forEach((item) => {
+      const modIds = (item.modifiers || [])
+        .map((m) => m.id)
+        .sort((a, b) => a - b)
+        .join(",");
+      const key = `${item.menu_item_id}|${modIds}`;
+      const modsTotal = (item.modifiers || []).reduce(
+        (sum, m) => sum + (m.price_adjustment || 0),
+        0,
+      );
+      if (map.has(key)) {
+        const existing = map.get(key)!;
         existing.quantity += item.quantity || 1;
       } else {
-        acc.push({ ...item, quantity: item.quantity || 1 });
+        map.set(key, {
+          ...item,
+          quantity: item.quantity || 1,
+          unitPriceWithMods: (item.unit_price || 0) + modsTotal,
+          displayModifiers: (item.modifiers || []).map((m) => m.name).join(", "),
+        });
       }
-      return acc;
-    }, []);
+    });
+    return Array.from(map.values());
   }, [orderItems]);
 
   // ─── Click handlers ───
@@ -648,7 +664,7 @@ export function TablesMap() {
                     <div className="max-h-32 overflow-y-auto space-y-0.5">
                       {groupedItems.map((item, i) => (
                         <div key={i} className="flex justify-between text-xs py-1">
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 flex-1 min-w-0">
                             <button
                               onClick={() => handleDecrement(item)}
                               disabled={addingItemId === item.menu_item_id}
@@ -659,7 +675,7 @@ export function TablesMap() {
                             >
                               −
                             </button>
-                            <span className="w-4 text-center font-medium">{item.quantity}</span>
+                            <span className="w-4 text-center font-medium flex-shrink-0">{item.quantity}</span>
                             <button
                               onClick={() => handleIncrement(item)}
                               disabled={addingItemId === item.menu_item_id}
@@ -670,17 +686,22 @@ export function TablesMap() {
                             >
                               +
                             </button>
-                            <span className="ml-1 truncate max-w-[120px]">{item.name}</span>
+                            <span className="ml-1 truncate">{item.name}</span>
+                            {item.displayModifiers && (
+                              <span className="text-[10px] text-gray-400 truncate">
+                                ({item.displayModifiers})
+                              </span>
+                            )}
                           </div>
-                          <span className="font-medium flex-shrink-0">
-                            S/ {((item.unit_price ?? 0) * item.quantity).toFixed(2)}
+                          <span className="font-medium flex-shrink-0 ml-2">
+                            S/ {(item.unitPriceWithMods * item.quantity).toFixed(2)}
                           </span>
                         </div>
                       ))}
                     </div>
                     <div className="flex justify-between text-xs font-bold pt-2 border-t border-gray-300 mt-2">
                       <span>TOTAL</span>
-                      <span>S/ {groupedItems.reduce((sum, item) => sum + ((item.unit_price ?? 0) * item.quantity), 0).toFixed(2)}</span>
+                      <span>S/ {groupedItems.reduce((sum, item) => sum + (item.unitPriceWithMods * item.quantity), 0).toFixed(2)}</span>
                     </div>
                   </div>
                 )}
