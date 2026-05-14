@@ -62,6 +62,64 @@ class TablesService:
         return table
 
     @staticmethod
+    async def create_table(
+        db: AsyncSession, tenant_id: int, number: str,
+        capacity: int = 4, section: str | None = None,
+    ) -> dict:
+        existing = await db.execute(
+            select(Table).where(
+                Table.tenant_id == tenant_id, Table.number == number,
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Ya existe una mesa con número '{number}'",
+            )
+        table = Table(
+            tenant_id=tenant_id, number=number,
+            capacity=capacity, section=section,
+        )
+        db.add(table)
+        await db.flush()
+        await db.refresh(table)
+        return {
+            "id": table.id, "number": table.number,
+            "capacity": table.capacity, "status": table.status,
+            "section": table.section,
+        }
+
+    @staticmethod
+    async def update_table(
+        db: AsyncSession, table_id: int, tenant_id: int, body: dict,
+    ) -> dict:
+        table = await TablesService.get_table(db, table_id, tenant_id)
+        for key in ("number", "capacity", "section"):
+            if key in body and body[key] is not None:
+                setattr(table, key, body[key])
+        table.updated_at = datetime.now(UTC)
+        await db.flush()
+        await db.refresh(table)
+        return {
+            "id": table.id, "number": table.number,
+            "capacity": table.capacity, "status": table.status,
+            "section": table.section,
+        }
+
+    @staticmethod
+    async def delete_table(
+        db: AsyncSession, table_id: int, tenant_id: int,
+    ) -> None:
+        table = await TablesService.get_table(db, table_id, tenant_id)
+        if table.status != "available":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Solo se pueden eliminar mesas libres",
+            )
+        await db.delete(table)
+        await db.flush()
+
+    @staticmethod
     async def open_table(
         db: AsyncSession, table_id: int, tenant_id: int,
         guests: int = 1, waiter_name: str | None = None,

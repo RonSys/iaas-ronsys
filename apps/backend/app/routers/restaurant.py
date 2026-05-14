@@ -43,6 +43,48 @@ from app.core.tenant import get_tenant_id  # noqa: E402
 # TABLES (F0-004)
 # ═══════════════════════════════════════════════════════════════
 
+@router.post("/tables", status_code=201)
+async def create_table(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: dict,
+):
+    """Crea una nueva mesa."""
+    number = body.get("number")
+    if not number:
+        raise HTTPException(status_code=400, detail="'number' es requerido")
+    return await TablesService.create_table(
+        db, tenant_id,
+        number=str(number),
+        capacity=body.get("capacity", 4),
+        section=body.get("section"),
+    )
+
+
+@router.patch("/tables/{table_id}")
+async def update_table(
+    table_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: dict,
+):
+    """Actualiza una mesa (número, capacidad, sección)."""
+    return await TablesService.update_table(db, table_id, tenant_id, body)
+
+
+@router.delete("/tables/{table_id}", status_code=204)
+async def delete_table(
+    table_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Elimina una mesa (solo si está libre)."""
+    await TablesService.delete_table(db, table_id, tenant_id)
+
+
 @router.get("/tables")
 async def list_tables(
     tenant_id: Annotated[int, Depends(get_tenant_id)],
