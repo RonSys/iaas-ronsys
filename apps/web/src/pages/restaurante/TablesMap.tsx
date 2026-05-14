@@ -198,10 +198,47 @@ export function TablesMap() {
     }
   };
 
+  // ─── Reserve / Free ───
+  const handleReserve = async (id: number) => {
+    setSubmitting(true);
+    try {
+      const res = await authFetch(`/api/v1/restaurant/tables/${id}/reserve`, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? "Error al reservar");
+      }
+      setShowOpenModal(false);
+      setSelectedTable(null);
+      await fetchTables();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleFree = async (id: number) => {
+    setSubmitting(true);
+    try {
+      const res = await authFetch(`/api/v1/restaurant/tables/${id}/free`, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? "Error al liberar");
+      }
+      setShowOpenModal(false);
+      setSelectedTable(null);
+      await fetchTables();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // ─── Click handlers ───
   const handleTableClick = (table: Table) => {
     setSelectedTable(table);
-    if (table.status === "available") {
+    if (table.status === "available" || table.status === "reserved") {
       setOpenGuests(2);
       setOpenWaiter("");
       setShowOpenModal(true);
@@ -313,54 +350,131 @@ export function TablesMap() {
         </div>
       )}
 
-      {/* Modal: Abrir mesa */}
+      {/* Modal: Acciones de mesa (varía según status) */}
       {showOpenModal && selectedTable && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl p-6 w-full max-w-sm mx-4 shadow-xl">
-            <h3 className="text-lg font-bold text-brand-text-primary mb-4">Mesa {selectedTable.number}</h3>
-            <div className="space-y-3 mb-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">N° de Comensales</label>
-                <input
-                  type="number" min={1} max={selectedTable.capacity}
-                  value={openGuests} onChange={(e) => setOpenGuests(Number(e.target.value))}
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Nombre del Mesero *</label>
-                <input
-                  value={openWaiter} onChange={(e) => setOpenWaiter(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Ej: Carlos" autoFocus
-                />
-              </div>
+            <div className="flex items-center gap-2 mb-4">
+              <span className={`w-3 h-3 rounded-full ${
+                selectedTable.status === "available" ? "bg-green-500" :
+                selectedTable.status === "reserved" ? "bg-yellow-500" :
+                selectedTable.status === "occupied" ? "bg-red-500" : "bg-gray-400"
+              }`} />
+              <h3 className="text-lg font-bold text-brand-text-primary">
+                Mesa {selectedTable.number}
+              </h3>
+              <span className="text-xs text-brand-text-secondary">
+                ({STATUS_LABELS[selectedTable.status]})
+              </span>
             </div>
-            <div className="flex gap-2 justify-between">
-              <div className="flex gap-2">
-                <button onClick={() => openEditModal(selectedTable)}
-                  className="px-3 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50">
-                  ✏️ Editar
-                </button>
-                <button onClick={() => {
-                  if (window.confirm(`¿Eliminar mesa ${selectedTable.number}?`)) {
-                    setShowOpenModal(false);
-                    handleDeleteTable(selectedTable.id);
-                  }
-                }} className="px-3 py-2 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50">
-                  🗑️ Eliminar
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => { setShowOpenModal(false); setSelectedTable(null); }}
-                  className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50" disabled={submitting}>
-                  Cancelar
-                </button>
-                <button onClick={handleOpenTable} disabled={submitting || !openWaiter.trim()}
-                  className="px-4 py-2 text-sm rounded-lg bg-brand-primary text-white hover:bg-brand-secondary disabled:opacity-50">
-                  {submitting ? "Abriendo..." : "Abrir Mesa"}
-                </button>
-              </div>
-            </div>
+
+            {/* ─── AVAILABLE: Abrir, Reservar, Editar, Eliminar ─── */}
+            {selectedTable.status === "available" && (
+              <>
+                <div className="space-y-3 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">N° de Comensales</label>
+                    <input
+                      type="number" min={1} max={selectedTable.capacity}
+                      value={openGuests} onChange={(e) => setOpenGuests(Number(e.target.value))}
+                      className="w-full px-3 py-2 border rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Nombre del Mesero *</label>
+                    <input
+                      value={openWaiter} onChange={(e) => setOpenWaiter(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Ej: Carlos" autoFocus
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-between">
+                  <div className="flex gap-2">
+                    <button onClick={() => handleReserve(selectedTable.id)}
+                      className="px-3 py-2 text-sm rounded-lg bg-yellow-500 text-white hover:bg-yellow-600"
+                      disabled={submitting}>
+                      📅 Reservar
+                    </button>
+                    <button onClick={() => openEditModal(selectedTable)}
+                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50">
+                      ✏️ Editar
+                    </button>
+                    <button onClick={() => {
+                      if (window.confirm(`¿Eliminar mesa ${selectedTable.number}?`)) {
+                        setShowOpenModal(false);
+                        handleDeleteTable(selectedTable.id);
+                      }
+                    }} className="px-3 py-2 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50">
+                      🗑️ Eliminar
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setShowOpenModal(false); setSelectedTable(null); }}
+                      className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50" disabled={submitting}>
+                      Cancelar
+                    </button>
+                    <button onClick={handleOpenTable} disabled={submitting || !openWaiter.trim()}
+                      className="px-4 py-2 text-sm rounded-lg bg-brand-primary text-white hover:bg-brand-secondary disabled:opacity-50">
+                      {submitting ? "Abriendo..." : "Abrir Mesa"}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ─── RESERVED: Liberar, Editar, Eliminar ─── */}
+            {selectedTable.status === "reserved" && (
+              <>
+                <div className="mb-4 text-sm text-brand-text-secondary">
+                  <p>Capacidad: {selectedTable.capacity} pers.</p>
+                  <p>Sección: {selectedTable.section ?? "General"}</p>
+                </div>
+                <div className="flex gap-2 justify-between">
+                  <div className="flex gap-2">
+                    <button onClick={() => handleFree(selectedTable.id)}
+                      className="px-3 py-2 text-sm rounded-lg bg-gray-600 text-white hover:bg-gray-700"
+                      disabled={submitting}>
+                      🔓 Liberar Reserva
+                    </button>
+                    <button onClick={() => openEditModal(selectedTable)}
+                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50">
+                      ✏️ Editar
+                    </button>
+                    <button onClick={() => {
+                      if (window.confirm(`¿Eliminar mesa ${selectedTable.number}?`)) {
+                        setShowOpenModal(false);
+                        handleDeleteTable(selectedTable.id);
+                      }
+                    }} className="px-3 py-2 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50">
+                      🗑️ Eliminar
+                    </button>
+                  </div>
+                  <button onClick={() => { setShowOpenModal(false); setSelectedTable(null); }}
+                    className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50" disabled={submitting}>
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ─── OCCUPIED / CLEANING: solo info ─── */}
+            {(selectedTable.status === "occupied" || selectedTable.status === "cleaning") && (
+              <>
+                <div className="mb-4 text-sm text-brand-text-secondary">
+                  <p>Capacidad: {selectedTable.capacity} pers.</p>
+                  <p>Sección: {selectedTable.section ?? "General"}</p>
+                  <p>Estado: {STATUS_LABELS[selectedTable.status]}</p>
+                  {selectedTable.guests && <p>Comensales: {selectedTable.guests}</p>}
+                  {selectedTable.waiter_name && <p>Mesero: {selectedTable.waiter_name}</p>}
+                </div>
+                <div className="flex justify-end">
+                  <button onClick={() => { setShowOpenModal(false); setSelectedTable(null); }}
+                    className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50">
+                    Cerrar
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

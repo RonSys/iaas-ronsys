@@ -120,6 +120,16 @@ class TablesService:
         await db.flush()
 
     @staticmethod
+    async def update_table_status(
+        db: AsyncSession, table_id: int, tenant_id: int, status: str,
+    ) -> dict:
+        table = await TablesService.get_table(db, table_id, tenant_id)
+        table.status = status
+        table.updated_at = datetime.now(UTC)
+        await db.flush()
+        return {"id": table.id, "number": table.number, "status": table.status}
+
+    @staticmethod
     async def open_table(
         db: AsyncSession, table_id: int, tenant_id: int,
         guests: int = 1, waiter_name: str | None = None,

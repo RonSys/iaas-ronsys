@@ -110,6 +110,28 @@ async def get_table(
     }
 
 
+@router.post("/tables/{table_id}/reserve")
+async def reserve_table(
+    table_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Reserva una mesa (available → reserved)."""
+    return await TablesService.update_table_status(db, table_id, tenant_id, "reserved")
+
+
+@router.post("/tables/{table_id}/free")
+async def free_table(
+    table_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Libera una mesa reservada (reserved → available)."""
+    return await TablesService.update_table_status(db, table_id, tenant_id, "available")
+
+
 @router.post("/tables/{table_id}/open")
 async def open_table(
     table_id: int,

@@ -48,9 +48,9 @@ class Table(Base):
         String(20), nullable=False, default="available"
     )  # available | occupied | reserved | cleaning
     section: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     __table_args__ = (
@@ -85,9 +85,9 @@ class MenuItem(Base):
     modifiers: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     image_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     __table_args__ = (
@@ -136,10 +136,10 @@ class KitchenOrder(Base):
     items: Mapped[dict] = mapped_column(JSONB, nullable=False, default=list)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     ordered_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         Index("idx_kitchen_orders_tenant_status", "tenant_id", "status"),
@@ -167,14 +167,14 @@ class TakeawayOrder(Base):
     customer_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     customer_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     items: Mapped[dict] = mapped_column(JSONB, nullable=False, default=list)
-    pickup_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    pickup_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="pending"
     )  # pending | preparing | ready | picked_up | cancelled
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     __table_args__ = (
@@ -204,12 +204,12 @@ class Promotion(Base):
     )  # combo | discount_pct | discount_fixed | bogof
     rules: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     discount_value: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    valid_from: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    valid_to: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     __table_args__ = (
