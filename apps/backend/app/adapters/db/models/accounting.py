@@ -176,7 +176,11 @@ class JournalEntryLine(Base):
 
 
 class Product(Base):
-    """Maestro de productos del inventario."""
+    """Maestro de productos del inventario.
+
+    F0-010: wholesale_price, wholesale_min_qty, retail_price, barcode.
+    F0-009: category_id FK → product_categories.
+    """
 
     __tablename__ = "products"
 
@@ -195,6 +199,15 @@ class Product(Base):
         Numeric(12, 4), default=0, nullable=False
     )  # Costo promedio ponderado
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # F0-009: Categoría de producto
+    category_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("product_categories.id", ondelete="SET NULL"), nullable=True
+    )
+    # F0-010: Precios
+    retail_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    wholesale_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    wholesale_min_qty: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    barcode: Mapped[str | None] = mapped_column(String(50), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

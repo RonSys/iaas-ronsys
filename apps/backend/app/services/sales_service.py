@@ -10,7 +10,7 @@ HU-F2-007: Ticket formateado + payment methods
 Arquitectura: Puertos abstractos → Adaptadores concretos (DB).
 """
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, UTC
 from decimal import Decimal
 from typing import Optional
 
@@ -76,7 +76,7 @@ class PosSessionService:
             opening_cash=opening_cash,
             notes=notes,
             status="open",
-            opened_at=datetime.utcnow(),
+            opened_at=datetime.now(UTC),
         )
         db.add(session)
         await db.flush()
@@ -221,7 +221,7 @@ class PosSessionService:
         session.expected_cash = expected
         session.difference = difference
         session.status = "closed"
-        session.closed_at = datetime.utcnow()
+        session.closed_at = datetime.now(UTC)
         if notes:
             session.notes = notes
 
@@ -391,7 +391,7 @@ class SaleService:
             user_id=user_id,
             sale_number=sale_number,
             sale_date=today,
-            sale_time=datetime.utcnow().time(),
+            sale_time=datetime.now(UTC).time(),
             customer_name=data.get("customer_name"),
             customer_doc=data.get("customer_doc"),
             subtotal=round(subtotal, 2),

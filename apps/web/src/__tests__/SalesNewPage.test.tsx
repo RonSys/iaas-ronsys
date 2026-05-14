@@ -8,6 +8,18 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { SalesNewPage } from "@/pages/SalesNew";
 
+// Mock global fetch for ProductSearch categories call
+beforeAll(() => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: () => Promise.resolve([]),
+  }) as jest.Mock;
+});
+
+afterAll(() => {
+  delete (global as any).fetch;
+});
+
 jest.mock("@/services", () => {
   const palette = {
     primary: "#1a365d", secondary: "#2b6cb0", accent: "#e53e3e",

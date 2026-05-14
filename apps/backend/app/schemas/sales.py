@@ -7,7 +7,7 @@ Validation layer para los endpoints de ventas, sesiones y cashflow.
 from datetime import date, datetime, time
 from typing import Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -43,8 +43,7 @@ class PosSessionResponse(BaseModel):
     sales_count: int = 0
     total_sales: float = 0.0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -137,8 +136,7 @@ class SaleItemResponse(BaseModel):
     total: float
     kardex_movement_id: int | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SalePaymentResponse(BaseModel):
@@ -148,8 +146,7 @@ class SalePaymentResponse(BaseModel):
     amount: float
     reference: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RestaurantSaleResponse(BaseModel):
@@ -163,8 +160,7 @@ class RestaurantSaleResponse(BaseModel):
     tip_pct: float
     kitchen_notes: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HardwareSaleResponse(BaseModel):
@@ -175,8 +171,7 @@ class HardwareSaleResponse(BaseModel):
     requires_install: bool
     warranty_months: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SaleResponse(BaseModel):
@@ -196,8 +191,7 @@ class SaleResponse(BaseModel):
     void_reason: str | None = None
     payments: list[SalePaymentResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SaleDetailResponse(SaleResponse):

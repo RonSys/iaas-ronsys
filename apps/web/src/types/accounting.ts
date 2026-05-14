@@ -106,6 +106,18 @@ export interface KardexProduct {
   current_stock: number;
   average_cost: number;
   total_value: number;
+  /** Precio de venta unitario (retail) */
+  unit_price?: number;
+  /** Precio de venta al por mayor */
+  wholesale_price?: number;
+  /** Cantidad mínima para aplicar precio mayorista */
+  wholesale_min_qty?: number;
+  /** Código de barras */
+  barcode?: string | null;
+  /** ID de categoría de producto */
+  category_id?: number | null;
+  /** Nombre de categoría (join) */
+  category_name?: string | null;
 }
 
 export interface KardexRecord {
