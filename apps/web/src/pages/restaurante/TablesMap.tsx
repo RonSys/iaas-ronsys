@@ -11,6 +11,7 @@
  *
  * @module pages/restaurante/TablesMap
  */
+import { authFetch } from "@/services/authFetch";
 import { useState, useEffect, useCallback } from "react";
 import { Skeleton } from "@/components/dashboard/KPICard";
 
@@ -52,7 +53,7 @@ export function TablesMap() {
 
   const fetchTables = useCallback(async () => {
     try {
-      const res = await fetch("/api/v1/restaurant/tables");
+      const res = await authFetch("/api/v1/restaurant/tables");
       if (!res.ok) throw new Error("Error al cargar mesas");
       const data = await res.json();
       setTables(data.tables ?? data);

@@ -9,6 +9,7 @@
  *
  * @module pages/ferreteria/CategoriesPage
  */
+import { authFetch } from "@/services/authFetch";
 import { useState, useEffect, useCallback } from "react";
 import { Skeleton } from "@/components/dashboard/KPICard";
 
@@ -36,7 +37,7 @@ export function CategoriesPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/v1/inventory/categories");
+      const res = await authFetch("/api/v1/inventory/categories");
       if (!res.ok) throw new Error("Error al cargar categorías");
       const data = await res.json();
       setCategories(data.categories ?? data);
@@ -96,7 +97,7 @@ export function CategoriesPage() {
   const handleDelete = async (cat: ProductCategory) => {
     if (!window.confirm(`¿Eliminar categoría "${cat.name}"?`)) return;
     try {
-      const res = await fetch(`/api/v1/inventory/categories/${cat.id}`, {
+      const res = await authFetch(`/api/v1/inventory/categories/${cat.id}`, {
         method: "DELETE",
       });
       if (!res.ok) {

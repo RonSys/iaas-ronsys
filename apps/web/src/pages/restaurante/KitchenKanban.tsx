@@ -10,6 +10,7 @@
  *
  * @module pages/restaurante/KitchenKanban
  */
+import { authFetch } from "@/services/authFetch";
 import { useState, useEffect, useCallback } from "react";
 import { Skeleton } from "@/components/dashboard/KPICard";
 
@@ -50,7 +51,7 @@ export function KitchenKanban() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const res = await fetch("/api/v1/restaurant/kitchen-orders");
+      const res = await authFetch("/api/v1/restaurant/kitchen-orders");
       if (!res.ok) throw new Error("Error al cargar comandas");
       const data = await res.json();
       setOrders(data.orders ?? data);
@@ -76,7 +77,7 @@ export function KitchenKanban() {
 
   const updateStatus = async (orderId: number, status: string) => {
     try {
-      await fetch(`/api/v1/restaurant/kitchen-orders/${orderId}/status`, {
+      await authFetch(`/api/v1/restaurant/kitchen-orders/${orderId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
@@ -92,7 +93,7 @@ export function KitchenKanban() {
   const handleCancel = async () => {
     if (!cancelOrder) return;
     try {
-      await fetch(`/api/v1/restaurant/kitchen-orders/${cancelOrder.id}/status`, {
+      await authFetch(`/api/v1/restaurant/kitchen-orders/${cancelOrder.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "cancelled", notes: cancelReason }),

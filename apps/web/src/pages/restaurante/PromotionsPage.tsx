@@ -8,6 +8,7 @@
  *
  * @module pages/restaurante/PromotionsPage
  */
+import { authFetch } from "@/services/authFetch";
 import { useState, useEffect, useCallback } from "react";
 import { Skeleton } from "@/components/dashboard/KPICard";
 
@@ -48,7 +49,7 @@ export function PromotionsPage() {
 
   const fetchPromotions = useCallback(async () => {
     try {
-      const res = await fetch("/api/v1/restaurant/promotions");
+      const res = await authFetch("/api/v1/restaurant/promotions");
       if (!res.ok) throw new Error("Error al cargar promociones");
       const data = await res.json();
       setPromotions(data.promotions ?? data);
@@ -115,7 +116,7 @@ export function PromotionsPage() {
 
   const toggleActive = async (p: Promotion) => {
     try {
-      const res = await fetch(`/api/v1/restaurant/promotions/${p.id}`, {
+      const res = await authFetch(`/api/v1/restaurant/promotions/${p.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !p.active }),

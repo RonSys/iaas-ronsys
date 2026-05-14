@@ -9,6 +9,7 @@
  *
  * @module components/sales/ProductSearch
  */
+import { authFetch } from "@/services/authFetch";
 import { useState, useEffect, useRef } from "react";
 import { fmtCurrency } from "../dashboard/KPICard";
 import type { KardexProduct } from "@/types";
@@ -34,7 +35,7 @@ export function ProductSearch({ onSelect, disabled }: ProductSearchProps) {
 
   // Load categories
   useEffect(() => {
-    fetch("/api/v1/inventory/categories")
+    authFetch("/api/v1/inventory/categories")
       .then((r) => r.json())
       .then((data) => setCategories(data.categories ?? data))
       .catch(() => {});
@@ -62,7 +63,7 @@ export function ProductSearch({ onSelect, disabled }: ProductSearchProps) {
       try {
         const params = new URLSearchParams({ search: query });
         if (selectedCategory) params.set("category_id", selectedCategory);
-        const res = await fetch(`/api/accounting/kardex/products?${params.toString()}`);
+        const res = await authFetch(`/api/accounting/kardex/products?${params.toString()}`);
         if (res.ok) {
           const data = await res.json();
           setResults(data);
