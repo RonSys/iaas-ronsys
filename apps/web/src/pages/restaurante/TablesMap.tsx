@@ -12,7 +12,7 @@
  * @module pages/restaurante/TablesMap
  */
 import { authFetch } from "@/services/authFetch";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Skeleton } from "@/components/dashboard/KPICard";
 
 interface Table {
@@ -290,11 +290,11 @@ export function TablesMap() {
     }
   }, []);
 
-  const addToOrder = async (menuItem: MenuItem, modifierIds: number[] = []) => {
+  const addToOrder = async (menuItem: MenuItem, modifierIds: number[] = [], skipModifiers = false) => {
     if (!selectedTable) return;
 
-    // If item has modifiers and no modifierIds passed, show modifier modal
-    if (menuItem.modifiers && menuItem.modifiers.length > 0 && modifierIds.length === 0 && !showModifierModal) {
+    // If item has modifiers and no modifierIds passed, show modifier modal (unless skipping)
+    if (!skipModifiers && menuItem.modifiers && menuItem.modifiers.length > 0 && modifierIds.length === 0 && !showModifierModal) {
       setPendingMenuItem(menuItem);
       setSelectedModifiers([]);
       setShowModifierModal(true);
@@ -359,6 +359,42 @@ export function TablesMap() {
       setSendingToKitchen(false);
     }
   };
+
+  const handleIncrement = async (item: OrderItem) => {
+    const menuItem = menuItems.find((m) => m.id === item.menu_item_id);
+    if (menuItem) addToOrder(menuItem, [], true);
+  };
+
+  const handleDecrement = async (item: OrderItem) => {
+    if (!selectedTable?.order_id) return;
+    setAddingItemId(item.menu_item_id);
+    try {
+      const res = await authFetch(
+        `/api/v1/restaurant/orders/${selectedTable.order_id}/items/${item.menu_item_id}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) throw new Error("Error al quitar item");
+      const data = await res.json();
+      setOrderItems(data.items ?? []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setAddingItemId(null);
+    }
+  };
+
+  // Agrupar items por menu_item_id para el ticket
+  const groupedItems = useMemo(() => {
+    return orderItems.reduce<OrderItem[]>((acc, item) => {
+      const existing = acc.find((i) => i.menu_item_id === item.menu_item_id);
+      if (existing) {
+        existing.quantity += item.quantity || 1;
+      } else {
+        acc.push({ ...item, quantity: item.quantity || 1 });
+      }
+      return acc;
+    }, []);
+  }, [orderItems]);
 
   // ─── Click handlers ───
   const handleTableClick = (table: Table) => {
@@ -610,16 +646,41 @@ export function TablesMap() {
                   <div className="bg-gray-50 rounded-lg p-3 mb-2">
                     <h4 className="text-xs font-bold text-brand-text-primary mb-2">📋 Pedido Actual</h4>
                     <div className="max-h-32 overflow-y-auto space-y-0.5">
-                      {orderItems.map((item, i) => (
-                        <div key={i} className="flex justify-between text-xs py-0.5">
-                          <span>{item.quantity}x {item.name}</span>
-                          <span className="font-medium">S/ {((item.unit_price ?? 0) * item.quantity).toFixed(2)}</span>
+                      {groupedItems.map((item, i) => (
+                        <div key={i} className="flex justify-between text-xs py-1">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleDecrement(item)}
+                              disabled={addingItemId === item.menu_item_id}
+                              className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center
+                                text-xs font-bold hover:bg-gray-300 disabled:opacity-40 flex-shrink-0"
+                              style={{ minWidth: 20, minHeight: 20 }}
+                              aria-label={`Quitar ${item.name}`}
+                            >
+                              −
+                            </button>
+                            <span className="w-4 text-center font-medium">{item.quantity}</span>
+                            <button
+                              onClick={() => handleIncrement(item)}
+                              disabled={addingItemId === item.menu_item_id}
+                              className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center
+                                text-xs font-bold hover:bg-gray-300 disabled:opacity-40 flex-shrink-0"
+                              style={{ minWidth: 20, minHeight: 20 }}
+                              aria-label={`Agregar ${item.name}`}
+                            >
+                              +
+                            </button>
+                            <span className="ml-1 truncate max-w-[120px]">{item.name}</span>
+                          </div>
+                          <span className="font-medium flex-shrink-0">
+                            S/ {((item.unit_price ?? 0) * item.quantity).toFixed(2)}
+                          </span>
                         </div>
                       ))}
                     </div>
                     <div className="flex justify-between text-xs font-bold pt-2 border-t border-gray-300 mt-2">
                       <span>TOTAL</span>
-                      <span>S/ {orderItems.reduce((sum, item) => sum + ((item.unit_price ?? 0) * item.quantity), 0).toFixed(2)}</span>
+                      <span>S/ {groupedItems.reduce((sum, item) => sum + ((item.unit_price ?? 0) * item.quantity), 0).toFixed(2)}</span>
                     </div>
                   </div>
                 )}

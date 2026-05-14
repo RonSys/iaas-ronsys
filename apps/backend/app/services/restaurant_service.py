@@ -266,6 +266,35 @@ class KitchenOrdersService:
         return order
 
     @staticmethod
+    async def remove_item(
+        db: AsyncSession, order_id: int, menu_item_id: int, tenant_id: int,
+    ) -> dict:
+        order = await KitchenOrdersService.get_order(db, order_id, tenant_id)
+        if order.status != "pending":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="La orden ya fue enviada a cocina",
+            )
+        items = list(order.items or [])
+        found = False
+        for i, item in enumerate(items):
+            if item.get("menu_item_id") == menu_item_id:
+                if item.get("quantity", 1) > 1:
+                    items[i]["quantity"] -= 1
+                else:
+                    items.pop(i)
+                found = True
+                break
+        if not found:
+            raise HTTPException(status_code=404, detail="Item no encontrado en la orden")
+        order.items = items
+        await db.flush()
+        await db.refresh(order)
+        detail = await KitchenOrdersService.get_order_detail(db, order.id, tenant_id)
+        await manager.broadcast_to_kitchen(tenant_id, "update_order", detail)
+        return detail
+
+    @staticmethod
     async def get_order_detail(
         db: AsyncSession, order_id: int, tenant_id: int,
     ) -> dict:
@@ -347,6 +376,29 @@ class KitchenOrdersService:
                 "notes": item_data.get("notes", ""), "total": item_total,
             })
 
+        # Buscar orden pending existente de esta mesa
+        existing = await db.execute(
+            select(KitchenOrder).where(
+                KitchenOrder.table_id == table_id,
+                KitchenOrder.tenant_id == tenant_id,
+                KitchenOrder.status == "pending",
+            )
+        )
+        existing_order = existing.scalar_one_or_none()
+
+        if existing_order:
+            # Agregar items a la orden existente
+            current_items = list(existing_order.items or [])
+            current_items.extend(validated)
+            existing_order.items = current_items
+            existing_order.notes = None
+            await db.flush()
+            await db.refresh(existing_order)
+            detail = await KitchenOrdersService.get_order_detail(db, existing_order.id, tenant_id)
+            await manager.broadcast_to_kitchen(tenant_id, "update_order", detail)
+            return detail
+
+        # Crear nueva orden (primera vez)
         order = KitchenOrder(
             tenant_id=tenant_id, table_id=table_id,
             status="pending", items=validated,
@@ -355,11 +407,8 @@ class KitchenOrdersService:
         db.add(order)
         await db.flush()
         await db.refresh(order)
-
-        # Broadcast a cocina
         detail = await KitchenOrdersService.get_order_detail(db, order.id, tenant_id)
         await manager.broadcast_to_kitchen(tenant_id, "new_order", detail)
-
         return detail
 
     @staticmethod

@@ -237,6 +237,18 @@ async def update_order_status(
     return await KitchenOrdersService.update_status(db, order_id, tenant_id, new_status)
 
 
+@router.delete("/orders/{order_id}/items/{menu_item_id}")
+async def remove_order_item(
+    order_id: int,
+    menu_item_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Resta 1 unidad de un item (o lo elimina si quantity=1)."""
+    return await KitchenOrdersService.remove_item(db, order_id, menu_item_id, tenant_id)
+
+
 @router.get("/orders/active")
 async def list_active_orders(
     tenant_id: Annotated[int, Depends(get_tenant_id)],
