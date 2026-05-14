@@ -388,34 +388,35 @@ export function TablesMap() {
                     />
                   </div>
                 </div>
-                <div className="flex gap-2 justify-between">
-                  <div className="flex gap-2">
+                <div className="space-y-2">
+                  <button onClick={handleOpenTable} disabled={submitting || !openWaiter.trim()}
+                    className="w-full py-2.5 text-sm rounded-lg bg-brand-primary text-white font-medium
+                      hover:bg-brand-secondary disabled:opacity-50">
+                    {submitting ? "Abriendo..." : "🔓 Abrir Mesa"}
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => handleReserve(selectedTable.id)}
-                      className="px-3 py-2 text-sm rounded-lg bg-yellow-500 text-white hover:bg-yellow-600"
+                      className="py-2 text-sm rounded-lg bg-yellow-500 text-white hover:bg-yellow-600"
                       disabled={submitting}>
                       📅 Reservar
                     </button>
                     <button onClick={() => openEditModal(selectedTable)}
-                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50">
+                      className="py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50">
                       ✏️ Editar
                     </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => {
                       if (window.confirm(`¿Eliminar mesa ${selectedTable.number}?`)) {
                         setShowOpenModal(false);
                         handleDeleteTable(selectedTable.id);
                       }
-                    }} className="px-3 py-2 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50">
+                    }} className="py-2 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50">
                       🗑️ Eliminar
                     </button>
-                  </div>
-                  <div className="flex gap-2">
                     <button onClick={() => { setShowOpenModal(false); setSelectedTable(null); }}
-                      className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50" disabled={submitting}>
+                      className="py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50" disabled={submitting}>
                       Cancelar
-                    </button>
-                    <button onClick={handleOpenTable} disabled={submitting || !openWaiter.trim()}
-                      className="px-4 py-2 text-sm rounded-lg bg-brand-primary text-white hover:bg-brand-secondary disabled:opacity-50">
-                      {submitting ? "Abriendo..." : "Abrir Mesa"}
                     </button>
                   </div>
                 </div>
@@ -429,15 +430,15 @@ export function TablesMap() {
                   <p>Capacidad: {selectedTable.capacity} pers.</p>
                   <p>Sección: {selectedTable.section ?? "General"}</p>
                 </div>
-                <div className="flex gap-2 justify-between">
-                  <div className="flex gap-2">
-                    <button onClick={() => handleFree(selectedTable.id)}
-                      className="px-3 py-2 text-sm rounded-lg bg-gray-600 text-white hover:bg-gray-700"
-                      disabled={submitting}>
-                      🔓 Liberar Reserva
-                    </button>
+                <div className="space-y-2">
+                  <button onClick={() => handleFree(selectedTable.id)}
+                    className="w-full py-2.5 text-sm rounded-lg bg-gray-600 text-white font-medium
+                      hover:bg-gray-700" disabled={submitting}>
+                    🔓 Liberar Reserva
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
                     <button onClick={() => openEditModal(selectedTable)}
-                      className="px-3 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50">
+                      className="py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50">
                       ✏️ Editar
                     </button>
                     <button onClick={() => {
@@ -445,12 +446,13 @@ export function TablesMap() {
                         setShowOpenModal(false);
                         handleDeleteTable(selectedTable.id);
                       }
-                    }} className="px-3 py-2 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50">
+                    }} className="py-2 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50">
                       🗑️ Eliminar
                     </button>
                   </div>
                   <button onClick={() => { setShowOpenModal(false); setSelectedTable(null); }}
-                    className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50" disabled={submitting}>
+                    className="w-full py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+                    disabled={submitting}>
                     Cancelar
                   </button>
                 </div>
