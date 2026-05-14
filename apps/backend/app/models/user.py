@@ -46,7 +46,7 @@ class User(Base):
     role: Mapped[str] = mapped_column(
         String(20), nullable=False, default="viewer"
     )  # ENUM: admin|manager|operator|viewer
-    company_id: Mapped[int] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -60,6 +60,11 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+    @property
+    def company_id(self) -> int:
+        """Backward compatibility alias for tenant_id (DB column renamed by migration)."""
+        return self.tenant_id
 
     __table_args__ = (
         CheckConstraint(
@@ -84,9 +89,14 @@ class RefreshToken(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    company_id: Mapped[int] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
     )
+
+    @property
+    def company_id(self) -> int:
+        """Backward compatibility alias for tenant_id."""
+        return self.tenant_id
     token_hash: Mapped[str] = mapped_column(
         String(64), unique=True, nullable=False, index=True
     )

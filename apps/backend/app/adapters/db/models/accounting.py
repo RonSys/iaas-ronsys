@@ -121,7 +121,7 @@ class JournalEntry(Base):
     __tablename__ = "journal_entries"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    company_id: Mapped[int] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id"), nullable=False, index=True
     )
     entry_number: Mapped[str] = mapped_column(
@@ -140,8 +140,13 @@ class JournalEntry(Base):
         "JournalEntryLine", back_populates="entry", cascade="all, delete-orphan"
     )
 
+    @property
+    def company_id(self) -> int:
+        """Backward compatibility alias for tenant_id."""
+        return self.tenant_id
+
     __table_args__ = (
-        Index("idx_journal_entries_company_date", "company_id", "date"),
+        Index("idx_journal_entries_tenant_date", "tenant_id", "date"),
     )
 
 
@@ -185,7 +190,7 @@ class Product(Base):
     __tablename__ = "products"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    company_id: Mapped[int] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id"), nullable=False, index=True
     )
     code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
@@ -212,6 +217,11 @@ class Product(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+
+    @property
+    def company_id(self) -> int:
+        """Backward compatibility alias for tenant_id."""
+        return self.tenant_id
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -268,7 +278,7 @@ class CashflowProjection(Base):
     __tablename__ = "cashflow_projections"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    company_id: Mapped[int] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id"), nullable=False, index=True
     )
     year: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -283,10 +293,15 @@ class CashflowProjection(Base):
         DateTime, server_default=func.now(), onupdate=func.now()
     )
 
+    @property
+    def company_id(self) -> int:
+        """Backward compatibility alias for tenant_id."""
+        return self.tenant_id
+
     __table_args__ = (
         UniqueConstraint(
-            "company_id", "year", "month", "concept",
+            "tenant_id", "year", "month", "concept",
             name="uq_cashflow_projection"
         ),
-        Index("idx_cf_proj_company_year", "company_id", "year"),
+        Index("idx_cf_proj_tenant_year", "tenant_id", "year"),
     )

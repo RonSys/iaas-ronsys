@@ -141,7 +141,7 @@ async def login(
 
     refresh_record = RefreshToken(
         user_id=user.id,
-        company_id=user.company_id,
+        tenant_id=user.company_id,
         token_hash=refresh_hash,
         expires_at=expires_at,
         created_by_ip=request.client.host if request.client else None,
@@ -225,7 +225,7 @@ async def refresh(
 
     new_rt = RefreshToken(
         user_id=rt.user_id,
-        company_id=rt.company_id,
+        tenant_id=rt.company_id,
         token_hash=new_hash,
         expires_at=new_expires,
         created_by_ip=rt.created_by_ip,
