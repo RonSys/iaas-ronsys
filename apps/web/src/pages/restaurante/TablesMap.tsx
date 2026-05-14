@@ -28,12 +28,20 @@ interface Table {
   order_id?: number | null;
 }
 
+interface MenuModifier {
+  id: number;
+  name: string;
+  price_adjustment: number;
+  max_select?: number;
+}
+
 interface MenuItem {
   id: number;
   name: string;
   price: number;
   category: string;
   active: boolean;
+  modifiers?: MenuModifier[] | null;
 }
 
 interface OrderItem {
@@ -93,6 +101,11 @@ export function TablesMap() {
   const [addingItemId, setAddingItemId] = useState<number | null>(null);
   const [sendingToKitchen, setSendingToKitchen] = useState(false);
   const [orderToast, setOrderToast] = useState<string | null>(null);
+
+  // Modifier modal state
+  const [showModifierModal, setShowModifierModal] = useState(false);
+  const [selectedModifiers, setSelectedModifiers] = useState<number[]>([]);
+  const [pendingMenuItem, setPendingMenuItem] = useState<MenuItem | null>(null);
 
   const fetchTables = useCallback(async () => {
     try {
@@ -289,18 +302,34 @@ export function TablesMap() {
     }
   }, []);
 
-  const addToOrder = async (menuItem: MenuItem) => {
+  const addToOrder = async (menuItem: MenuItem, modifierIds: number[] = []) => {
     if (!selectedTable) return;
+
+    // If item has modifiers and no modifierIds passed, show modifier modal
+    if (menuItem.modifiers && menuItem.modifiers.length > 0 && modifierIds.length === 0 && !showModifierModal) {
+      setPendingMenuItem(menuItem);
+      setSelectedModifiers([]);
+      setShowModifierModal(true);
+      return;
+    }
+
     setAddingItemId(menuItem.id);
+    const modifiers = modifierIds.map((id) => {
+      const mod = menuItem.modifiers?.find((m) => m.id === id);
+      return mod ? { id: mod.id, name: mod.name, price_adjustment: mod.price_adjustment } : null;
+    }).filter(Boolean);
+
     try {
       const res = await authFetch(`/api/v1/restaurant/tables/${selectedTable.id}/order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          menu_item_id: menuItem.id,
-          quantity: 1,
-          modifiers: [],
-          notes: "",
+          items: [{
+            menu_item_id: menuItem.id,
+            quantity: 1,
+            modifiers,
+            notes: "",
+          }],
         }),
       });
       if (!res.ok) {
@@ -312,12 +341,14 @@ export function TablesMap() {
       if (data.order_id && selectedTable.order_id !== data.order_id) {
         setSelectedTable({ ...selectedTable, order_id: data.order_id });
       }
-      setOrderToast(`✅ ${menuItem.name} agregado`);
+      const modNames = modifiers.length > 0 ? ` (${modifiers.map((m: any) => m.name).join(", ")})` : "";
+      setOrderToast(`✅ ${menuItem.name}${modNames} agregado`);
       setTimeout(() => setOrderToast(null), 2000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error al agregar");
     } finally {
       setAddingItemId(null);
+      setPendingMenuItem(null);
     }
   };
 
@@ -663,6 +694,92 @@ export function TablesMap() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Modificadores */}
+      {showModifierModal && pendingMenuItem && pendingMenuItem.modifiers && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm mx-4 shadow-xl max-h-[80vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-brand-text-primary mb-1">
+              {pendingMenuItem.name}
+            </h3>
+            <p className="text-xs text-brand-text-secondary mb-4">
+              Personalizá tu pedido
+            </p>
+            <div className="space-y-2">
+              {pendingMenuItem.modifiers.map((mod) => {
+                const isSelected = selectedModifiers.includes(mod.id);
+                return (
+                  <label
+                    key={mod.id}
+                    className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                      isSelected
+                        ? "border-brand-primary bg-brand-primary/5"
+                        : "border-gray-200 hover:bg-gray-50"
+                    }`}
+                    style={{ minHeight: 44 }}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium">{mod.name}</span>
+                      {mod.price_adjustment > 0 && (
+                        <span className="text-xs text-orange-600 ml-1">
+                          +S/ {mod.price_adjustment.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ml-2 ${
+                        isSelected
+                          ? "bg-brand-primary border-brand-primary"
+                          : "border-gray-300"
+                      }`}
+                    >
+                      {isSelected && (
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => {
+                        setSelectedModifiers((prev) =>
+                          prev.includes(mod.id)
+                            ? prev.filter((id) => id !== mod.id)
+                            : [...prev, mod.id],
+                        );
+                      }}
+                      className="sr-only"
+                    />
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 justify-end mt-4">
+              <button
+                onClick={() => {
+                  setShowModifierModal(false);
+                  setPendingMenuItem(null);
+                }}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (pendingMenuItem) {
+                    addToOrder(pendingMenuItem, selectedModifiers);
+                  }
+                  setShowModifierModal(false);
+                }}
+                className="px-4 py-2 text-sm rounded-lg bg-brand-primary text-white hover:bg-brand-secondary"
+              >
+                Agregar
+              </button>
+            </div>
           </div>
         </div>
       )}

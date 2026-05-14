@@ -187,25 +187,31 @@ Aquí ves todos los **platos, bebidas, postres y combos** disponibles, organizad
 
 El proceso de tomar pedido ocurre desde el **Mapa de Mesas**:
 
-#### Agregar items al pedido
-
 1. Hacé clic en una **mesa ocupada** 🔴.
-2. Se abre el detalle de la mesa donde ves:
-   - El **ticket actual** (items ya pedidos).
-   - El **menú completo** para agregar más items.
-3. Para agregar un ítem:
-   - Buscá o navegá por categoría.
-   - Hacé clic en **"Agregar"**.
-   - Si el ítem tiene **modificadores** (ej. "Sin cebolla", "Término medio", "Extra queso +S/3.50"), se abre un modal para seleccionarlos.
-   - Elegí la **cantidad** y confirmá.
-4. ✅ El ítem aparece en el ticket de la mesa con nombre, modificadores y precio.
+2. Se abre el modal con los datos de la mesa (comensales, mesero, capacidad).
+3. Presioná el botón **"🍽️ Tomar Pedido"**.
+4. Se despliega el **menú completo** con todos los platos activos, agrupados por categoría (Entradas, Platos de Fondo, Bebidas, Postres).
+5. Cada ítem del menú muestra:
+   - 🏷️ **Nombre** del plato
+   - 💰 **Precio** (ej. S/ 28.00)
+   - Un botón **"➕"** para agregarlo al pedido
+
+> 💡 Si el ítem tiene modificadores (ej. "Sin cebolla", "Término medio", "Extra queso +S/3.50"), se abrirá un modal para seleccionarlos al hacer clic en ➕.
+
+#### Ticket actual
+
+Arriba del menú se muestra el **ticket** del pedido con:
+- 📋 Items agregados con cantidades
+- 💰 Subtotal por ítem
+- 🔄 El menú sigue visible para seguir agregando más platos
 
 #### Enviar pedido a cocina
 
-1. Revisá el ticket: items, cantidades y modificadores.
-2. Presioná **"Enviar a Cocina"**.
-3. ✅ Aparece el mensaje *"Comanda enviada ✅"* y el ticket se limpia (listo para nuevos pedidos).
-4. En la cocina, la comanda aparece automáticamente en la columna **"Pendientes"**.
+1. Revisá el ticket con los items agregados.
+2. Presioná el botón **"📨 Enviar a Cocina"**.
+3. ✅ Aparece un mensaje de confirmación verde *"Comanda enviada ✅"*.
+4. En la cocina, la comanda aparece automáticamente en la columna **"⏳ Pendientes"** del Kanban.
+5. El menú sigue disponible para agregar más items si los clientes piden después.
 
 ---
 

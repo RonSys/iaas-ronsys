@@ -86,6 +86,19 @@
 | 14 | **X-Tenant-ID no enviado** | Frontend usaba `fetch()` sin auth headers | `authFetch.ts` wrapper + `tenant.py` JWT fallback | `services/authFetch.ts` (nuevo), `core/tenant.py` |
 | 15 | **act() warnings** | Tests con hooks legacy sin `waitFor` | `await waitFor()` + `findBy*` en 8 archivos de test | `__tests__/*.test.tsx` |
 | 16 | **Sin UI para crear mesas** | No existía formulario de creación, edición o eliminación | Modal CRUD con número, capacidad, sección + botones | `TablesMap.tsx` |
+| 17 | **Modal mesa ocupada sin pedido** | Al click en mesa ocupada no se abría modal | `setShowOpenModal(true)` también para occupied/cleaning | `TablesMap.tsx` |
+| 18 | **createMenuItem usa `fetch()` sin auth** | Línea 135 usaba `fetch(url)` en vez de `authFetch(url)` | `fetch` → `authFetch` | `MenuPage.tsx` |
+| 19 | **createMenuItem usa PUT en vez de PATCH** | Backend espera PATCH, frontend enviaba PUT | `"PUT"` → `"PATCH"` | `MenuPage.tsx` |
+| 20 | **toggleActive menu usa PUT en vez de PATCH** | Mismo error en toggle de activo/agotado | `"PUT"` → `"PATCH"` | `MenuPage.tsx` |
+| 21 | **Promotions usa PUT + fetch sin auth** | Mismos 2 errores en PromotionsPage | `"PUT"` → `"PATCH"` + `fetch` → `authFetch` | `PromotionsPage.tsx` |
+| 22 | **addToOrder body sin wrapper `items: []`** | Frontend enviaba `{menu_item_id}` en vez de `{items: [{menu_item_id}]}` | Envolver en array `items` | `TablesMap.tsx` |
+
+### Bugs de DB
+
+| # | Bug | Causa | Fix |
+|---|-----|-------|-----|
+| 23 | **kitchen_orders sin columna `started_at`** | Modelo espera columna, DB no la tenía | `ALTER TABLE ADD COLUMN` |
+| 24 | **kitchen_orders sin columna `ordered_at`** | Modelo espera columna, DB no la tenía | `ALTER TABLE ADD COLUMN` |
 
 ### Bugs de Datos
 
@@ -104,6 +117,9 @@
 | `146e1d8` | 10:43 | Frontend: URLs con prefijo v1 en 7 archivos | 7 | +14 −14 |
 | `47e194e` | 10:57 | Frontend: authFetch wrapper + auth headers en restaurant pages | 8 | +50 −21 |
 | `a6829d8` | 11:20 | Frontend: CRUD mesas en TablesMap (crear, editar, eliminar) | 1 | +180 −20 |
+| `25b22b6` | 17:30 | Frontend: Modal grid 2 cols responsive | 1 | +30 −15 |
+| `3255a52` | 17:15 | Frontend: Botones 📅 Reservar / 🔓 Liberar | 1 | +80 −10 |
+| `78af468` | 21:20 | Frontend: 🍽️ Tomar Pedido desde mesa ocupada | 1 | +200 −30 |
 
 ---
 
@@ -119,6 +135,13 @@
 | 10:57 | Fix: authFetch JWT + tenant.py fallback | `47e194e` + core/tenant.py |
 | 11:20 | Fix: CRUD Mesas backend + frontend | `a6829d8` |
 | 11:40 | Fix: authFetch chunk faltante + build cache | docker cp |
+| 17:30 | Fix: Modal UI/UX grid 2 cols responsive | `25b22b6` |
+| 17:32 | Fix: Botones Reservar/Liberar | `3255a52` |
+| 17:48 | Fix: Tooltip mesa ocupada (guests, waiter_name, opened_at) | Backend + DB |
+| 20:52 | Fix: PUT→PATCH + fetch→authFetch (Menu + Promotions) | Frontend |
+| 21:00 | Fix: Modal mesa ocupada no abría (handleTableClick) | Frontend |
+| 21:15 | Fix: addToOrder body sin wrapper items[] | Frontend |
+| 21:27 | Fix: DB columnas faltantes (started_at, ordered_at) | DB ALTER TABLE |
 
 ---
 
