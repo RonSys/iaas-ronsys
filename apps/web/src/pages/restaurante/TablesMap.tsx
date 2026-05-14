@@ -290,18 +290,6 @@ export function TablesMap() {
     }
   }, []);
 
-  const fetchOrder = useCallback(async (orderId: number) => {
-    try {
-      const res = await authFetch(`/api/v1/restaurant/orders/${orderId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setOrderItems(data.items ?? []);
-      }
-    } catch {
-      // order might not exist yet
-    }
-  }, []);
-
   const addToOrder = async (menuItem: MenuItem, modifierIds: number[] = []) => {
     if (!selectedTable) return;
 
@@ -338,8 +326,9 @@ export function TablesMap() {
       }
       const data = await res.json();
       setOrderItems(data.items ?? [...orderItems, { menu_item_id: menuItem.id, name: menuItem.name, quantity: 1, unit_price: menuItem.price }]);
-      if (data.order_id && selectedTable.order_id !== data.order_id) {
-        setSelectedTable({ ...selectedTable, order_id: data.order_id });
+      const newOrderId = data.id || data.order_id;
+      if (newOrderId && selectedTable.order_id !== newOrderId) {
+        setSelectedTable({ ...selectedTable, order_id: newOrderId });
       }
       const modNames = modifiers.length > 0 ? ` (${modifiers.map((m: any) => m.name).join(", ")})` : "";
       setOrderToast(`✅ ${menuItem.name}${modNames} agregado`);
@@ -383,7 +372,7 @@ export function TablesMap() {
     }
     if (table.status === "occupied") {
       fetchMenu();
-      if (table.order_id) fetchOrder(table.order_id);
+      // No hay order_id en la lista de mesas — se obtiene al agregar items
     }
   };
 
@@ -618,14 +607,20 @@ export function TablesMap() {
 
                 {/* Current order items */}
                 {orderItems.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="bg-gray-50 rounded-lg p-3 mb-2">
                     <h4 className="text-xs font-bold text-brand-text-primary mb-2">📋 Pedido Actual</h4>
-                    {orderItems.map((item, i) => (
-                      <div key={i} className="flex justify-between text-xs py-0.5">
-                        <span>{item.quantity}x {item.name}</span>
-                        <span className="font-medium">S/ {((item.unit_price ?? 0) * item.quantity).toFixed(2)}</span>
-                      </div>
-                    ))}
+                    <div className="max-h-32 overflow-y-auto space-y-0.5">
+                      {orderItems.map((item, i) => (
+                        <div key={i} className="flex justify-between text-xs py-0.5">
+                          <span>{item.quantity}x {item.name}</span>
+                          <span className="font-medium">S/ {((item.unit_price ?? 0) * item.quantity).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between text-xs font-bold pt-2 border-t border-gray-300 mt-2">
+                      <span>TOTAL</span>
+                      <span>S/ {orderItems.reduce((sum, item) => sum + ((item.unit_price ?? 0) * item.quantity), 0).toFixed(2)}</span>
+                    </div>
                   </div>
                 )}
 
