@@ -9,7 +9,7 @@ Tablas afectadas: journal_entries, products, cashflow_projections,
 Además renombra índices que usaban el sufijo "company" a "tenant".
 
 Revision ID: 0010_drop_company_id
-Revises: 0009_product_categories_wholesale
+Revises: 0009_product_categories
 Create Date: 2026-05-14
 """
 from typing import Sequence, Union
@@ -18,7 +18,7 @@ from alembic import op
 
 
 revision: str = "0010_drop_company_id"
-down_revision: Union[str, None] = "0009_product_categories_wholesale"
+down_revision: Union[str, None] = "0009_product_categories"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

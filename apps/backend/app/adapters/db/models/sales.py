@@ -48,9 +48,9 @@ class PosSession(Base):
         Integer, ForeignKey("users.id"), nullable=False
     )
     opened_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     opening_cash: Mapped[float] = mapped_column(
         Numeric(12, 2), nullable=False, default=0
     )
@@ -61,7 +61,7 @@ class PosSession(Base):
         String(10), nullable=False, default="open"
     )  # open | closed
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relaciones
     sales: Mapped[list["Sale"]] = relationship(
