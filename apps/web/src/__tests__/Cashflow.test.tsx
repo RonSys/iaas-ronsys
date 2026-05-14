@@ -5,7 +5,7 @@
  */
 import { render, screen, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
-import { CashflowPage } from "@/pages/Cashflow";
+import { CashflowPage } from "@/pages/finanzas/CashflowPage";
 
 // Mock full api module
 jest.mock("@/services", () => {

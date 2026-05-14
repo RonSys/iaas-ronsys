@@ -46,7 +46,7 @@ class User(Base):
     role: Mapped[str] = mapped_column(
         String(20), nullable=False, default="viewer"
     )  # ENUM: admin|manager|operator|viewer
-    company_id: Mapped[int] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -68,6 +68,11 @@ class User(Base):
         ),
     )
 
+    @property
+    def company_id(self) -> int:
+        """Backward compatibility alias for tenant_id."""
+        return self.tenant_id
+
 
 class RefreshToken(Base):
     """
@@ -84,7 +89,7 @@ class RefreshToken(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    company_id: Mapped[int] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
     )
     token_hash: Mapped[str] = mapped_column(

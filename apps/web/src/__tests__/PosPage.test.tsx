@@ -2,11 +2,24 @@
  * Tests for PosPage — full POS session lifecycle.
  *
  * HU-F2-008: UI de apertura y cierre de caja
+ * HU-F0-016: Búsqueda de producto en venta mostrador
  */
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BrowserRouter } from "react-router-dom";
-import { PosPage } from "@/pages/Pos";
+import { PosPage } from "@/pages/ventas/PosPage";
+
+// Mock global fetch for ProductSearch categories call
+beforeAll(() => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: () => Promise.resolve([]),
+  }) as jest.Mock;
+});
+
+afterAll(() => {
+  delete (global as any).fetch;
+});
 
 jest.mock("@/services", () => {
   const palette = {

@@ -41,7 +41,7 @@ class PosSession(Base):
     __tablename__ = "pos_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    company_id: Mapped[int] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id"), nullable=False
     )
     user_id: Mapped[int] = mapped_column(
@@ -68,6 +68,11 @@ class PosSession(Base):
         "Sale", back_populates="session", cascade="all, delete-orphan"
     )
 
+    @property
+    def company_id(self) -> int:
+        """Backward compatibility alias for tenant_id."""
+        return self.tenant_id
+
     def __repr__(self) -> str:
         return f"<PosSession(id={self.id}, status={self.status})>"
 
@@ -83,7 +88,7 @@ class Sale(Base):
     __tablename__ = "sales"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    company_id: Mapped[int] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id"), nullable=False, index=True
     )
     session_id: Mapped[int] = mapped_column(
@@ -143,8 +148,13 @@ class Sale(Base):
     )
 
     __table_args__ = (
-        Index("idx_sales_company_date", "company_id", "sale_date"),
+        Index("idx_sales_tenant_date", "tenant_id", "sale_date"),
     )
+
+    @property
+    def company_id(self) -> int:
+        """Backward compatibility alias for tenant_id."""
+        return self.tenant_id
 
     def __repr__(self) -> str:
         return f"<Sale(id={self.id}, number={self.sale_number})>"

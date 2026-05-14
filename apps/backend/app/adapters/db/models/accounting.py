@@ -121,7 +121,7 @@ class JournalEntry(Base):
     __tablename__ = "journal_entries"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    company_id: Mapped[int] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id"), nullable=False, index=True
     )
     entry_number: Mapped[str] = mapped_column(
@@ -141,7 +141,7 @@ class JournalEntry(Base):
     )
 
     __table_args__ = (
-        Index("idx_journal_entries_company_date", "company_id", "date"),
+        Index("idx_journal_entries_tenant_date", "tenant_id", "date"),
     )
 
 
@@ -176,12 +176,16 @@ class JournalEntryLine(Base):
 
 
 class Product(Base):
-    """Maestro de productos del inventario."""
+    """Maestro de productos del inventario.
+
+    HU-F0-009: category_id FK a product_categories
+    HU-F0-010: wholesale_price, wholesale_min_qty para ventas mayoristas
+    """
 
     __tablename__ = "products"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    company_id: Mapped[int] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id"), nullable=False, index=True
     )
     code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
@@ -195,6 +199,15 @@ class Product(Base):
         Numeric(12, 4), default=0, nullable=False
     )  # Costo promedio ponderado
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # HU-F0-009: Categoría de producto (1 nivel)
+    category_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("product_categories.id", ondelete="SET NULL"), nullable=True
+    )
+    # HU-F0-010: Precios mayoristas
+    wholesale_price: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    wholesale_min_qty: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Código de barras (opcional, D-21 → F2)
+    barcode: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
@@ -255,7 +268,7 @@ class CashflowProjection(Base):
     __tablename__ = "cashflow_projections"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    company_id: Mapped[int] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id"), nullable=False, index=True
     )
     year: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -272,8 +285,8 @@ class CashflowProjection(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "company_id", "year", "month", "concept",
+            "tenant_id", "year", "month", "concept",
             name="uq_cashflow_projection"
         ),
-        Index("idx_cf_proj_company_year", "company_id", "year"),
+        Index("idx_cf_proj_tenant_year", "tenant_id", "year"),
     )

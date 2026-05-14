@@ -1,6 +1,6 @@
 # DEBT.md — Deudas Técnicas del Backend
 
-> Generado: 2026-05-10 | Proyecto: IaaS-RonSys `apps/backend/`
+> Generado: 2026-05-14 | Proyecto: IaaS-RonSys `apps/backend/`
 
 ---
 
@@ -76,17 +76,34 @@
   - Marcar tests que requieren DB con `@pytest.mark.db`
 - **Estimado:** 1-2 días
 
+### REST-001: Tests de integración para nuevos módulos Restaurante
+
+- **Estado:** 🟢 Pendiente — modelos y servicios implementados en Fase 0
+- **Qué falta:**
+  - Tests unitarios para servicios de Restaurante (TablesService, KitchenOrdersService, etc.)
+  - Tests de integración HTTP para nuevos endpoints de Restaurante y Ferretería
+  - Tests de WebSocket para comunicación cocina
+- **Estimado:** 1-2 días
+
+### FERR-001: Precios mayoristas solo afectan endpoint POST /api/sales/sale
+
+- **Estado:** 🟢 Funcional — HU-F0-010 implementado en `sales_service.py`
+- **Qué falta:**
+  - Los endpoints de Restaurante que crean ventas (close-order + pay) NO aplican wholesale pricing automáticamente (son items del menú)
+  - Confirmar que wholesale pricing se aplique también en ventas directas por API
+- **Estimado:** 0.5 día
+
 ---
 
 ## 🟢 Bajas
 
 ### TST-001: Cobertura de tests HTTP (routers)
 
-- **Estado:** 🟢 Tests del dominio existen (59 tests ✅), pero no hay tests de integración HTTP con FastAPI `TestClient`
+- **Estado:** 🟢 Tests del dominio existen (140 tests ✅), pero no hay tests de integración HTTP para nuevos endpoints de Fase 0
 - **Qué falta:**
-  - Tests para cada endpoint (`POST /api/accounting/setup`, `GET /api/accounting/pyg`, etc.)
+  - Tests para cada endpoint del Restaurante
   - Tests de validación de schemas (request/response)
-  - Tests de rate limiting
+  - Tests de WebSocket
 - **Estimado:** 1-2 días
 
 ### DOC-001: Documentación de API (OpenAPI/Swagger)
@@ -104,6 +121,28 @@
 - **Qué falta:** Actualizar configuración a formato pytest 9.x
 - **Estimado:** 15 minutos
 
+### MULTITENANT-001: tenant_id unificado — company_id eliminado (✅ Resuelto)
+
+- **Estado:** 🟢 QA Fase 0 — migración `0010_drop_company_id` elimina `company_id` de todas las tablas.
+  Todos los modelos ORM, repositorios, servicios y core usan `tenant_id`.
+  Schemas Pydantic mantienen `company_id` como nombre de campo para backward compat de API.
+- **Plan:** Fase 1 — cambiar schemas Pydantic de `company_id` → `tenant_id` (breaking API change).
+- **Estimado:** 0.5 día
+
+### MULTITENANT-002: Schemas Pydantic con campo company_id (deuda API)
+
+- **Estado:** 🟢 Los schemas de respuesta (AuthResponse, SaleResponse, etc.) exponen `company_id`
+  en JSON pero internamente usan `tenant_id`. Cambiar en Fase 1 con versionado de API.
+- **Plan:** Agregar `serialization_alias="company_id"` o cambiar a `tenant_id` en v2.
+- **Estimado:** 0.5 día
+
+### RBAC-001: Sistema de permisos sin consumir
+
+- **Estado:** 🟢 Migración `0011_role_permissions` crea tabla con seed de permisos básicos.
+  No hay middleware/guards que consulten la tabla — los permisos se validan por rol hardcodeado.
+- **Plan:** Implementar `require_permission("sales:write")` que consulte `role_permissions`.
+- **Estimado:** 1 día
+
 ---
 
 ## 📊 Resumen
@@ -111,6 +150,6 @@
 | Severidad | Cantidad | Días estimados |
 |-----------|:--------:|:--------------:|
 | 🔴 Crítica | 2 | 4-5 días |
-| 🟡 Media | 3 | 7-11 días |
-| 🟢 Baja | 3 | 2-3 días |
-| **Total** | **8** | **13-19 días** |
+| 🟡 Media | 5 | 9-15 días |
+| 🟢 Baja | 6 | 3-4 días |
+| **Total** | **13** | **16-24 días** |

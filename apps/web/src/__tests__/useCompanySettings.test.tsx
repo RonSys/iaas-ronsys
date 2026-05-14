@@ -45,11 +45,11 @@ describe("useCompanySettings", () => {
         warranty_tracking: false,
         recipe_explosion: true,
         delivery_enabled: true,
-        multi_waiter: false,
+        multi_waiter: false, multi_warehouse: false,
       },
-      tax_config: { igv_included_in_price: true, igv_rate: 0.18, icb_perception_pct: 0 },
+      tax_config: { igv_included_in_price: true, igv_rate: 0.18, icb_perception_pct: 0, withholding_tax_rate: 0 },
       palette: { primary: "#111", secondary: "#222", accent: "#333", background: "#444", surface: "#555", text_primary: "#666", text_secondary: "#777", success: "#888", warning: "#999", error: "#aaa" },
-      logo_url: null, favicon_url: null, date_format: "DD/MM/YYYY", currency: "PEN", timezone: "America/Lima",
+      logo_url: null, favicon_url: null, date_format: "DD/MM/YYYY", currency: "PEN", timezone: "America/Lima", branding: { logo_url: null, favicon_url: null, primary_color: "#111", secondary_color: "#222", business_name: "" },
     });
 
     const { result } = renderHook(() => useCompanySettings());
@@ -74,11 +74,11 @@ describe("useCompanySettings", () => {
         warranty_tracking: true,
         recipe_explosion: false,
         delivery_enabled: false,
-        multi_waiter: false,
+        multi_waiter: false, multi_warehouse: false,
       },
-      tax_config: { igv_included_in_price: false, igv_rate: 0.18, icb_perception_pct: 0.03 },
+      tax_config: { igv_included_in_price: false, igv_rate: 0.18, icb_perception_pct: 0.03, withholding_tax_rate: 0 },
       palette: { primary: "#111", secondary: "#222", accent: "#333", background: "#444", surface: "#555", text_primary: "#666", text_secondary: "#777", success: "#888", warning: "#999", error: "#aaa" },
-      logo_url: null, favicon_url: null, date_format: "DD/MM/YYYY", currency: "PEN", timezone: "America/Lima",
+      logo_url: null, favicon_url: null, date_format: "DD/MM/YYYY", currency: "PEN", timezone: "America/Lima", branding: { logo_url: null, favicon_url: null, primary_color: "#111", secondary_color: "#222", business_name: "" },
     });
 
     const { result } = renderHook(() => useCompanySettings());
@@ -108,10 +108,10 @@ describe("useCompanySettings", () => {
   it("refetch updates data", async () => {
     mockedGetCompanySettings.mockResolvedValueOnce({
       company_id: 1, business_type: "retail", business_name: "Test",
-      features: { tables_enabled: false, tips_enabled: false, invoice_required: false, warranty_tracking: false, recipe_explosion: false, delivery_enabled: false, multi_waiter: false },
-      tax_config: { igv_included_in_price: false, igv_rate: 0.18, icb_perception_pct: 0 },
+      features: { tables_enabled: false, tips_enabled: false, invoice_required: false, warranty_tracking: false, recipe_explosion: false, delivery_enabled: false, multi_waiter: false, multi_warehouse: false },
+      tax_config: { igv_included_in_price: false, igv_rate: 0.18, icb_perception_pct: 0, withholding_tax_rate: 0 },
       palette: { primary: "#111", secondary: "#222", accent: "#333", background: "#444", surface: "#555", text_primary: "#666", text_secondary: "#777", success: "#888", warning: "#999", error: "#aaa" },
-      logo_url: null, favicon_url: null, date_format: "DD/MM/YYYY", currency: "PEN", timezone: "America/Lima",
+      logo_url: null, favicon_url: null, date_format: "DD/MM/YYYY", currency: "PEN", timezone: "America/Lima", branding: { logo_url: null, favicon_url: null, primary_color: "#111", secondary_color: "#222", business_name: "" },
     });
 
     const { result } = renderHook(() => useCompanySettings());
@@ -119,10 +119,10 @@ describe("useCompanySettings", () => {
 
     mockedGetCompanySettings.mockResolvedValueOnce({
       company_id: 1, business_type: "restaurant", business_name: "Test",
-      features: { tables_enabled: true, tips_enabled: true, invoice_required: true, warranty_tracking: true, recipe_explosion: true, delivery_enabled: true, multi_waiter: true },
-      tax_config: { igv_included_in_price: true, igv_rate: 0.18, icb_perception_pct: 0 },
+      features: { tables_enabled: true, tips_enabled: true, invoice_required: true, warranty_tracking: true, recipe_explosion: true, delivery_enabled: true, multi_waiter: true, multi_warehouse: true },
+      tax_config: { igv_included_in_price: true, igv_rate: 0.18, icb_perception_pct: 0, withholding_tax_rate: 0 },
       palette: { primary: "#111", secondary: "#222", accent: "#333", background: "#444", surface: "#555", text_primary: "#666", text_secondary: "#777", success: "#888", warning: "#999", error: "#aaa" },
-      logo_url: null, favicon_url: null, date_format: "DD/MM/YYYY", currency: "PEN", timezone: "America/Lima",
+      logo_url: null, favicon_url: null, date_format: "DD/MM/YYYY", currency: "PEN", timezone: "America/Lima", branding: { logo_url: null, favicon_url: null, primary_color: "#111", secondary_color: "#222", business_name: "" },
     });
 
     await act(async () => {

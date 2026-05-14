@@ -14,12 +14,14 @@
  */
 import { useState, useEffect } from "react";
 import { useKardexInventory, useKardex } from "@/hooks/useAccounting";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { registerKardexEntry, registerKardexExit, registerProduct } from "@/services";
 import { fmtCurrency, Skeleton } from "@/components/dashboard/KPICard";
 import type { KardexProduct } from "@/types";
 
 export function KardexPage() {
   const inventory = useKardexInventory();
+  const { businessType } = useCompanySettings();
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const kardex = useKardex(selectedCode ?? "");
   const [showNewProduct, setShowNewProduct] = useState(false);
@@ -146,6 +148,7 @@ export function KardexPage() {
         <NewProductModal
           onClose={() => setShowNewProduct(false)}
           onCreated={() => { setShowNewProduct(false); inventory.refetch(); setMessage("Producto creado ✅"); }}
+          isHardware={businessType === "hardware"}
         />
       )}
       {showEntry && selectedCode && (
@@ -216,22 +219,39 @@ function MiniInfo({ label, value }: { label: string; value: string }) {
 function NewProductModal({
   onClose,
   onCreated,
+  isHardware = false,
 }: {
   onClose: () => void;
   onCreated: () => void;
+  isHardware?: boolean;
 }) {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("kg");
   const [stock, setStock] = useState(0);
   const [cost, setCost] = useState(0);
+  const [barcode, setBarcode] = useState("");
+  const [manufacturer, setManufacturer] = useState("");
+  const [warrantyPeriod, setWarrantyPeriod] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await registerProduct({ code, name, unit, initial_stock: stock, initial_cost: cost });
+      const payload: Record<string, unknown> = {
+        code,
+        name,
+        unit,
+        initial_stock: stock,
+        initial_cost: cost,
+      };
+      if (isHardware) {
+        if (barcode.trim()) payload.barcode = barcode.trim();
+        if (manufacturer.trim()) payload.manufacturer = manufacturer.trim();
+        payload.warranty_period = warrantyPeriod;
+      }
+      await registerProduct(payload as Parameters<typeof registerProduct>[0]);
       onCreated();
     } catch {
       // error handled by parent
@@ -242,7 +262,7 @@ function NewProductModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h3 className="font-bold text-lg mb-4">📦 Nuevo Producto</h3>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
@@ -272,6 +292,57 @@ function NewProductModal({
               <input type="number" className="input-field" value={cost} onChange={(e) => setCost(Number(e.target.value))} min={0} step="0.01" />
             </div>
           </div>
+
+          {/* Hardware-specific fields (F0-015) */}
+          {isHardware && (
+            <div className="border-2 border-blue-200 bg-blue-50/30 rounded-lg p-3 space-y-3">
+              <h4 className="text-xs font-semibold text-blue-800 flex items-center gap-1">
+                🔧 Campos de Ferretería
+              </h4>
+              <div>
+                <label className="text-xs font-medium text-brand-text-secondary">
+                  Código de Barras
+                </label>
+                <input
+                  className="input-field"
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  placeholder="Escanear o escribir código"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-brand-text-secondary">
+                  Fabricante / Marca
+                </label>
+                <input
+                  className="input-field"
+                  value={manufacturer}
+                  onChange={(e) => setManufacturer(e.target.value)}
+                  placeholder="Ej: Aceros Arequipa"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-brand-text-secondary">
+                  Período de Garantía (meses)
+                </label>
+                <select
+                  className="input-field"
+                  value={warrantyPeriod ?? ""}
+                  onChange={(e) =>
+                    setWarrantyPeriod(e.target.value ? Number(e.target.value) : null)
+                  }
+                >
+                  <option value="">Sin garantía</option>
+                  <option value={3}>3 meses</option>
+                  <option value={6}>6 meses</option>
+                  <option value={12}>12 meses</option>
+                  <option value={24}>24 meses</option>
+                  <option value={36}>36 meses</option>
+                </select>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2 pt-2">
             <button type="submit" disabled={loading} className="btn-primary flex-1">
               {loading ? "Creando..." : "Crear Producto"}

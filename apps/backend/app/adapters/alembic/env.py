@@ -24,8 +24,9 @@ def _get_config():
     return _alembic_context.config
 
 
-# Metadata para autogenerate (incluye accounting + auth)
+# Metadata para autogenerate (incluye accounting + auth + restaurant)
 import app.models.user  # noqa: E402, F401 — registra tablas en Base.metadata
+import app.adapters.db.models.restaurant  # noqa: E402, F401 — registra tablas restaurante
 target_metadata = Base.metadata
 
 

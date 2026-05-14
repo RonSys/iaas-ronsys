@@ -1,7 +1,7 @@
 """
 📊 Scenario Service — Persistencia de escenarios del simulador (HU-SIM-001).
 
-Límite: 4 escenarios por company_id.
+Límite: 4 escenarios por tenant_id.
 """
 
 from datetime import datetime
@@ -19,18 +19,18 @@ class ScenarioService:
     @staticmethod
     async def create(
         db: AsyncSession,
-        company_id: int,
+        tenant_id: int,
         user_id: int,
         name: str,
         input_data: dict,
         results: dict | None = None,
     ) -> Scenario:
-        """Crea un escenario. Valida límite de 4 por company."""
+        """Crea un escenario. Valida límite de 4 por tenant."""
         from fastapi import HTTPException
 
         # Check limit
         count_result = await db.execute(
-            select(func.count(Scenario.id)).where(Scenario.company_id == company_id)
+            select(func.count(Scenario.id)).where(Scenario.tenant_id == tenant_id)
         )
         count = count_result.scalar() or 0
         if count >= MAX_SCENARIOS:
@@ -40,7 +40,7 @@ class ScenarioService:
             )
 
         scenario = Scenario(
-            company_id=company_id,
+            tenant_id=tenant_id,
             user_id=user_id,
             name=name,
             input_data=input_data,
@@ -54,12 +54,12 @@ class ScenarioService:
     @staticmethod
     async def list_by_company(
         db: AsyncSession,
-        company_id: int,
+        tenant_id: int,
     ) -> dict:
         """Lista escenarios de una empresa, ordenados por created_at DESC."""
         result = await db.execute(
             select(Scenario)
-            .where(Scenario.company_id == company_id)
+            .where(Scenario.tenant_id == tenant_id)
             .order_by(Scenario.created_at.desc())
         )
         scenarios = result.scalars().all()
@@ -72,7 +72,7 @@ class ScenarioService:
     @staticmethod
     async def get(
         db: AsyncSession,
-        company_id: int,
+        tenant_id: int,
         scenario_id: int,
     ) -> Scenario:
         """Obtiene un escenario por id. 404 si no existe o no pertenece."""
@@ -81,7 +81,7 @@ class ScenarioService:
         result = await db.execute(
             select(Scenario).where(
                 Scenario.id == scenario_id,
-                Scenario.company_id == company_id,
+                Scenario.tenant_id == tenant_id,
             )
         )
         scenario = result.scalar_one_or_none()
@@ -92,14 +92,14 @@ class ScenarioService:
     @staticmethod
     async def update(
         db: AsyncSession,
-        company_id: int,
+        tenant_id: int,
         scenario_id: int,
         name: str | None = None,
         input_data: dict | None = None,
         results: dict | None = None,
     ) -> Scenario:
         """Actualiza un escenario. Campos no enviados se mantienen."""
-        scenario = await ScenarioService.get(db, company_id, scenario_id)
+        scenario = await ScenarioService.get(db, tenant_id, scenario_id)
 
         if name is not None:
             scenario.name = name
@@ -115,11 +115,11 @@ class ScenarioService:
     @staticmethod
     async def delete(
         db: AsyncSession,
-        company_id: int,
+        tenant_id: int,
         scenario_id: int,
     ) -> dict:
         """Elimina un escenario. 404 si no existe."""
-        scenario = await ScenarioService.get(db, company_id, scenario_id)
+        scenario = await ScenarioService.get(db, tenant_id, scenario_id)
         await db.delete(scenario)
         await db.flush()
         return {"status": "deleted", "id": scenario_id}

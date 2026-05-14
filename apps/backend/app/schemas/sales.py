@@ -7,7 +7,7 @@ Validation layer para los endpoints de ventas, sesiones y cashflow.
 from datetime import date, datetime, time
 from typing import Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -43,8 +43,7 @@ class PosSessionResponse(BaseModel):
     sales_count: int = 0
     total_sales: float = 0.0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -137,8 +136,7 @@ class SaleItemResponse(BaseModel):
     total: float
     kardex_movement_id: int | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SalePaymentResponse(BaseModel):
@@ -148,8 +146,7 @@ class SalePaymentResponse(BaseModel):
     amount: float
     reference: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RestaurantSaleResponse(BaseModel):
@@ -163,8 +160,7 @@ class RestaurantSaleResponse(BaseModel):
     tip_pct: float
     kitchen_notes: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HardwareSaleResponse(BaseModel):
@@ -175,8 +171,7 @@ class HardwareSaleResponse(BaseModel):
     requires_install: bool
     warranty_months: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SaleResponse(BaseModel):
@@ -196,8 +191,7 @@ class SaleResponse(BaseModel):
     void_reason: str | None = None
     payments: list[SalePaymentResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SaleDetailResponse(SaleResponse):
@@ -313,20 +307,21 @@ class CashflowReportResponse(BaseModel):
 
 
 class FeatureFlags(BaseModel):
-    """Feature flags por tipo de negocio."""
+    """Feature flags por tipo de negocio — HU-F1-002."""
     tables_enabled: bool = False
     tips_enabled: bool = False
+    delivery_enabled: bool = False
     recipe_explosion: bool = False
+    multi_warehouse: bool = False
     warranty_tracking: bool = False
     invoice_required: bool = False
-    igv_included_in_price: bool = False
-    delivery_enabled: bool = False
 
 
 class TaxConfig(BaseModel):
-    """Configuración tributaria."""
+    """Configuración tributaria — HU-F1-002."""
     igv_rate: float = Field(18.0, ge=0, le=100)
     igv_included_in_price: bool = False
+    withholding_tax_rate: float = Field(0.0, ge=0, le=100)
     income_tax_rate: float = Field(29.5, ge=0, le=100)
 
 
@@ -334,47 +329,61 @@ class CompanyFeaturesSettings(BaseModel):
     """Configuración completa de features + tax de una empresa."""
     features: FeatureFlags = Field(default_factory=FeatureFlags)
     tax_config: TaxConfig = Field(default_factory=TaxConfig)
+    investment_vars: dict | None = None
 
 
 class CompanySettingsUpdateRequest(BaseModel):
     """Request para actualizar settings de la empresa."""
     features: FeatureFlags | None = None
     tax_config: TaxConfig | None = None
+    investment_vars: dict | None = None
 
 
 # ═══════════════════════════════════════════════════════════════
 # Defaults por business_type
 # ═══════════════════════════════════════════════════════════════
 
+def get_default_settings(business_type: str) -> CompanyFeaturesSettings:
+    """
+    Retorna defaults inteligentes de features + tax según business_type.
+
+    HU-F1-002: Helper centralizado para asignar defaults al crear empresa
+    o cuando se accede por primera vez a settings.
+    """
+    return BUSINESS_TYPE_DEFAULTS.get(business_type, _default_settings())
+
+
+def _default_settings() -> CompanyFeaturesSettings:
+    """Fallback genérico si el business_type no está en el mapa."""
+    return CompanyFeaturesSettings(
+        features=FeatureFlags(),
+        tax_config=TaxConfig(),
+    )
+
+
 BUSINESS_TYPE_DEFAULTS: dict[str, CompanyFeaturesSettings] = {
     "restaurant": CompanyFeaturesSettings(
         features=FeatureFlags(
             tables_enabled=True,
             tips_enabled=True,
-            recipe_explosion=True,
-            igv_included_in_price=True,
             delivery_enabled=True,
+            recipe_explosion=True,
         ),
-        tax_config=TaxConfig(igv_included_in_price=True),
+        tax_config=TaxConfig(igv_rate=18.0, igv_included_in_price=True),
     ),
     "hardware": CompanyFeaturesSettings(
         features=FeatureFlags(
             warranty_tracking=True,
             invoice_required=True,
-            igv_included_in_price=False,
         ),
-        tax_config=TaxConfig(igv_included_in_price=False),
+        tax_config=TaxConfig(igv_rate=18.0, igv_included_in_price=False),
     ),
     "retail": CompanyFeaturesSettings(
-        features=FeatureFlags(
-            igv_included_in_price=True,
-        ),
-        tax_config=TaxConfig(igv_included_in_price=True),
+        features=FeatureFlags(),
+        tax_config=TaxConfig(igv_rate=18.0, igv_included_in_price=True),
     ),
     "service": CompanyFeaturesSettings(
-        features=FeatureFlags(
-            igv_included_in_price=True,
-        ),
-        tax_config=TaxConfig(igv_included_in_price=True),
+        features=FeatureFlags(),
+        tax_config=TaxConfig(igv_rate=18.0, igv_included_in_price=True),
     ),
 }

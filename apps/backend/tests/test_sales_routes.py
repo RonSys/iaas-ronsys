@@ -60,7 +60,7 @@ def client():
 
     user = User(
         id=1, email="test@iaasronsys.com", full_name="Test",
-        role="manager", company_id=1, is_active=True, is_verified=True,
+        role="manager", tenant_id=1, is_active=True, is_verified=True,
         failed_login_attempts=0,
     )
 

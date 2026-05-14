@@ -12,10 +12,16 @@
  *
  * @page Settings
  */
-import { useState, useEffect } from "react";
-import { getSettings } from "@/services";
+import { useState, useEffect, useCallback } from "react";
+import { getSettings, getCompanySettings, updateCompanySettings } from "@/services";
 import { usePalette } from "@/hooks/usePalette";
-import type { ColorPalette, CompanySettings } from "@/types";
+import type {
+  ColorPalette,
+  CompanySettings,
+  CompanySettingsResponse,
+  CompanyFeatures,
+  BusinessType,
+} from "@/types";
 
 const PALETTE_KEYS: { key: keyof ColorPalette; label: string; cssVar: string }[] = [
   { key: "primary", label: "Primario", cssVar: "--color-primary" },
@@ -30,11 +36,36 @@ const PALETTE_KEYS: { key: keyof ColorPalette; label: string; cssVar: string }[]
   { key: "error", label: "Error", cssVar: "--color-error" },
 ];
 
+const BUSINESS_TYPES: { value: BusinessType; label: string }[] = [
+  { value: "retail", label: "Retail / Tienda" },
+  { value: "restaurant", label: "Restaurante" },
+  { value: "hardware", label: "Ferretería" },
+  { value: "service", label: "Servicio" },
+];
+
 export function Settings() {
   const { palette, changePalette } = usePalette();
   const [settings, setSettings] = useState<CompanySettings | null>(null);
+  const [companyData, setCompanyData] = useState<CompanySettingsResponse | null>(null);
+  const [hasSales, setHasSales] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<"success" | "error">("success");
+  const [savingCompany, setSavingCompany] = useState(false);
+
+  // Editable company fields
+  const [editBusinessType, setEditBusinessType] = useState<BusinessType>("retail");
+  const [editBusinessName, setEditBusinessName] = useState("");
+  const [editFeatures, setEditFeatures] = useState<CompanyFeatures>({
+    tables_enabled: false,
+    tips_enabled: false,
+    invoice_required: false,
+    warranty_tracking: false,
+    recipe_explosion: false,
+    delivery_enabled: false,
+    multi_waiter: false,
+    multi_warehouse: false,
+  });
+  const [companyDirty, setCompanyDirty] = useState(false);
 
   // Predefined palettes
   const presets = [
@@ -46,6 +77,25 @@ export function Settings() {
 
   useEffect(() => {
     getSettings().then(setSettings).catch(console.warn);
+  }, []);
+
+  // Load company settings for editing
+  useEffect(() => {
+    getCompanySettings()
+      .then((data) => {
+        setCompanyData(data);
+        setEditBusinessType(data.business_type as BusinessType);
+        setEditBusinessName(data.business_name ?? "");
+        setEditFeatures(data.features);
+        // Check if company has sales (business_type locked)
+        return fetch("/api/sales/sales?limit=1")
+          .then((r) => r.json())
+          .then((s) => {
+            if (s.total > 0) setHasSales(true);
+          })
+          .catch(() => {});
+      })
+      .catch(console.warn);
   }, []);
 
   const notify = (msg: string, type: "success" | "error" = "success") => {
@@ -73,6 +123,42 @@ export function Settings() {
       notify("Error al aplicar paleta", "error");
     }
   };
+
+  const handleFeatureToggle = (key: keyof CompanyFeatures) => {
+    if (hasSales && editBusinessType) return; // locked
+    setEditFeatures((prev) => ({ ...prev, [key]: !prev[key] }));
+    setCompanyDirty(true);
+  };
+
+  const handleSaveCompany = useCallback(async () => {
+    setSavingCompany(true);
+    try {
+      const payload: Record<string, unknown> = {};
+      if (editBusinessType !== (companyData?.business_type ?? "retail")) {
+        payload.business_type = editBusinessType;
+      }
+      if (editBusinessName !== (companyData?.business_name ?? "")) {
+        payload.business_name = editBusinessName;
+      }
+      const featuresChanged =
+        JSON.stringify(editFeatures) !== JSON.stringify(companyData?.features ?? {});
+      if (featuresChanged) {
+        payload.features = editFeatures;
+      }
+      if (Object.keys(payload).length > 0) {
+        const updated = await updateCompanySettings(payload);
+        setCompanyData(updated);
+        setCompanyDirty(false);
+        notify("Configuración de empresa actualizada ✅");
+      }
+    } catch {
+      notify("Error al guardar configuración", "error");
+    } finally {
+      setSavingCompany(false);
+    }
+  }, [editBusinessType, editBusinessName, editFeatures, companyData]);
+
+  const isBusinessTypeReadonly = hasSales;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
@@ -152,6 +238,129 @@ export function Settings() {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* ─── Company Edit (F0-014) ─── */}
+      <div className="card">
+        <h3 className="font-bold text-brand-text-primary mb-4">🏢 Datos de la Empresa</h3>
+
+        {/* Business Name */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-brand-text-primary mb-1">
+            Nombre del Negocio
+          </label>
+          <input
+            type="text"
+            value={editBusinessName}
+            onChange={(e) => {
+              setEditBusinessName(e.target.value);
+              setCompanyDirty(true);
+            }}
+            className="w-full max-w-md px-3 py-2 border rounded-lg text-sm
+              focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+            placeholder="Ej: El Segoviano"
+          />
+        </div>
+
+        {/* Business Type */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-brand-text-primary mb-1">
+            Tipo de Negocio
+            {isBusinessTypeReadonly && (
+              <span className="ml-2 text-xs text-brand-warning font-normal">
+                🔒 Bloqueado — hay ventas registradas
+              </span>
+            )}
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {BUSINESS_TYPES.map((bt) => (
+              <button
+                key={bt.value}
+                type="button"
+                disabled={isBusinessTypeReadonly}
+                onClick={() => {
+                  setEditBusinessType(bt.value);
+                  setCompanyDirty(true);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-sm border transition-all ${
+                  editBusinessType === bt.value
+                    ? "bg-brand-primary text-white border-brand-primary"
+                    : "bg-white border-gray-200 text-brand-text-secondary hover:bg-gray-50"
+                } ${
+                  isBusinessTypeReadonly
+                    ? "opacity-60 cursor-not-allowed"
+                    : ""
+                }`}
+              >
+                {bt.label}
+              </button>
+            ))}
+          </div>
+          {isBusinessTypeReadonly && (
+            <p className="text-xs text-brand-text-secondary mt-1">
+              No se puede cambiar el rubro una vez que hay ventas registradas.
+            </p>
+          )}
+        </div>
+
+        {/* Feature Flags */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-brand-text-primary mb-2">
+            Funcionalidades Habilitadas
+            {isBusinessTypeReadonly && editBusinessType && (
+              <span className="ml-2 text-xs text-brand-warning font-normal">
+                🔒 Bloqueadas — tipo de negocio ya definido
+              </span>
+            )}
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {[
+              { key: "tables_enabled" as const, label: "🪑 Gestión de Mesas" },
+              { key: "tips_enabled" as const, label: "💵 Propinas" },
+              { key: "invoice_required" as const, label: "📄 Comprobantes (boleta/factura)" },
+              { key: "warranty_tracking" as const, label: "🛡️ Seguimiento de Garantías" },
+              { key: "recipe_explosion" as const, label: "📋 Recetas / Explosión" },
+              { key: "delivery_enabled" as const, label: "🛵 Delivery" },
+              { key: "multi_waiter" as const, label: "👥 Múltiples Mozos" },
+            ].map(({ key, label }) => (
+              <label
+                key={key}
+                className={`flex items-center gap-2 p-2 rounded-lg border text-sm cursor-pointer
+                  transition-colors ${
+                    editFeatures[key]
+                      ? "bg-brand-primary/5 border-brand-primary/20"
+                      : "bg-white border-gray-200 hover:bg-gray-50"
+                  } ${
+                    isBusinessTypeReadonly && editBusinessType
+                      ? "opacity-60 cursor-not-allowed"
+                      : ""
+                  }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={editFeatures[key]}
+                  onChange={() => handleFeatureToggle(key)}
+                  disabled={isBusinessTypeReadonly && !!editBusinessType}
+                  className="w-4 h-4"
+                />
+                <span className="text-xs">{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Save button */}
+        <div className="pt-2 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={handleSaveCompany}
+            disabled={!companyDirty || savingCompany}
+            className="px-6 py-2 bg-brand-primary text-white rounded-lg text-sm
+              hover:bg-brand-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {savingCompany ? "Guardando..." : "💾 Guardar Configuración"}
+          </button>
         </div>
       </div>
 

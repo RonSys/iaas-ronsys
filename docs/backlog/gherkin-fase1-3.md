@@ -2,216 +2,235 @@
 
 **Proyecto:** IaaS-RonSys  
 **Origen:** [analysis-2026-05-12.md](../reports/analysis-2026-05-12.md)  
-**Generado por:** PO Agent 📋  
-**Fecha:** 2026-05-12  
-**Total Historias:** 27 (F1: 8 | F2: 12 | F3: 7)
+**Actualizado por:** PO Agent 📋 + Architecture Agent 🏗️  
+**Fecha:** 2026-05-14 (revisión con estado real del código)  
+**Total Historias:** 30 (F1: 10 | F2: 12 | F3: 7 + 1 F1-extra)
 
 ---
 
 # Fase 1 — Fundamentos Estables
 
-**Objetivo:** MVP desplegable con tipo de negocio configurable + flujo de caja proyectado.  
-**Esfuerzo total estimado:** 7-9 días (backend 5-6d + frontend 2-3d)  
-**Dependencia externa:** Ninguna (se construye sobre lo ya implementado).
+**Objetivo:** Cerrar brechas de persistencia, corregir arquitectura hexagonal (puertos), y completar UI de flujo de caja.  
+**Esfuerzo total estimado:** 4.5 días (backend 3d + frontend 1.5d) — reducido de 7-9d originales por código ya implementado.  
+**Dependencia externa:** Ninguna (se construye sobre lo ya implementado en Fase 0/QA).  
+**Ficha técnica de referencia:** Plan Integral v3 §7, §13 + Architecture Agent analysis 2026-05-14.
 
 ---
 
-### HU-F1-001: Definir tipo de negocio (business_type) en Company
+### HU-F1-001: ✅ IMPLEMENTADO — Definir tipo de negocio (business_type) en Company
 
-**Como** administrador del sistema  
-**Quiero** que cada empresa tenga un campo `business_type` enum en la base de datos  
-**Para** que el sistema sepa si opera como restaurante, ferretería, retail o servicio y adapte su comportamiento.
+**Estado:** Completado en Fase 0/QA (migración 0003). No requiere trabajo.
 
-**Criterios de aceptación:**
-- [ ] Given una empresa existente sin `business_type` When se ejecuta la migración Then la columna se añade con DEFAULT 'restaurant' y CHECK sobre los valores permitidos
-- [ ] Given una empresa con `economic_activity` que contenga "restaurante" When se ejecuta la migración de datos Then su `business_type` se actualiza a 'restaurant'
-- [ ] Given una empresa con `economic_activity` que contenga "ferreter" When se ejecuta la migración de datos Then su `business_type` se actualiza a 'hardware'
-- [ ] Given una empresa sin match en `economic_activity` When se ejecuta la migración Then su `business_type` se establece en 'retail'
-- [ ] Given cualquier INSERT/UPDATE en companies When el valor de `business_type` no está en ('restaurant', 'hardware', 'retail', 'service') Then la DB rechaza la operación con constraint violation
-
-**Prioridad:** P1  
-**Esfuerzo estimado:** 0.5 días  
-**Dependencias:** Ninguna  
-**Ficha técnica de referencia:** Sección §8.2-8.4 del analysis  
-**Notas técnicas:**
-- Migración Alembic: `ALTER TABLE companies ADD COLUMN business_type VARCHAR(20) NOT NULL DEFAULT 'restaurant'`
-- Constraint: `CHECK (business_type IN ('restaurant', 'hardware', 'retail', 'service'))`
-- Data migration con `UPDATE` condicional por `economic_activity ILIKE`
-- Modelo SQLAlchemy: añadir campo `business_type` en `Company`
+- Migración 0003 aplicada con `business_type VARCHAR(20) NOT NULL DEFAULT 'restaurant'` y CHECK constraint sobre ('restaurant', 'hardware', 'retail', 'service').
+- Modelo SQLAlchemy `Company.business_type` existe y funciona.
+- UI adaptativa ya consume `business_type` via `useCompanySettings()`.
 
 ---
 
-### HU-F1-002: Feature flags y tax_config en settings JSON de Company
+### HU-F1-001b (NUEVA): Persistir InvestmentVariables del setup contable en DB
 
 **Como** administrador del sistema  
-**Quiero** que cada empresa tenga feature flags y configuración tributaria en su campo `settings` JSON  
-**Para** activar/desactivar funcionalidades específicas (mesas, propinas, delivery, factura) según el tipo de negocio sin cambiar código.
+**Quiero** que las variables de inversión del setup contable se persistan en base de datos  
+**Para** que los datos de proyección sobrevivan a reinicios del servidor y no dependan de variables globales en memoria.
+
+**Contexto:** Actualmente `_investment` y `_journal` son variables globales en `routers/accounting.py`. El endpoint `/api/accounting/cashflow?view=projected` usa `CashflowService.load_projection()` desde DB (tabla `cashflow_projections`) como primer intento, pero hace fallback a `_investment` si la tabla está vacía. El `calculate_real()` depende de `_journal` (lista en memoria). Esto funciona en runtime pero no sobrevive reinicios.
 
 **Criterios de aceptación:**
-- [ ] Given una empresa con `business_type = 'restaurant'` When consulto su settings Then contiene `features.tables_enabled: true`, `features.tips_enabled: true`, `features.recipe_explosion: true` y `tax_config.igv_included_in_price: true`
-- [ ] Given una empresa con `business_type = 'hardware'` When consulto su settings Then contiene `features.warranty_tracking: true`, `features.invoice_required: true`, `tax_config.igv_included_in_price: false`
-- [ ] Given un admin autenticado When hago PUT a `/api/admin/company/settings` con feature flags válidos Then los flags se persisten y la respuesta es 200
-- [ ] Given un admin autenticado When hago PUT con un flag inexistente Then el sistema responde 422 con mensaje de validación
-- [ ] Given la migración de Phase 1 When se ejecuta Then todas las empresas existentes reciben defaults de features según su `business_type`
+- [ ] Given un setup contable ejecutado via `POST /api/accounting/setup` When se completa Then las `InvestmentVariables` se persisten en tabla `investment_variables` (o campo `companies.settings.investment_vars` JSONB) con `company_id` y timestamp
+- [ ] Given un reinicio del contenedor backend When consulto `GET /api/accounting/cashflow?view=projected` Then el reporte se genera desde DB sin necesidad de re-ejecutar setup
+- [ ] Given `_journal` era una variable global When se completa la migración Then los routers cargan journal entries desde `journal_entries` (DB) — que ya existe y se persiste
+- [ ] Given el endpoint `GET /api/accounting/cashflow?view=actual` When hay journal entries en DB Then `calculate_real()` lee desde DB en lugar de lista en memoria
+- [ ] Given los cambios When ejecuto `pytest tests/ -v` Then los 140 tests existentes siguen pasando
 
 **Prioridad:** P1  
 **Esfuerzo estimado:** 1 día  
-**Dependencias:** HU-F1-001 (business_type debe existir)  
-**Ficha técnica de referencia:** Sección §8.2, §8.3 del analysis  
+**Dependencias:** Ninguna (tabla `journal_entries` ya existe, `cashflow_projections` ya existe)  
 **Notas técnicas:**
-- Estructura JSON: `{ features: {...}, tax_config: {...} }`
-- Backend: endpoint `PUT /api/admin/company/settings` o `PATCH /api/admin/company/{id}`
-- Schema Pydantic con validación de feature flags permitidos
-- Frontend: `useCompanySettings()` hook que expone `features` y `taxConfig`
+- Opción A (recomendada por Architecture Agent): persistir `InvestmentVariables` en `companies.settings` JSONB (campo `investment_vars`). Sin migración nueva.
+- Opción B: crear tabla `investment_variables` con columnas para cada variable. Requiere migración.
+- `CashflowService.calculate_real()` debe cambiar firma para recibir `db: AsyncSession` en lugar de `journal_entries: list`.
+- Refactor en `routers/accounting.py`: eliminar `_investment` y `_journal` globales, usar DB via `Depends(get_db)`.
 
 ---
 
-### HU-F1-003: Adaptar UI según business_type y feature flags
+### HU-F1-002: ✅ PARCIALMENTE IMPLEMENTADO — Feature flags y tax_config en settings JSON
+
+**Estado:** El campo `settings JSONB` en `companies` ya persiste en PostgreSQL. Existen endpoints `PUT/GET /api/admin/company/settings`. El mecanismo de persistencia funciona. Lo que falta es extender el schema Pydantic con nuevos feature flags y asegurar defaults correctos por `business_type`.
+
+**Trabajo pendiente refinado:**
+
+**Como** administrador del sistema  
+**Quiero** que el schema de settings incluya todos los feature flags necesarios para Fase 2 (multi-warehouse, delivery, etc.) con defaults inteligentes según `business_type`  
+**Para** que los módulos futuros puedan activarse/desactivarse sin nueva migración.
+
+**Criterios de aceptación:**
+- [ ] Given una empresa con `business_type = 'restaurant'` When se crea (o se accede por primera vez a settings) Then `settings.features` incluye: `tables_enabled: true`, `tips_enabled: true`, `delivery_enabled: false`, `recipe_explosion: true`, `multi_warehouse: false`, `warranty_tracking: false`, `invoice_required: false` y `tax_config.igv_included_in_price: true`, `tax_config.igv_rate: 0.18`
+- [ ] Given una empresa con `business_type = 'hardware'` When se crea Then `settings.features` incluye: `warranty_tracking: true`, `invoice_required: true`, `tables_enabled: false`, `tips_enabled: false`, `recipe_explosion: false` y `tax_config.igv_included_in_price: false`
+- [ ] Given un admin autenticado When hago `PATCH /api/admin/company/settings` con feature flags válidos Then los flags se persisten en `companies.settings` JSONB y la respuesta es 200
+- [ ] Given un admin When hago PATCH con un flag no declarado en el schema Then el sistema responde 422 con mensaje de validación Pydantic
+- [ ] Given el endpoint `GET /api/admin/company/settings` When lo consulto Then retorna el objeto `CompanySettings` completo con `features`, `tax_config`, `branding`, y `investment_vars` (si existe)
+
+**Prioridad:** P1  
+**Esfuerzo estimado:** 0.5 días (extender schema Pydantic + defaults + tests)  
+**Dependencias:** HU-F1-001 (business_type debe existir — ya implementado)  
+**Notas técnicas:**
+- Extender `CompanySettings` (Pydantic) con campos: `features: FeatureFlags`, `tax_config: TaxConfig`, `branding: BrandingConfig`, `investment_vars: dict | None`
+- `FeatureFlags` debe incluir: `tables_enabled`, `tips_enabled`, `delivery_enabled`, `recipe_explosion`, `multi_warehouse`, `warranty_tracking`, `invoice_required` (todos `bool`)
+- `TaxConfig`: `igv_rate: float`, `igv_included_in_price: bool`, `withholding_tax_rate: float`
+- NO crear tabla `company_settings` separada — usar `companies.settings` JSONB existente (decisión Architecture Agent)
+- Los defaults se asignan en un helper `get_default_settings(business_type)` → dict
+
+---
+
+### HU-F1-003: ✅ PARCIALMENTE IMPLEMENTADO — UI adaptativa según business_type y feature flags
+
+**Estado:** `useCompanySettings()` ya existe y consume `GET /api/admin/company/settings`. La UI condicional funciona (campos de restaurante vs ferretería). Tras HU-F1-002, verificar que el hook exponga correctamente los nuevos flags.
+
+**Trabajo pendiente refinado:**
 
 **Como** usuario del sistema  
-**Quiero** que la interfaz muestre solo las opciones relevantes para mi tipo de negocio  
-**Para** no ver funcionalidades que no aplican (ej. un restaurante no necesita campos de garantía).
+**Quiero** que `useCompanySettings()` exponga todos los feature flags nuevos definidos en HU-F1-002  
+**Para** que las pantallas de Fase 2 (delivery, multi-almacén) puedan usar renderizado condicional.
 
 **Criterios de aceptación:**
-- [ ] Given una empresa tipo 'restaurant' con `features.tables_enabled: true` When cargo el dashboard Then se muestra la sección de mesas/meseros en el layout
-- [ ] Given una empresa tipo 'hardware' con `features.tables_enabled: false` When cargo el dashboard Then NO se muestra la sección de mesas/meseros
-- [ ] Given `features.tips_enabled: true` When registro una venta Then el campo de propina es visible y editable
-- [ ] Given `features.tips_enabled: false` When registro una venta Then el campo de propina está oculto
-- [ ] Given `features.invoice_required: true` When emito un comprobante Then puedo elegir entre boleta y factura
-- [ ] Given `features.invoice_required: false` When emito un comprobante Then solo se emite boleta por defecto
+- [ ] Given `useCompanySettings()` When se ejecuta en un componente Then retorna `{ businessType, features, taxConfig, branding, loading, error }`
+- [ ] Given `features.delivery_enabled: true` When renderizo la pantalla de ventas Then se muestra la opción "Delivery" en el selector de tipo de orden
+- [ ] Given `features.multi_warehouse: true` When renderizo el kárdex Then se muestra el selector de almacén
+- [ ] Given `features.warranty_tracking: true` When renderizo la venta de ferretería Then se muestra el campo "Meses de garantía"
+- [ ] Given el hook está cargando (primer fetch) When se renderiza Then `loading = true` y el componente muestra skeleton
+- [ ] Given el fetch falla (error de red) When se ejecuta Then `error` contiene el mensaje y el componente muestra fallback UI con valores por defecto
 
 **Prioridad:** P2  
-**Esfuerzo estimado:** 1.5 días  
-**Dependencias:** HU-F1-002 (settings con feature flags deben existir)  
-**Ficha técnica de referencia:** Sección §8.3 del analysis  
+**Esfuerzo estimado:** 0.5 días (extender hook + types TypeScript)  
+**Dependencias:** HU-F1-002 (settings schema debe estar actualizado)  
 **Notas técnicas:**
-- Hook `useCompanySettings()` en frontend, consume `GET /api/admin/company/settings`
-- Renderizado condicional con feature flags, no con business_type directamente
-- Tests unitarios con diferentes configuraciones de features
+- Tipos TypeScript: `FeatureFlags`, `TaxConfig`, `CompanySettings` en `types/index.ts`
+- `useCompanySettings()` debe cachear en estado local (no refetch en cada render)
+- Tests unitarios con Jest mockeando el endpoint `/api/admin/company/settings`
 
 ---
 
-### HU-F1-004: Servicio de Flujo de Caja — vista proyectada (backend)
+### HU-F1-004: ✅ IMPLEMENTADO (~85%) — Servicio de Flujo de Caja — vista proyectada
+
+**Estado:** `CashflowService.generate_projection()` implementado (537 líneas en `cashflow.py`). Endpoint `GET /api/accounting/cashflow?view=projected&year=YYYY` funcionando con carga desde `cashflow_projections` (DB) + fallback a `_investment` (memoria). Modelos `CashflowLine`, `CashflowReport` completos.
+
+**Pendiente menor:** HU-F1-001b (persistir InvestmentVariables) eliminará el fallback a memoria y hará que la carga desde DB sea el camino primario sin degradación. La lógica de negocio de proyección NO requiere cambios.
+
+---
+
+### HU-F1-005: ✅ IMPLEMENTADO (~70%) — Endpoint Flujo de Caja — vista real
+
+**Estado:** `CashflowService.calculate_real()` implementado con clasificación de egresos por descripción. Endpoint `GET /api/accounting/cashflow?view=actual&from=YYYY-MM&to=YYYY-MM` funcionando. Actualmente devuelve datos vacíos o parciales porque depende de journal entries reales (que se generan en Fase 2 con la integración contable de ventas).
+
+**Pendiente:** HU-F1-001b hará que `calculate_real()` lea desde `journal_entries` en DB (eliminando `_journal` global). El endpoint ya está listo — se activará con datos reales cuando Fase 2 genere transacciones.
+
+---
+
+### HU-F1-006: ✅ IMPLEMENTADO (~90%) — Comparativa proyectado vs real + alertas
+
+**Estado:** `CashflowService.compare()` implementado con 4 niveles de alerta: info (±5%), yellow (±20%), red (±30%+), y liquidity (cashflow neto negativo vs positivo proyectado). Endpoint `GET /api/accounting/cashflow?view=comparison&from=YYYY-MM&to=YYYY-MM` funcionando.
+
+**Pendiente:** Solo testing con datos reales (se activa naturalmente cuando HU-F1-005 tenga journal entries).
+
+---
+
+### HU-F1-007: 🟡 PARCIAL — UI de Flujo de Caja con selector de período/vista
+
+**Estado:** `CashflowPage.tsx` (56 líneas) existe como wrapper. `CashflowChart.tsx` (632 líneas) tiene `CashflowBarChart`, `CashflowComparisonChart`, `CashflowAlerts`, `CashflowSkeleton` implementados. `useCashflow` hook consume el endpoint. Falta verificar integración visual completa.
+
+**Trabajo pendiente refinado:**
 
 **Como** gerente financiero  
-**Quiero** consultar el flujo de caja proyectado mes a mes  
-**Para** anticipar necesidades de liquidez y tomar decisiones de inversión.
+**Quiero** ver gráficos de flujo de caja funcionales con selector de período, tipo de vista y alertas visibles  
+**Para** tomar decisiones financieras informadas visualmente.
 
 **Criterios de aceptación:**
-- [ ] Given una empresa con setup completado (InvestmentVariables definidas) When llamo a `CashflowService.generate_projection(company_id, year)` Then obtengo 12 líneas de flujo de caja proyectadas con conceptos: Ventas, Costo de Ventas, Alquiler, Servicios, Salarios, Marketing, Administración, Mantenimiento
-- [ ] Given una empresa sin setup When llamo al servicio Then responde con error claro: "No hay datos de proyección. Ejecute el setup contable primero."
-- [ ] Given una proyección generada When verifico Then `net_cashflow = total_income - total_expenses` y `closing_balance = opening_balance + net_cashflow`
-- [ ] Given el endpoint `GET /api/accounting/cashflow?view=projected&year=2026` When lo consulto con JWT válido Then responde 200 con el reporte completo de proyección
-- [ ] Given el endpoint sin autenticación When lo consulto Then responde 401
+- [ ] Given estoy en `/finanzas/cashflow` When la página carga Then veo un selector de año/mes inicio, año/mes fin, y toggle de vista (Proyectado | Real | Comparativa)
+- [ ] Given selecciono "Proyectado" y un año When presiono "Consultar" Then se renderiza `CashflowBarChart` con 12 meses de ingresos (verde) y egresos (rojo)
+- [ ] Given selecciono "Real" con rango de fechas When hay journal entries Then se muestran los datos reales; When no hay Then se muestra mensaje "No hay transacciones en este período"
+- [ ] Given selecciono "Comparativa" When hay datos Then se renderiza `CashflowComparisonChart` con barras lado a lado (proyectado vs real) y `CashflowAlerts` muestra las alertas activas como banner
+- [ ] Given la respuesta del endpoint tarda >1s When espero Then se muestra `CashflowSkeleton`
+- [ ] Given el endpoint retorna error (404, 500) When falla Then se muestra mensaje de error con botón "Reintentar"
+- [ ] Given la vista comparativa tiene alertas When hay alertas `severity: red` Then se muestran en banner rojo con icono ⚠️; When son `yellow` Then banner amarillo; When son `info` Then banner azul
+- [ ] Given el selector de período When selecciono fechas inválidas (from > to) Then se muestra validación y el botón "Consultar" se deshabilita
+
+**Prioridad:** P1  
+**Esfuerzo estimado:** 1 día (frontend)  
+**Dependencias:** HU-F1-001b (para que los endpoints devuelvan datos reales desde DB)  
+**Notas técnicas:**
+- `CashflowChart.tsx` ya tiene los componentes base. Verificar que `useCashflow` hook pase correctamente `view`, `year`, `from`, `to`.
+- `CashflowAlerts` debe renderizar alerts del response (ya incluido en `CashflowReportResponse`).
+- Mover `CashflowPage.tsx` a `pages/finanzas/CashflowPage.tsx` (tarea HU-F1-010).
+- Tests: renderizado de cada vista, estado de carga, estado de error, validación de fechas.
+
+---
+
+### HU-F1-008: ✅ IMPLEMENTADO — Persistencia de proyecciones de flujo de caja
+
+**Estado:** Tabla `cashflow_projections` creada (migración 0004). `CashflowService.save_projection()` y `load_projection()` implementados con UPSERT. UNIQUE constraint sobre (company_id, year, month, concept). No requiere trabajo adicional.
+
+---
+
+### HU-F1-009 (NUEVA): Definir puertos hexagonales para Sales e Inventory
+
+**Como** desarrollador backend  
+**Quiero** que los dominios `core/sales/` e `core/inventory/` tengan puertos abstractos (ABCs) y repositorios DB que los implementen  
+**Para** que `sales_service.py` deje de depender directamente del ORM y cumpla con la arquitectura hexagonal.
+
+**Contexto:** `core/sales/` e `core/inventory/` son directorios vacíos. `services/sales_service.py` (1116 líneas) importa modelos ORM directamente (`from app.adapters.db.models.sales import Sale, ...`). Esto viola la regla hexagonal de que la capa de servicios dependa de puertos abstractos, no de infraestructura. El patrón correcto ya existe en `core/accounting/ports.py` (`AccountingRepository`, `InventoryRepository` como ABCs con métodos abstractos).
+
+**Alcance Fase 1 (según Architecture Agent):** Definir puertos + crear repositorio SQLAlchemy. **NO refactorizar `sales_service.py` a fondo** — eso va en Fase 2 con tests de integración.
+
+**Criterios de aceptación:**
+- [ ] Given el archivo `core/sales/ports.py` When existe Then define `SalesRepository(ABC)` con métodos abstractos: `create_sale`, `list_sales`, `get_sale_detail`, `void_sale`, `open_session`, `close_session`, `get_current_session`
+- [ ] Given el archivo `core/inventory/ports.py` When existe Then define `InventoryRepository(ABC)` con métodos abstractos: `create_product`, `get_product`, `get_products`, `update_product`, `save_kardex_movement`, `get_kardex`
+- [ ] Given `adapters/db/repositories/sales.py` When existe Then implementa `SqlAlchemySaleRepository(SalesRepository)` usando `AsyncSession`
+- [ ] Given `adapters/db/repositories/inventory.py` When existe Then implementa `SqlAlchemyInventoryRepository(InventoryRepository)` usando `AsyncSession`
+- [ ] Given los repositorios existen When se inyectan via FastAPI `Depends()` Then los endpoints de ventas (`/api/sales/*`) pueden obtener el repositorio sin recibir `AsyncSession` directamente
+- [ ] Given los puertos definidos When escribo un test unitario de `SalesService` Then puedo mockear `SalesRepository` sin levantar PostgreSQL
+- [ ] Given el cambio When ejecuto `pytest tests/ -v` Then los 140 tests existentes siguen pasando
 
 **Prioridad:** P1  
 **Esfuerzo estimado:** 1.5 días  
-**Dependencias:** Ninguna (usa datos ya existentes en `InvestmentVariables` del setup contable)  
-**Ficha técnica de referencia:** Sección §9.2, §9.4 del analysis  
+**Dependencias:** Ninguna (solo agrega archivos nuevos, no modifica servicios existentes)  
 **Notas técnicas:**
-- Crear archivo `core/accounting/cashflow.py` con clase `CashflowService`
-- Modelos: `CashflowLine` (month, year, concept, category, projected, actual, difference) y `CashflowReport` (company_id, from_date, to_date, lines, opening_balance, net_cashflow, closing_balance)
-- Endpoint en `routers/accounting.py`: `GET /api/accounting/cashflow`
-- Query params: `view` (projected|actual|comparison), `from` (YYYY-MM), `to` (YYYY-MM)
-- Los datos de proyección vienen de `statements.py` — extraer la lógica de `monthly_flows` a `CashflowService`
+- Patrón de referencia: `core/accounting/ports.py` → `AccountingRepository(ABC)`, `InventoryRepository(ABC)`
+- Los dataclasses de dominio (records) van en los mismos `ports.py`: `SaleRecord`, `PosSessionRecord`, `SaleItemRecord`, `SalePaymentRecord`
+- `adapters/db/repositories/sales.py` implementa los métodos con queries SQLAlchemy (extraer lógica de queries de `sales_service.py` progresivamente)
+- `adapters/db/repositories/inventory.py` — similar para productos y kárdex
+- En Fase 1 NO se modifica `sales_service.py` — solo se crean los puertos y repos. La migración del servicio a usar puertos ocurre en Fase 2.
+- Los routers pueden empezar a usar `Depends(get_sales_repo)` en paralelo al `Depends(get_db)` existente (convivencia).
 
 ---
 
-### HU-F1-005: Endpoint Flujo de Caja — vista real (backend)
+### HU-F1-010 (NUEVA): Mover archivos de páginas huérfanas a carpetas de dominio + verificar sidebar
 
-**Como** gerente financiero  
-**Quiero** ver el flujo de caja real basado en transacciones contables registradas  
-**Para** saber exactamente cuánto dinero entró y salió, no solo lo proyectado.
+**Como** desarrollador frontend  
+**Quiero** que la estructura de archivos en `pages/` refleje la organización de rutas (que ya es jerárquica en `App.tsx`)  
+**Para** mantener consistencia entre rutas y sistema de archivos.
 
-**Criterios de aceptación:**
-- [ ] Given existen asientos contables en `journal_entries` con movimientos en cuenta 10 (Efectivo) When consulto `GET /api/accounting/cashflow?view=actual&from=2026-01&to=2026-06` Then obtengo entradas reales (ventas en efectivo, otros ingresos) y salidas reales (costos, gastos, impuestos) del período
-- [ ] Given no hay transacciones en el período When consulto Then el reporte muestra todas las líneas con `actual: 0`
-- [ ] Given existen movimientos de kárdex (salidas de inventario) When calculo el flujo real Then los costos de venta se obtienen del kárdex, no de proyecciones
-- [ ] Given el período consultado no tiene saldo inicial When se calcula automáticamente el `opening_balance` desde el saldo de la cuenta 10 al cierre del período anterior
-
-**Prioridad:** P2  
-**Esfuerzo estimado:** 2 días  
-**Dependencias:** HU-F1-004 (CashflowService base), HU-F2-005 y HU-F2-006 (integración ventas → contabilidad → journal real)  
-**Ficha técnica de referencia:** Sección §9.2 (Vista 2) del analysis  
-**Notas técnicas:**
-- Método `CashflowService.calculate_real(company_id, from_date, to_date)`
-- Lee `journal_entries` filtradas por cuenta 10 (Efectivo) + categorías de ingreso/gasto
-- Requiere que las ventas generen asientos contables (dependencia Fase 2)
-- Sin Sales implementado, esta vista devuelve datos parciales (solo gastos operativos si se registraron manualmente)
-
----
-
-### HU-F1-006: Comparativa proyectado vs real + alertas automáticas
-
-**Como** gerente financiero  
-**Quiero** comparar el flujo de caja proyectado contra el real y recibir alertas automáticas  
-**Para** detectar desviaciones temprano y tomar acciones correctivas.
+**Contexto:** Las rutas en `App.tsx` YA están organizadas jerárquicamente (`/finanzas/cashflow`, `/ventas/pos`, `/inventario/kardex`) con redirects 301 para rutas antiguas. La sidebar (`Sidebar.tsx`) ya es jerárquica con secciones colapsables y "Cerrar Sesión" siempre visible. Pero los archivos físicos (`Cashflow.tsx`, `Pos.tsx`, `SalesNew.tsx`, `SalesListPage.tsx`, `Kardex.tsx`, `Settings.tsx`) están en la raíz de `pages/` en lugar de en sus carpetas de dominio.
 
 **Criterios de aceptación:**
-- [ ] Given existen tanto proyección como datos reales para el mismo período When consulto `GET /api/accounting/cashflow?view=comparison&from=2026-01&to=2026-06` Then cada línea del reporte incluye `projected`, `actual` y `difference`
-- [ ] Given las ventas reales están 20%+ por debajo de lo proyectado When genero la comparativa Then se incluye una alerta `severity: red` con mensaje "Ventas reales X están 20%+ bajo lo proyectado Y"
-- [ ] Given el costo de ventas real está entre 5% y 20% sobre lo proyectado When genero la comparativa Then se incluye alerta `severity: yellow`
-- [ ] Given todos los indicadores están dentro del 5% de desviación When genero la comparativa Then no se generan alertas (o se genera info `severity: green`)
-- [ ] Given el flujo de caja neto real es negativo y el proyectado era positivo When se genera alerta `severity: red` por deterioro de liquidez
+- [ ] Given los archivos en `pages/` When se reorganizan Then `Cashflow.tsx` → `pages/finanzas/CashflowPage.tsx`
+- [ ] Given la reorganización When se completa Then `Pos.tsx` → `pages/ventas/PosPage.tsx`, `SalesNew.tsx` → `pages/ventas/SalesNewPage.tsx`, `SalesListPage.tsx` → `pages/ventas/SalesListPage.tsx`
+- [ ] Given la reorganización When se completa Then `Kardex.tsx` → `pages/inventario/KardexPage.tsx`, `Settings.tsx` → `pages/config/SettingsPage.tsx`
+- [ ] Given los imports en `App.tsx` When se actualizan Then el build de Vite (`npm run build`) completa sin errores
+- [ ] Given la sidebar When navego Then la sección activa se resalta correctamente para cada ruta
+- [ ] Given estoy en mobile (viewport < 768px) When abro el menú hamburguesa Then "Cerrar Sesión" es visible al final del menú
+- [ ] Given estoy en desktop When veo el sidebar Then "🚪 Cerrar Sesión" está siempre visible al fondo (sticky bottom)
+- [ ] Given `useCompanySettings().businessType === 'hardware'` When veo el sidebar Then las secciones de Restaurante (Salones, Menú, Comandas) NO se muestran
+- [ ] Given los cambios When ejecuto `npx jest --verbose` Then los 140 tests frontend existentes siguen pasando
 
-**Prioridad:** P2  
-**Esfuerzo estimado:** 1 día  
-**Dependencias:** HU-F1-004 (proyectado), HU-F1-005 (real)  
-**Ficha técnica de referencia:** Sección §9.2 (Vista 3) y §9.4 del analysis  
-**Notas técnicas:**
-- Método `CashflowService.compare(projected, actual) -> dict` con líneas comparativas + array de alerts
-- Umbrales de alerta configurables (por ahora hardcodeados: 5% info, 20% yellow, 30%+ red)
-- Las alertas viajan en el mismo response del endpoint `view=comparison`
-
----
-
-### HU-F1-007: UI de Flujo de Caja con selector de período/vista
-
-**Como** gerente financiero  
-**Quiero** ver el flujo de caja en una interfaz con selector de período y tipo de vista  
-**Para** navegar fácilmente entre proyección, datos reales y comparativa.
-
-**Criterios de aceptación:**
-- [ ] Given estoy en la sección "Flujo de Caja" When la página carga Then veo un selector de año/mes inicio y año/mes fin
-- [ ] Given el selector de vista When selecciono "Proyectado" Then se muestran las 12 barras mensuales con ingresos y egresos proyectados
-- [ ] Given el selector de vista When selecciono "Real" Then se muestran los datos de transacciones reales (si existen)
-- [ ] Given el selector de vista When selecciono "Comparativa" Then cada mes muestra dos barras lado a lado (proyectado vs real) con colores distintos
-- [ ] Given existen alertas en la vista comparativa When cargo la página Then se renderiza un banner/toast con las alertas activas
-- [ ] Given la respuesta del endpoint tarda más de 2 segundos When espero Then se muestra un skeleton loader
-
-**Prioridad:** P2  
-**Esfuerzo estimado:** 1.5 días  
-**Dependencias:** HU-F1-004, HU-F1-005, HU-F1-006 (endpoints deben existir)  
-**Ficha técnica de referencia:** Sección §9.4 del analysis  
-**Notas técnicas:**
-- Componente `CashflowChart.tsx` — refactorizar el existente (actualmente con 26% coverage)
-- Selector de período con `MonthPicker` o inputs controlados
-- Gráfico de barras agrupadas para vista comparativa
-- Integración con `useCashflow` hook que consume `GET /api/accounting/cashflow`
-
----
-
-### HU-F1-008: Persistencia de proyecciones de flujo de caja
-
-**Como** gerente financiero  
-**Quiero** que las proyecciones de flujo de caja se persistan en base de datos  
-**Para** no recalcularlas desde cero cada vez y poder versionar proyecciones anuales.
-
-**Criterios de aceptación:**
-- [ ] Given una proyección generada para el año 2026 When se persiste Then se crean registros en `cashflow_projections` con company_id, month, year, concept, category, amount
-- [ ] Given ya existe una proyección para el mismo (company_id, year, month, concept) When intento insertar Then la constraint UNIQUE rechaza el duplicado
-- [ ] Given un cambio en los InvestmentVariables del setup When regenero la proyección Then los registros existentes se actualizan (UPSERT por month+year+concept)
-- [ ] Given la tabla `cashflow_projections` existe When consulto Then tiene índices para búsqueda eficiente por company_id + year
-
-**Prioridad:** P3  
+**Prioridad:** P1  
 **Esfuerzo estimado:** 0.5 días  
-**Dependencias:** HU-F1-004 (CashflowService)  
-**Ficha técnica de referencia:** Sección §9.3 del analysis  
+**Dependencias:** Ninguna (solo mueve archivos + actualiza imports)  
 **Notas técnicas:**
-- Migración Alembic separada para `cashflow_projections`
-- Modelo SQLAlchemy `CashflowProjection`
-- Constraint: `UNIQUE(company_id, year, month, concept)`
-- Método `CashflowService.save_projection()` con UPSERT
+- Usar `git mv` para preservar historial
+- Los imports lazy en `App.tsx` (React.lazy) deben actualizar las rutas: `() => import('@/pages/finanzas/CashflowPage')`
+- Verificar que `Sidebar.tsx` tiene `position: sticky` y `bottom: 0` para el botón "Cerrar Sesión"
+- Las carpetas destino (`finanzas/`, `ventas/`, `inventario/`, `config/`) ya existen (creadas en Fase 0)
+- Los redirects 301 existentes para rutas antiguas deben mantenerse
 
 ---
 
@@ -219,7 +238,7 @@
 
 **Objetivo:** POS funcional con especialización restaurante/ferretería + Kárdex persistente.  
 **Esfuerzo total estimado:** 12-15 días (backend 7-9d + frontend 5-6d)  
-**Dependencia externa:** HU-F1-001 (business_type), HU-F1-002 (feature flags).
+**Dependencia externa:** HU-F1-001 (business_type), HU-F1-002 (feature flags), HU-F1-009 (puertos sales).
 
 ---
 
@@ -741,11 +760,16 @@
 
 ```
 Fase 1 (Fundamentos)
-  HU-F1-001 business_type ──┬── HU-F1-002 feature_flags ── HU-F1-003 UI adaptativa
-                             │
-                             └── HU-F1-004 cashflow_proj ── HU-F1-005 cashflow_real ── HU-F1-006 comparativa
-                                      │                         │
-                                      └── HU-F1-008 persistencia  └── HU-F1-007 UI cashflow
+  HU-F1-001 ✅ business_type (implementado)
+  HU-F1-001b 🆕 persistencia InvestmentVariables ──┬── HU-F1-004 cashflow (usa DB)
+  HU-F1-002 🟡 extender settings schema ── HU-F1-003 UI adaptativa
+  HU-F1-009 🆕 puertos sales/inventory (hexagonal)
+  HU-F1-010 🆕 mover archivos frontend + sidebar
+  HU-F1-007 🟡 UI cashflow (gráficos + selector)
+  HU-F1-004 ✅ proyección (85%)
+  HU-F1-005 ✅ real (70% — espera datos F2)
+  HU-F1-006 ✅ comparativa (90%)
+  HU-F1-008 ✅ persistencia proyecciones (100%)
 
 Fase 2 (Comerciales)
   HU-F2-001 tablas_base ── HU-F2-002 especializacion
@@ -770,11 +794,13 @@ Fase 3 (IA)
 
 | Fase | Historias | Backend | Frontend | Esfuerzo Total |
 |------|-----------|---------|----------|----------------|
-| Fase 1 — Fundamentos | 8 | HU-F1-001, 002, 004, 005, 006, 008 | HU-F1-003, 007 | 7-9 días |
-| Fase 2 — Comerciales | 12 | HU-F2-001, 002, 003, 004, 005, 006, 007, 012 | HU-F2-008, 009, 010, 011 | 12-15 días |
-| Fase 3 — Agentes IA | 7 | HU-F3-001, 002, 003, 004, 005, 006 | HU-F3-007 | 9-11 días |
-| **TOTAL** | **27** | **20 backend** | **7 frontend** | **28-35 días** |
+| Fase 1 — Fundamentos | 10 (2 ✅ implementadas, 3 nuevas) | HU-F1-001b, 002, 009 | HU-F1-003, 007, 010 | **4.5 días** |
+| Fase 2 — Comerciales | 12 | HU-F2-001 a 007, 012 | HU-F2-008 a 011 | 12-15 días |
+| Fase 3 — Agentes IA | 7 | HU-F3-001 a 006 | HU-F3-007 | 9-11 días |
+
+| **TOTAL** | **29 activas + 2 completadas** | **20 backend** | **9 frontend** | **26-31 días** |
 
 ---
 
-*Documento generado automáticamente por PO Agent con base en el Architecture Analysis 2026-05-12.*
+*Documento actualizado por PO Agent 📋 con ficha técnica de Architecture Agent 🏗️, 2026-05-14.*
+*Revisión basada en inspección del código real (apps/backend + apps/web) + verificación de migraciones Alembic (0001-0006).*

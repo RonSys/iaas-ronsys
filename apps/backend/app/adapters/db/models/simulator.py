@@ -27,7 +27,7 @@ class Scenario(Base):
     __tablename__ = "scenarios"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    company_id: Mapped[int] = mapped_column(
+    tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
     )
     user_id: Mapped[int | None] = mapped_column(
@@ -44,8 +44,13 @@ class Scenario(Base):
     )
 
     __table_args__ = (
-        Index("idx_scenarios_company", "company_id"),
+        Index("idx_scenarios_tenant", "tenant_id"),
     )
+
+    @property
+    def company_id(self) -> int:
+        """Backward compatibility alias for tenant_id."""
+        return self.tenant_id
 
     def __repr__(self) -> str:
         return f"<Scenario(id={self.id}, name={self.name!r})>"

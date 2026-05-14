@@ -50,7 +50,7 @@ def client():
 
     async def fake_user():
         return User(id=1, email="t@test.com", full_name="T", role="manager",
-                     company_id=1, is_active=True, is_verified=True,
+                     tenant_id=1, is_active=True, is_verified=True,
                      failed_login_attempts=0)
     async def fake_tenant():
         return 1
@@ -83,7 +83,7 @@ class TestScenarioModel:
     def test_model_fields(self):
         from app.adapters.db.models.simulator import Scenario
         cols = {c.name for c in Scenario.__table__.columns}
-        required = {"id", "company_id", "user_id", "name", "input_data", "results", "created_at", "updated_at"}
+        required = {"id", "tenant_id", "user_id", "name", "input_data", "results", "created_at", "updated_at"}
         assert required.issubset(cols), f"Missing: {required - cols}"
 
     def test_migration_exists(self):

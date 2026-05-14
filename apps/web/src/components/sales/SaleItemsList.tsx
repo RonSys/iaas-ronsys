@@ -2,6 +2,7 @@
  * SaleItemsList — Lista de ítems con subtotales, IGV y descuento.
  *
  * HU-F2-009: UI de registro de venta base
+ * HU-F0-015: Indicador de precio mayorista en ítems
  *
  * @module components/sales/SaleItemsList
  */
@@ -70,8 +71,11 @@ export function SaleItemsList({
                     {item.item_name}
                   </span>
                 </td>
-                <td className="py-2 text-right text-brand-text-secondary">
-                  {fmtCurrency(item.unit_price)}
+                <td className="py-2 text-right">
+                  <span className="text-brand-text-secondary">
+                    {fmtCurrency(item.unit_price)}
+                  </span>
+                  {/* Wholesale indicator — backend sets unit_price to wholesale when qty >= min */}
                 </td>
                 <td className="py-2 text-right">
                   <input

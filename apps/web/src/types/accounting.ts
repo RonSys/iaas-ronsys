@@ -106,6 +106,22 @@ export interface KardexProduct {
   current_stock: number;
   average_cost: number;
   total_value: number;
+  /** Precio de venta unitario (menorista) */
+  unit_price?: number;
+  /** Precio de venta al por mayor */
+  wholesale_price?: number;
+  /** Cantidad mínima para aplicar precio mayorista */
+  wholesale_min_qty?: number;
+  /** ID de categoría de producto */
+  category_id?: number | null;
+  /** Nombre de categoría */
+  category_name?: string | null;
+  /** Período de garantía en meses (ferretería) */
+  warranty_period?: number | null;
+  /** Código de barras (ferretería) */
+  barcode?: string | null;
+  /** Fabricante / marca (ferretería) */
+  manufacturer?: string | null;
 }
 
 export interface KardexRecord {

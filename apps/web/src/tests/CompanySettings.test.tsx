@@ -9,6 +9,14 @@ import { BrowserRouter } from "react-router-dom";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { AppShell } from "@/components/layout/AppShell";
 
+// ── Mock global fetch ──
+global.fetch = jest.fn(() =>
+  Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve([]),
+  } as Response),
+) as jest.Mock;
+
 // ── Mock del módulo services ──
 jest.mock("@/services", () => ({
   getCompanySettings: jest.fn(),
@@ -43,8 +51,10 @@ function makeSettings(overrides: Record<string, any> = {}): import("@/types").Co
       recipe_explosion: false,
       delivery_enabled: false,
       multi_waiter: false,
+      multi_warehouse: false,
     },
-    tax_config: { igv_included_in_price: false, igv_rate: 0.18, icb_perception_pct: 0 },
+    tax_config: { igv_included_in_price: false, igv_rate: 0.18, icb_perception_pct: 0, withholding_tax_rate: 0 },
+    branding: { logo_url: null, favicon_url: null, primary_color: "#111", secondary_color: "#222", business_name: "Test Co" },
     palette: mockPalette,
     logo_url: null,
     favicon_url: null,
@@ -144,19 +154,39 @@ describe("useCompanySettings", () => {
 // ── AppShell feature-flag rendering ──
 
 describe("AppShell — conditional navigation by feature flags", () => {
+  /** Helper: expand a sidebar section by clicking its toggle button */
+  const expandSection = async (label: string) => {
+    await act(async () => {
+      const buttons = screen.getAllByRole("button", { name: new RegExp(label, "i") });
+      for (const btn of buttons) {
+        if (btn.querySelector("svg")) {
+          btn.click();
+          await new Promise((r) => setTimeout(r, 50));
+        }
+      }
+    });
+  };
+
   it("shows 'Mesas' link when tables_enabled is true", async () => {
     mockedGetSettings.mockResolvedValue(
       makeSettings({ business_type: "restaurant", features: { tables_enabled: true } }),
     );
-    render(
-      <BrowserRouter>
-        <AppShell title="Test">
-          <p>content</p>
-        </AppShell>
-      </BrowserRouter>,
-    );
-    const elements = await screen.findAllByText("🪑 Mesas");
-    expect(elements.length).toBeGreaterThanOrEqual(1);
+    await act(async () => {
+      render(
+        <BrowserRouter>
+          <AppShell title="Test">
+            <p>content</p>
+          </AppShell>
+        </BrowserRouter>,
+      );
+    });
+    await waitFor(() => expect(screen.getByText("content")).toBeInTheDocument());
+    // Expand ERP → Restaurante sections
+    await expandSection("ERP");
+    await expandSection("Restaurante");
+    await waitFor(() => {
+      expect(screen.getAllByText("Mesas").length).toBeGreaterThanOrEqual(1);
+    });
   });
 
   it("hides 'Mesas' link when tables_enabled is false", async () => {
@@ -170,53 +200,67 @@ describe("AppShell — conditional navigation by feature flags", () => {
         </AppShell>
       </BrowserRouter>,
     );
-    await waitFor(() => expect(screen.queryByText("🪑 Mesas")).toBeNull());
+    await waitFor(() => expect(screen.getByText("content")).toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("Mesas")).toBeNull());
   });
 
   it("shows 'Ventas' link (always visible)", async () => {
     mockedGetSettings.mockResolvedValue(
       makeSettings({ business_type: "hardware", features: { invoice_required: true } }),
     );
-    render(
-      <BrowserRouter>
-        <AppShell title="Test">
-          <p>content</p>
-        </AppShell>
-      </BrowserRouter>,
-    );
-    const elements = await screen.findAllByText(/Ventas/i);
-    expect(elements.length).toBeGreaterThanOrEqual(1);
+    await act(async () => {
+      render(
+        <BrowserRouter>
+          <AppShell title="Test">
+            <p>content</p>
+          </AppShell>
+        </BrowserRouter>,
+      );
+    });
+    // Expand ERP section
+    await expandSection("ERP");
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ventas/i).length).toBeGreaterThanOrEqual(1);
+    });
   });
 
   it("shows 'Ventas' even when invoice_required is false", async () => {
     mockedGetSettings.mockResolvedValue(
       makeSettings({ features: { invoice_required: false } }),
     );
-    render(
-      <BrowserRouter>
-        <AppShell title="Test">
-          <p>content</p>
-        </AppShell>
-      </BrowserRouter>,
-    );
+    await act(async () => {
+      render(
+        <BrowserRouter>
+          <AppShell title="Test">
+            <p>content</p>
+          </AppShell>
+        </BrowserRouter>,
+      );
+    });
+    await expandSection("ERP");
     await waitFor(() => {
       const links = screen.getAllByText(/Ventas/i);
       expect(links.length).toBeGreaterThanOrEqual(1);
     });
   });
 
-  it("shows 'Caja' link for POS access", async () => {
+  it("shows POS access link", async () => {
     mockedGetSettings.mockResolvedValue(makeSettings());
-    render(
-      <BrowserRouter>
-        <AppShell title="Test">
-          <p>content</p>
-        </AppShell>
-      </BrowserRouter>,
-    );
+    await act(async () => {
+      render(
+        <BrowserRouter>
+          <AppShell title="Test">
+            <p>content</p>
+          </AppShell>
+        </BrowserRouter>,
+      );
+    });
+    await waitFor(() => expect(screen.getByText("content")).toBeInTheDocument());
+    // Expand ERP → Ventas sections
+    await expandSection("ERP");
+    await expandSection("Ventas");
     await waitFor(() => {
-      const links = screen.getAllByText("🧾 Caja");
-      expect(links.length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText(/Caja/i).length).toBeGreaterThanOrEqual(1);
     });
   });
 });

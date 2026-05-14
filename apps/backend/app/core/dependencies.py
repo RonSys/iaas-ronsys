@@ -2,6 +2,7 @@
 🔐 Dependencias de Autenticación — FastAPI.
 
 US-03: Motor de JWT + dependencias inyectables para proteger endpoints.
+HU-F0-001: Scoping de tenant via X-Tenant-ID / JWT fallback.
 
 Uso:
     @router.get("/protegido")
@@ -36,6 +37,15 @@ oauth2_scheme = OAuth2PasswordBearer(
 # ─── Dependencias ────────────────────────────────────────────
 
 
+async def _get_tenant_from_token(token: str) -> Optional[int]:
+    """Extrae tenant_id del JWT sin lanzar error."""
+    try:
+        payload = decode_access_token(token)
+        return int(payload.get("company_id", 0))
+    except Exception:
+        return None
+
+
 async def get_current_user(
     token: Annotated[Optional[str], Depends(oauth2_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -45,7 +55,7 @@ async def get_current_user(
     Extrae el usuario del JWT en el header Authorization.
 
     US-03: Valida el token, extrae sub, busca el usuario en BD.
-    Si hay X-Tenant-ID, valida que user.company_id == tenant_id (US-10).
+    HU-F0-001: Si hay X-Tenant-ID, valida que user.tenant_id == tenant_id.
     """
     if not token:
         raise HTTPException(
@@ -93,9 +103,12 @@ async def get_current_user(
             detail="User not found",
         )
 
-    # ─── Validación de tenant (US-10) ────────────────────
+    # ─── Validación de tenant (HU-F0-001) ────────────────────
     tenant_id = _get_tenant_from_request(request)
-    if tenant_id is not None and user.company_id != tenant_id:
+    jwt_tenant = payload.get("company_id")
+    effective_tenant = tenant_id or jwt_tenant
+
+    if effective_tenant is not None and user.tenant_id != effective_tenant:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this tenant",

@@ -1,0 +1,442 @@
+# 1. Como gráfico de Gantt - DEUDA TECNICA CRITICA
+
+gantt
+    title Deuda Técnica por Fase de Resolución
+    dateFormat X
+    axisFormat %s
+    
+    section Fase 1
+    D-01: 0, 3d
+    D-02: 0, 2d
+    D-03: 0, 0.5d
+    D-04: 0, 1d
+    
+    section Fase 2
+    D-05: 0, 0.5d
+    D-06: 0, 2d
+
+
+mindmap
+  root((Deuda Técnica))
+    Fase 1
+      D-01
+        core/sales/ y core/inventory/ vacíos
+        Impacto: Lógica se dispersa
+        Esfuerzo: 2-3 días
+      D-02
+        services/sales_service.py importa ORM
+        Impacto: Viola hexagonal, difícil testeo
+        Esfuerzo: 2 días
+      D-03
+        Setup/Branding en memoria global
+        Impacto: No persiste, no multi-tenant
+        Esfuerzo: 0.5 día
+      D-04
+        Reportes financieros integrados al simulador
+        Impacto: Migración necesaria al tener datos reales
+        Esfuerzo: 1 día
+    Fase 2
+      D-05
+        Cierre de comanda solo al pagar
+        Impacto: Lógica incompleta (DT-REST-01)
+        Esfuerzo: 0.5 día
+      D-06
+        Delivery sin repartidores/zonas/tracking
+        Impacto: Funcionalidad limitada (DT-REST-02)
+        Esfuerzo: 2 días
+
+quadrantChart
+    title Matriz Impacto vs Esfuerzo
+    x-axis "Bajo Esfuerzo" --> "Alto Esfuerzo"
+    y-axis "Bajo Impacto" --> "Alto Impacto"
+    quadrant-1 "Priorizar"
+    quadrant-2 "Hacer después"
+    quadrant-3 "Rápido (quick wins)"
+    quadrant-4 "Evaluar"
+    
+    "D-01 (2-3d, Alto Impacto)": [0.75, 0.85]
+    "D-02 (2d, Alto Impacto)": [0.65, 0.80]
+    "D-03 (0.5d, Alto Impacto)": [0.20, 0.75]
+    "D-04 (1d, Alto Impacto)": [0.35, 0.70]
+    "D-05 (0.5d, Impacto Medio)": [0.20, 0.50]
+    "D-06 (2d, Impacto Medio)": [0.65, 0.45]
+
+
+# 2. DEUDA TECNICA MEDIA
+
+gantt
+    title Deuda Técnica - Nuevos Items (D-07 a D-14)
+    dateFormat X
+    axisFormat %s
+    
+    section Fase 1
+    D-07 : 0, 3d
+    D-08 : 0, 3d
+    D-09 : 0, 0.25d
+    D-10 : 0, 0.5d
+    
+    section Fase 4
+    D-11 : 0, 2d
+    D-12 : 0, 2d
+    D-13 : 0, 1d
+    D-14 : 0, 2d
+
+mindmap
+  root((Deuda Técnica<br/>Nuevos Items))
+    Fase 1
+      D-07
+        Frontend sin organización de rutas por dominio
+        Impacto: Dificulta navegación y escalabilidad
+        Esfuerzo: 2-3 días
+      D-08
+        Sin sidebar jerárquica
+        Impacto: Navegación lineal colapsa con 20+ módulos
+        Esfuerzo: 2-3 días
+      D-09
+        Botón "Salir" no está en todas las páginas
+        Impacto: Requerimiento de negocio no cumplido
+        Esfuerzo: 0.25 día
+      D-10
+        Rate limiting con fallback en memoria
+        Impacto: No escala con múltiples workers
+        Esfuerzo: 0.5 día
+    Fase 4
+      D-11
+        Auth requiere PostgreSQL real + Redis
+        Impacto: Riesgo en producción
+        Esfuerzo: 1-2 días
+      D-12
+        Sin CI/CD
+        Impacto: Despliegue manual con riesgo humano
+        Esfuerzo: 1-2 días
+      D-13
+        Grafana sin dashboards pre-configurados
+        Impacto: Monitoreo parcial
+        Esfuerzo: 1 día
+      D-14
+        Tests de integración HTTP no existen
+        Impacto: No se validan routers
+        Esfuerzo: 1-2 días
+
+quadrantChart
+    title Matriz Impacto vs Esfuerzo - Nuevos Items
+    x-axis "Bajo Esfuerzo" --> "Alto Esfuerzo"
+    y-axis "Bajo Impacto" --> "Alto Impacto"
+    quadrant-1 "Priorizar (Alto Impacto, Alto Esfuerzo)"
+    quadrant-2 "Hacer después (Bajo Impacto, Alto Esfuerzo)"
+    quadrant-3 "Quick Wins (Alto Impacto, Bajo Esfuerzo)"
+    quadrant-4 "Evaluar (Bajo Impacto, Bajo Esfuerzo)"
+    
+    "D-07 (2-3d, Alto Impacto)": [0.70, 0.85]
+    "D-08 (2-3d, Alto Impacto)": [0.70, 0.80]
+    "D-09 (0.25d, Impacto Medio)": [0.10, 0.55]
+    "D-10 (0.5d, Impacto Medio-Alto)": [0.20, 0.65]
+    "D-11 (1-2d, Alto Impacto)": [0.60, 0.75]
+    "D-12 (1-2d, Alto Impacto)": [0.60, 0.78]
+    "D-13 (1d, Impacto Medio)": [0.35, 0.50]
+    "D-14 (1-2d, Alto Impacto)": [0.60, 0.72]
+
+flowchart LR
+    subgraph F1[Fase 1 - Frontend y UX]
+        D07[D-07: Rutas sin organización<br/>2-3 días]
+        D08[D-08: Sidebar jerárquica faltante<br/>2-3 días]
+        D09[D-09: Botón Salir incompleto<br/>0.25 día]
+        D10[D-10: Rate limiting en memoria<br/>0.5 día]
+    end
+    
+    subgraph F4[Fase 4 - Infraestructura y Calidad]
+        D11[D-11: Auth requiere DB real<br/>1-2 días]
+        D12[D-12: Sin CI/CD<br/>1-2 días]
+        D13[D-13: Grafana sin dashboards<br/>1 día]
+        D14[D-14: Sin tests integración HTTP<br/>1-2 días]
+    end
+    
+    F1 --> F4
+
+🟢 Bajas (pueden posponerse)
+
+gantt
+    title Deuda Técnica - Items D-15 a D-21
+    dateFormat X
+    axisFormat %s
+    
+    section Fase 4
+    D-15 : 0, 2d
+    D-16 : 0, 0.5d
+    D-17 : 0, 1d
+    D-18 : 0, 2d
+    
+    section Fase 2 (opcional)
+    D-21 : 0, 0.5d
+    
+    section V2 / Futuro
+    D-20 : 0, 1d
+    D-19 : 0, 0d
+
+mindmap
+  root((Deuda Técnica<br/>D-15 a D-21))
+    Fase 4
+      D-15
+        Cashflow lógica embebida en statements.py
+        Impacto: Dificulta mantenimiento
+        Esfuerzo: 1-2 días
+      D-16
+        Sin Storybook, ESLint/Prettier
+        Impacto: Inconsistencias de estilo
+        Esfuerzo: 0.5 día
+      D-17
+        Sin Loki para logs centralizados
+        Impacto: Dificulta debugging en producción
+        Esfuerzo: 1 día
+      D-18
+        Sin OpenTelemetry
+        Impacto: No hay visibilidad de latencia
+        Esfuerzo: 2 días
+    Fase 2 (opcional)
+      D-21
+        Código de barras (escáner)
+        Impacto: Solo campo barcode en tabla
+        Esfuerzo: 0.5 día
+    V2 / Futuro
+      D-20
+        Facturación electrónica genérica (DT-FERR-01)
+        Impacto: Pospuesto a V2
+        Esfuerzo: 1 día
+      D-19
+        Mobile vacío
+        Impacto: Planificado para futuro
+        Esfuerzo: N/A
+
+quadrantChart
+    title Matriz Impacto vs Esfuerzo - D-15 a D-21
+    x-axis "Bajo Esfuerzo" --> "Alto Esfuerzo"
+    y-axis "Bajo Impacto" --> "Alto Impacto"
+    quadrant-1 "Priorizar (Alto Impacto, Alto Esfuerzo)"
+    quadrant-2 "Hacer después (Bajo Impacto, Alto Esfuerzo)"
+    quadrant-3 "Quick Wins (Alto Impacto, Bajo Esfuerzo)"
+    quadrant-4 "Evaluar (Bajo Impacto, Bajo Esfuerzo)"
+    
+    "D-15 (1-2d, Impacto Medio-Alto)": [0.55, 0.70]
+    "D-16 (0.5d, Impacto Medio)": [0.20, 0.50]
+    "D-17 (1d, Impacto Medio-Alto)": [0.35, 0.65]
+    "D-18 (2d, Alto Impacto)": [0.70, 0.75]
+    "D-19 (N/A, Sin Impacto)": [0.05, 0.10]
+    "D-20 (1d, Impacto V2)": [0.35, 0.40]
+    "D-21 (0.5d, Bajo Impacto)": [0.20, 0.30]
+
+flowchart TB
+    subgraph F4[Fase 4 - Infraestructura y Calidad]
+        direction LR
+        D15[D-15: Cashflow embedido<br/>1-2 días]
+        D16[D-16: Sin Storybook/ESLint<br/>0.5 día]
+        D17[D-17: Sin Loki<br/>1 día]
+        D18[D-18: Sin OpenTelemetry<br/>2 días]
+    end
+    
+    subgraph F2[Fase 2 - Opcional]
+        D21[D-21: Código de barras<br/>0.5 día]
+    end
+    
+    subgraph FUT[Futuro / V2]
+        D20[D-20: Facturación electrónica V2<br/>1 día]
+        D19[D-19: Mobile pendiente<br/>Sin estimación]
+    end
+    
+    F4 --> F2 --> FUT
+
+pie
+    title Esfuerzo Total por Fase (días)
+    "Fase 4" : 5.5
+    "Fase 2 (opcional)" : 0.5
+    "V2 / Futuro" : 1
+
+Tabla consolidada (D-01 a D-21 completa)
+
+| ID | Deuda | Impacto | Esfuerzo | Fase |
+|----|-------|---------|----------|------|
+| D-01 | core/sales/ y core/inventory/ vacíos | Lógica se dispersa | 2-3d | Fase 1 |
+| D-02 | services/sales_service.py importa ORM | Viola hexagonal | 2d | Fase 1 |
+| D-03 | Setup/Branding en memoria global | No persiste | 0.5d | Fase 1 |
+| D-04 | Reportes financieros integrados al simulador | Migración necesaria | 1d | Fase 1 |
+| D-05 | Cierre de comanda solo al pagar | Lógica incompleta | 0.5d | Fase 2 |
+| D-06 | Delivery sin repartidores/zonas/tracking | Funcionalidad limitada | 2d | Fase 2 |
+| D-07 | Frontend sin organización de rutas | Dificulta escalabilidad | 2-3d | Fase 1 |
+| D-08 | Sin sidebar jerárquica | Navegación lineal | 2-3d | Fase 1 |
+| D-09 | Botón "Salir" no en todas páginas | Requerimiento incumplido | 0.25d | Fase 1 |
+| D-10 | Rate limiting con fallback en memoria | No escala | 0.5d | Fase 4 |
+| D-11 | Auth requiere PostgreSQL + Redis | Riesgo producción | 1-2d | Fase 4 |
+| D-12 | Sin CI/CD | Despliegue manual | 1-2d | Fase 4 |
+| D-13 | Grafana sin dashboards | Monitoreo parcial | 1d | Fase 4 |
+| D-14 | Sin tests integración HTTP | Routers no validados | 1-2d | Fase 4 |
+| D-15 | Cashflow embebido en statements.py | Dificulta mantenimiento | 1-2d | Fase 4 |
+| D-16 | Sin Storybook/ESLint/Prettier | Inconsistencias estilo | 0.5d | Fase 4 |
+| D-17 | Sin Loki logs centralizados | Debugging difícil | 1d | Fase 4 |
+| D-18 | Sin OpenTelemetry | Sin visibilidad latencia | 2d | Fase 4 |
+| D-19 | Mobile vacío | Planificado futuro | — | Futuro |
+| D-20 | Facturación electrónica genérica | Pospuesto V2 | 1d | V2 |
+| D-21 | Código de barras (escáner) | Solo campo barcode | 0.5d | Fase 2 |
+
+## 3 RESUMEN
+
+| Fase | Deudas que se resuelven | Tipo |
+|------|------------------------|------|
+| Fase 1 | D-01, D-02, D-03, D-04, D-07, D-08, D-09 | Arquitectura crítica + Frontend |
+| Fase 2 | D-05, D-06, (D-21 opcional) | Funcionales acordadas con cliente |
+| Fase 3 | D-20 (facturación electrónica) | V2 |
+| Fase 4 | D-10, D-11, D-12, D-13, D-14, D-15, D-16, D-17, D-18 | Infraestructura + Mantenibilidad |
+| Futuro | D-19 | Mobile |
+
+flowchart LR
+    subgraph F1[Fase 1 - Arquitectura crítica + Frontend]
+        direction TB
+        D01[D-01] --- D02[D-02] --- D03[D-03]
+        D04[D-04] --- D07[D-07] --- D08[D-08]
+        D09[D-09]
+    end
+    
+    subgraph F2[Fase 2 - Funcionales con cliente]
+        direction TB
+        D05[D-05] --- D06[D-06]
+        D21[D-21 opcional]
+    end
+    
+    subgraph F3[Fase 3 - V2]
+        D20[D-20<br/>Facturación electrónica]
+    end
+    
+    subgraph F4[Fase 4 - Infraestructura + Mantenibilidad]
+        direction TB
+        D10[D-10] --- D11[D-11] --- D12[D-12]
+        D13[D-13] --- D14[D-14] --- D15[D-15]
+        D16[D-16] --- D17[D-17] --- D18[D-18]
+    end
+    
+    subgraph FUT[Futuro]
+        D19[D-19<br/>Mobile]
+    end
+    
+    F1 --> F2 --> F3 --> F4 --> FUT
+
+gantt
+    title Hoja de Ruta - Resolución de Deuda Técnica
+    dateFormat X
+    axisFormat %s
+    
+    section Fase 1
+    Arquitectura crítica + Frontend : 0, 7d
+    
+    section Fase 2
+    Funcionales con cliente : 0, 5d
+    
+    section Fase 3
+    V2 - Facturación electrónica : 0, 3d
+    
+    section Fase 4
+    Infraestructura + Mantenibilidad : 0, 10d
+    
+    section Futuro
+    Mobile : 0, 0d
+
+mindmap
+  root((Hoja de Ruta<br/>Deuda Técnica))
+    Fase 1
+      Arquitectura crítica + Frontend
+      Deudas
+        D-01 core/sales/ core/inventory/ vacíos
+        D-02 ORM en sales_service
+        D-03 Settings en memoria global
+        D-04 Reportes en simulador
+        D-07 Frontend rutas sin organización
+        D-08 Sin sidebar jerárquica
+        D-09 Botón Salir incompleto
+    Fase 2
+      Funcionales acordadas con cliente
+      Deudas
+        D-05 Cierre de comanda
+        D-06 Delivery incompleto
+        D-21 Código de barras (opcional)
+    Fase 3
+      V2
+      Deudas
+        D-20 Facturación electrónica
+    Fase 4
+      Infraestructura + Mantenibilidad
+      Deudas
+        D-10 Rate limiting en memoria
+        D-11 Auth con PostgreSQL/Redis
+        D-12 Sin CI/CD
+        D-13 Grafana sin dashboards
+        D-14 Sin tests integración
+        D-15 Cashflow embedido
+        D-16 Sin Storybook/ESLint
+        D-17 Sin Loki logs
+        D-18 Sin OpenTelemetry
+    Futuro
+      Mobile
+      Deudas
+        D-19 Mobile vacío
+
+pie
+    title Deuda Técnica por Fase (cantidad de items)
+    "Fase 1 (7 items)" : 7
+    "Fase 2 (2-3 items)" : 2.5
+    "Fase 3 (1 item)" : 1
+    "Fase 4 (9 items)" : 9
+    "Futuro (1 item)" : 1
+
+
+timeline
+    title Hoja de Ruta - Resolución de Deuda Técnica
+    
+    section Fase 1
+        Arquitectura crítica + Frontend
+        7 deudas
+        : D-01, D-02, D-03, D-04
+        : D-07, D-08, D-09
+    
+    section Fase 2
+        Funcionales con cliente
+        2-3 deudas
+        : D-05, D-06
+        : D-21 (opcional)
+    
+    section Fase 3
+        V2
+        1 deuda
+        : D-20 (Facturación electrónica)
+    
+    section Fase 4
+        Infraestructura + Mantenibilidad
+        9 deudas
+        : D-10 a D-18
+    
+    section Futuro
+        Mobile
+        1 deuda
+        : D-19
+
+quadrantChart
+    title Priorización por Fase
+    x-axis "Corto Plazo" --> "Largo Plazo"
+    y-axis "Baja Complejidad" --> "Alta Complejidad"
+    quadrant-1 "Crítico (Ejecutar ya)"
+    quadrant-2 "Planificar"
+    quadrant-3 "Rápido"
+    quadrant-4 "Estratégico"
+    
+    "Fase 1 (7 items)": [0.25, 0.80]
+    "Fase 2 (2-3 items)": [0.45, 0.50]
+    "Fase 3 (1 item)": [0.65, 0.35]
+    "Fase 4 (9 items)": [0.80, 0.85]
+    "Futuro (1 item)": [0.95, 0.20]
+
+Tabla Consolidada Final (Resumen por Fase con conteo):
+
+| Fase | Deudas | Cantidad | Esfuerzo estimado | Tipo |
+|------|--------|----------|-------------------|------|
+| Fase 1 | D-01, D-02, D-03, D-04, D-07, D-08, D-09 | 7 | ~11-13 días | Arquitectura crítica + Frontend |
+| Fase 2 | D-05, D-06, (D-21 opcional) | 2-3 | ~2.5-3 días | Funcionales acordadas con cliente |
+| Fase 3 | D-20 | 1 | ~1 día | V2 |
+| Fase 4 | D-10 a D-18 | 9 | ~10-13.5 días | Infraestructura + Mantenibilidad |
+| Futuro | D-19 | 1 | — | Mobile |
+| **Total** | **D-01 a D-21** | **20-21** | **~24.5-30.5 días** | |

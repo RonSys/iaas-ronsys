@@ -217,6 +217,9 @@ export async function registerProduct(data: {
   unit?: string;
   initial_stock?: number;
   initial_cost?: number;
+  warranty_period?: number | null;
+  barcode?: string | null;
+  manufacturer?: string | null;
 }): Promise<KardexProduct> {
   return request("/accounting/kardex/products", {
     method: "POST",
@@ -272,13 +275,19 @@ export async function getCompanySettings(): Promise<CompanySettingsResponse> {
 }
 
 export async function updateCompanySettings(
-  data: Partial<Pick<CompanySettingsResponse, "features" | "tax_config">>,
+  data: Partial<
+    Pick<
+      CompanySettingsResponse,
+      "features" | "tax_config" | "business_type" | "business_name"
+    >
+  >,
 ): Promise<CompanySettingsResponse> {
   return request("/admin/company/settings", {
-    method: "PUT",
+    method: "PATCH",
     body: JSON.stringify(data),
   });
 }
+
 
 // ═══════════════════════════════════════════════════════════
 // Cashflow

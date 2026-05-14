@@ -13,7 +13,6 @@
  *
  * @module dashboard/CashflowChart
  */
-import { useState, useCallback } from "react";
 import {
   BarChart,
   Bar,
@@ -28,7 +27,7 @@ import {
 } from "recharts";
 import { fmtCurrency, Skeleton } from "./KPICard";
 import { AlertsBanner } from "../ui/AlertsBanner";
-import type { CashflowResponse, CashflowQueryParams } from "@/types";
+import type { CashflowResponse } from "@/types";
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -250,6 +249,8 @@ interface CashflowSelectorsProps {
   toMonth: number;
   onViewChange: (view: string) => void;
   onPeriodChange: (fromYear: number, fromMonth: number, toYear: number, toMonth: number) => void;
+  periodValid: boolean;
+  onConsult: () => void;
   loading: boolean;
 }
 
@@ -261,6 +262,8 @@ function CashflowSelectors({
   toMonth,
   onViewChange,
   onPeriodChange,
+  periodValid,
+  onConsult,
   loading,
 }: CashflowSelectorsProps) {
   const views = [
@@ -366,6 +369,28 @@ function CashflowSelectors({
       {loading && (
         <div className="self-center ml-2">
           <div className="w-5 h-5 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
+      {/* Consultar button + validation */}
+      <div className="self-end ml-2">
+        <button
+          type="button"
+          onClick={onConsult}
+          disabled={!periodValid || loading}
+          className="px-4 py-1.5 text-sm rounded-lg font-medium transition-all
+            bg-brand-primary text-white hover:bg-brand-secondary
+            disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? "Cargando..." : "🔍 Consultar"}
+        </button>
+      </div>
+
+      {!periodValid && (
+        <div className="w-full mt-1">
+          <p className="text-xs text-brand-error">
+            ⚠️ La fecha "Desde" debe ser menor o igual a "Hasta"
+          </p>
         </div>
       )}
     </div>
@@ -484,56 +509,37 @@ function responseToComparisonData(
 export interface CashflowChartProps {
   data: CashflowResponse | null;
   loading: boolean;
-  params: CashflowQueryParams;
-  onParamsChange: (params: CashflowQueryParams) => void;
+  // Extended for consult button + validation (HU-F1-007)
+  fromYear: number;
+  fromMonth: number;
+  toYear: number;
+  toMonth: number;
+  view: string;
+  periodValid: boolean;
+  onViewChange: (v: string) => void;
+  onFromYearChange: (y: number) => void;
+  onFromMonthChange: (m: number) => void;
+  onToYearChange: (y: number) => void;
+  onToMonthChange: (m: number) => void;
+  onConsult: () => void;
 }
 
 export function CashflowChart({
   data,
   loading,
-  params,
-  onParamsChange,
+  fromYear,
+  fromMonth,
+  toYear,
+  toMonth,
+  view,
+  periodValid,
+  onViewChange,
+  onFromYearChange,
+  onFromMonthChange,
+  onToYearChange,
+  onToMonthChange,
+  onConsult,
 }: CashflowChartProps) {
-  const view = params.view ?? "projected";
-
-  const [fromYear, setFromYear] = useState(
-    params.from ? Number(params.from.split("-")[0]) : CURRENT_YEAR,
-  );
-  const [fromMonth, setFromMonth] = useState(
-    params.from ? Number(params.from.split("-")[1]) : 1,
-  );
-  const [toYear, setToYear] = useState(
-    params.to ? Number(params.to.split("-")[0]) : CURRENT_YEAR,
-  );
-  const [toMonth, setToMonth] = useState(
-    params.to ? Number(params.to.split("-")[1]) : 12,
-  );
-
-  const handlePeriodChange = useCallback(
-    (fy: number, fm: number, ty: number, tm: number) => {
-      setFromYear(fy);
-      setFromMonth(fm);
-      setToYear(ty);
-      setToMonth(tm);
-      onParamsChange({
-        ...params,
-        from: `${fy}-${String(fm).padStart(2, "0")}`,
-        to: `${ty}-${String(tm).padStart(2, "0")}`,
-      });
-    },
-    [params, onParamsChange],
-  );
-
-  const handleViewChange = useCallback(
-    (v: string) => {
-      onParamsChange({
-        ...params,
-        view: v as CashflowQueryParams["view"],
-      });
-    },
-    [params, onParamsChange],
-  );
-
   if (loading && !data) {
     return <CashflowSkeleton />;
   }
@@ -546,8 +552,15 @@ export function CashflowChart({
         fromMonth={fromMonth}
         toYear={toYear}
         toMonth={toMonth}
-        onViewChange={handleViewChange}
-        onPeriodChange={handlePeriodChange}
+        onViewChange={onViewChange}
+        onPeriodChange={(fy, fm, ty, tm) => {
+          onFromYearChange(fy);
+          onFromMonthChange(fm);
+          onToYearChange(ty);
+          onToMonthChange(tm);
+        }}
+        periodValid={periodValid}
+        onConsult={onConsult}
         loading={loading}
       />
 

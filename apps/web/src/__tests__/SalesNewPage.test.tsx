@@ -6,7 +6,15 @@
  */
 import { render, screen, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
-import { SalesNewPage } from "@/pages/SalesNew";
+import { SalesNewPage } from "@/pages/ventas/SalesNewPage";
+
+// Mock global.fetch for ProductSearch category fetch
+global.fetch = jest.fn(() =>
+  Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve([]),
+  } as Response),
+) as jest.Mock;
 
 jest.mock("@/services", () => {
   const palette = {

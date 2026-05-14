@@ -67,10 +67,106 @@ from app.core.dependencies import get_current_active_user  # noqa: E402
 from app.core.tenant import get_tenant_id  # noqa: E402
 from app.models.user import User  # noqa: E402
 
-# ─── Estado en memoria (temporal, hasta implementar repositorio) ───
-_investment: InvestmentVariables | None = None
-_journal: list = []
+# ─── Kárdex en memoria (migrado parcialmente a DB) ───
 _kardex_engine: KardexEngine = KardexEngine()
+
+
+# ═══════════════════════════════════════════════════════════════
+# Helper: leer journal entries desde DB
+# ═══════════════════════════════════════════════════════════════
+
+
+async def _get_journal_from_db(
+    db: AsyncSession, tenant_id: int
+) -> list:
+    """
+    Lee los journal entries persistidos en DB y los convierte a objetos
+    de dominio (JournalEntry) compatibles con el motor contable.
+
+    HU-F1-001b: Reemplaza la variable global _journal.
+    """
+    from app.adapters.db.repositories.accounting import SQLAlchemyAccountingRepository
+    from app.core.accounting.engine import JournalEntry as DomainEntry
+    from app.core.accounting.engine import JournalLine as DomainLine
+    from app.core.accounting.engine import EntryType
+
+    repo = SQLAlchemyAccountingRepository(db, tenant_id=tenant_id)
+    records = await repo.get_journal_entries(tenant_id)
+
+    domain_entries = []
+    for rec in records:
+        try:
+            entry_type = EntryType(rec.entry_type)
+        except ValueError:
+            entry_type = EntryType.manual
+
+        entry = DomainEntry(
+            entry_number=rec.entry_number,
+            date_=rec.date_,
+            description=rec.description,
+            entry_type=entry_type,
+            reference=rec.reference,
+            lines=[
+                DomainLine(
+                    account_code=line.account_code,
+                    debit=line.debit,
+                    credit=line.credit,
+                    description=line.description,
+                )
+                for line in rec.lines
+            ],
+        )
+        domain_entries.append(entry)
+
+    return domain_entries
+
+
+async def _load_investment_vars(
+    db: AsyncSession, tenant_id: int
+) -> InvestmentVariables | None:
+    """
+    Carga InvestmentVariables desde companies.settings.investment_vars.
+
+    HU-F1-001b: Reemplaza la variable global _investment.
+    """
+    from app.adapters.db.models.accounting import Company
+    from sqlalchemy import select as sa_select
+
+    result = await db.execute(
+        sa_select(Company).where(Company.id == tenant_id)
+    )
+    company = result.scalar_one_or_none()
+    if not company or not company.settings:
+        return None
+
+    inv_dict = company.settings.get("investment_vars")
+    if not inv_dict:
+        return None
+
+    return InvestmentVariables(
+        capital=inv_dict.get("capital", 0),
+        loan_amount=inv_dict.get("loan_amount", 0),
+        loan_rate_annual=inv_dict.get("loan_rate_annual", 0.1),
+        loan_term_months=inv_dict.get("loan_term_months", 12),
+        equipment_cost=inv_dict.get("equipment_cost", 0),
+        furniture_cost=inv_dict.get("furniture_cost", 0),
+        computer_cost=inv_dict.get("computer_cost", 0),
+        software_cost=inv_dict.get("software_cost", 0),
+        guarantee_deposit=inv_dict.get("guarantee_deposit", 0),
+        initial_inventory=inv_dict.get("initial_inventory", 0),
+        monthly_sales=inv_dict.get("monthly_sales", []),
+        monthly_cost_pct=inv_dict.get("monthly_cost_pct", 0.4),
+        monthly_rent=inv_dict.get("monthly_rent", 0),
+        monthly_utilities=inv_dict.get("monthly_utilities", 0),
+        monthly_salaries=inv_dict.get("monthly_salaries", 0),
+        monthly_marketing=inv_dict.get("monthly_marketing", 0),
+        monthly_admin=inv_dict.get("monthly_admin", 0),
+        monthly_maintenance=inv_dict.get("monthly_maintenance", 0),
+        equipment_life_years=inv_dict.get("equipment_life_years", 8),
+        furniture_life_years=inv_dict.get("furniture_life_years", 10),
+        computer_life_years=inv_dict.get("computer_life_years", 5),
+        software_life_years=inv_dict.get("software_life_years", 3),
+    )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -79,14 +175,25 @@ _kardex_engine: KardexEngine = KardexEngine()
 
 
 @router.post("/setup", response_model=FinancialReportResponse)
-async def setup_accounting(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)], data: InvestmentInput):
+async def setup_accounting(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    data: InvestmentInput,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
     """
     Configura la empresa y ejecuta la simulación financiera inicial.
 
     Recibe variables de inversión y devuelve el reporte financiero completo:
     BCSS, PYG, Balance General y Ratios.
+
+    HU-F1-001b: Persiste en DB (journal_entries + companies.settings.investment_vars).
     """
-    global _investment, _journal
+    from app.adapters.db.models.accounting import Company
+    from app.adapters.db.repositories.accounting import SQLAlchemyAccountingRepository
+    from app.services.setup_service import SetupService
+    from sqlalchemy import select as sa_select
+    from sqlalchemy.orm.attributes import flag_modified
 
     start = data.start_date or date(2026, 1, 1)
 
@@ -115,12 +222,69 @@ async def setup_accounting(tenant_id: Annotated[int, Depends(get_tenant_id)], cu
         software_life_years=data.software_life_years,
     )
 
-    _investment = vars_
+    # HU-F1-001b: Persistir via SetupService (journal_entries → DB)
+    repo = SQLAlchemyAccountingRepository(db, tenant_id=tenant_id)
+    service = SetupService(repo)
+
+    # Obtener o crear empresa
+    company_result = await db.execute(
+        sa_select(Company).where(Company.id == tenant_id)
+    )
+    company = company_result.scalar_one_or_none()
+
+    if company:
+        # Si la empresa ya existe, solo regeneramos asientos (clear + re-create)
+        await repo.clear_journal(tenant_id)
+    else:
+        # Crear empresa nueva
+        company = Company(
+            id=tenant_id,
+            name=f"Empresa {tenant_id}",
+            ruc=f"{tenant_id:011d}",
+        )
+        db.add(company)
+        await db.flush()
 
     report = FinancialStatementService.run_simulation(
         vars_, months=data.months, start_date=start
     )
-    _journal = report.journal
+
+    # Persistir journal entries en DB
+    for entry in report.journal:
+        await service._persist_entry(entry, tenant_id)
+
+    # Persistir investment_vars en companies.settings JSONB
+    inv_dict = {
+        "capital": vars_.capital,
+        "loan_amount": vars_.loan_amount,
+        "loan_rate_annual": vars_.loan_rate_annual,
+        "loan_term_months": vars_.loan_term_months,
+        "equipment_cost": vars_.equipment_cost,
+        "furniture_cost": vars_.furniture_cost,
+        "computer_cost": vars_.computer_cost,
+        "software_cost": vars_.software_cost,
+        "guarantee_deposit": vars_.guarantee_deposit,
+        "initial_inventory": vars_.initial_inventory,
+        "monthly_sales": vars_.monthly_sales,
+        "monthly_cost_pct": vars_.monthly_cost_pct,
+        "monthly_rent": vars_.monthly_rent,
+        "monthly_utilities": vars_.monthly_utilities,
+        "monthly_salaries": vars_.monthly_salaries,
+        "monthly_marketing": vars_.monthly_marketing,
+        "monthly_admin": vars_.monthly_admin,
+        "monthly_maintenance": vars_.monthly_maintenance,
+        "equipment_life_years": vars_.equipment_life_years,
+        "furniture_life_years": vars_.furniture_life_years,
+        "computer_life_years": vars_.computer_life_years,
+        "software_life_years": vars_.software_life_years,
+    }
+    current_settings = dict(company.settings) if company.settings else {}
+    current_settings["investment_vars"] = inv_dict
+    company.settings = current_settings
+    flag_modified(company, "settings")
+
+    company.setup_complete = True
+    await db.flush()
 
     # Construir respuesta
     is_income = report.income_statement
@@ -218,12 +382,17 @@ async def setup_accounting(tenant_id: Annotated[int, Depends(get_tenant_id)], cu
 
 
 @router.get("/bcss", response_model=BCSSResponse)
-async def get_bcss(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)]):
+async def get_bcss(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
     """Balance de Comprobación de Sumas y Saldos."""
-    if not _journal:
+    journal = await _get_journal_from_db(db, tenant_id)
+    if not journal:
         raise HTTPException(404, "No hay asientos. Ejecuta /api/accounting/setup primero.")
 
-    ledger = build_general_ledger(_journal)
+    ledger = build_general_ledger(journal)
     bcss = calculate_bcss(ledger)
 
     return BCSSResponse(
@@ -245,12 +414,17 @@ async def get_bcss(tenant_id: Annotated[int, Depends(get_tenant_id)], current_us
 
 
 @router.get("/pyg", response_model=IncomeStatementResponse)
-async def get_pyg(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)]):
+async def get_pyg(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
     """Estado de Resultados (Pérdidas y Ganancias)."""
-    if not _journal:
+    journal = await _get_journal_from_db(db, tenant_id)
+    if not journal:
         raise HTTPException(404, "No hay asientos. Ejecuta /api/accounting/setup primero.")
 
-    ledger = build_general_ledger(_journal)
+    ledger = build_general_ledger(journal)
     bcss = calculate_bcss(ledger)
     is_income = generate_income_statement(bcss)
 
@@ -280,12 +454,17 @@ async def get_pyg(tenant_id: Annotated[int, Depends(get_tenant_id)], current_use
 
 
 @router.get("/balance", response_model=BalanceSheetResponse)
-async def get_balance(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)]):
+async def get_balance(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
     """Balance General."""
-    if not _journal:
+    journal = await _get_journal_from_db(db, tenant_id)
+    if not journal:
         raise HTTPException(404, "No hay asientos. Ejecuta /api/accounting/setup primero.")
 
-    ledger = build_general_ledger(_journal)
+    ledger = build_general_ledger(journal)
     bcss = calculate_bcss(ledger)
     is_income = generate_income_statement(bcss)
     bs = generate_balance_sheet(bcss, is_income)
@@ -309,12 +488,17 @@ async def get_balance(tenant_id: Annotated[int, Depends(get_tenant_id)], current
 
 
 @router.get("/ratios", response_model=list[RatioItemResponse])
-async def get_ratios(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)]):
+async def get_ratios(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
     """Ratios financieros con semáforo."""
-    if not _journal:
+    journal = await _get_journal_from_db(db, tenant_id)
+    if not journal:
         raise HTTPException(404, "No hay asientos. Ejecuta /api/accounting/setup primero.")
 
-    ledger = build_general_ledger(_journal)
+    ledger = build_general_ledger(journal)
     bcss = calculate_bcss(ledger)
     is_income = generate_income_statement(bcss)
     bs = generate_balance_sheet(bcss, is_income)
@@ -337,12 +521,23 @@ async def get_ratios(tenant_id: Annotated[int, Depends(get_tenant_id)], current_
 
 
 @router.post("/transaction")
-async def post_transaction(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)], data: TransactionInput):
-    """Registra una transacción contable manual."""
+async def post_transaction(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    data: TransactionInput,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Registra una transacción contable manual y la persiste en DB."""
     from app.core.accounting import JournalEntry, JournalLine
+    from app.adapters.db.repositories.accounting import SQLAlchemyAccountingRepository
+    from app.core.accounting.ports import JournalEntryRecord, JournalLineRecord
+
+    repo = SQLAlchemyAccountingRepository(db, tenant_id=tenant_id)
+    existing = await repo.get_journal_entries(tenant_id)
+    seq = len(existing) + 1
 
     entry = JournalEntry(
-        entry_number=f"MAN-{len(_journal) + 1:03d}",
+        entry_number=f"MAN-{seq:03d}",
         date_=data.date,
         description=data.description,
         entry_type=data.entry_type,
@@ -364,17 +559,41 @@ async def post_transaction(tenant_id: Annotated[int, Depends(get_tenant_id)], cu
             f"Asiento no balanceado: Debe {entry.total_debit} ≠ Haber {entry.total_credit}",
         )
 
-    _journal.append(entry)
+    # Persistir en DB
+    record = JournalEntryRecord(
+        tenant_id=tenant_id,
+        entry_number=entry.entry_number,
+        date_=entry.date_,
+        description=entry.description,
+        entry_type=entry.entry_type,
+        reference=entry.reference,
+        lines=[
+            JournalLineRecord(
+                account_code=line.account_code,
+                debit=line.debit,
+                credit=line.credit,
+                description=line.description,
+            )
+            for line in entry.lines
+        ],
+    )
+    await repo.save_journal_entry(record)
+
     return {"status": "ok", "entry_number": entry.entry_number}
 
 
 @router.post("/validate", response_model=ValidationResponse)
-async def validate_accounting(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)]):
+async def validate_accounting(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
     """Valida la consistencia contable (partida doble)."""
-    if not _journal:
+    journal = await _get_journal_from_db(db, tenant_id)
+    if not journal:
         return ValidationResponse(valid=True, errors=[])
 
-    errors = validate_double_entry(_journal)
+    errors = validate_double_entry(journal)
     return ValidationResponse(valid=len(errors) == 0, errors=errors)
 
 
@@ -410,7 +629,12 @@ async def register_product(tenant_id: Annotated[int, Depends(get_tenant_id)], cu
 
 
 @kardex_router.post("/entry", response_model=KardexRecordResponse)
-async def kardex_entry(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)], data: KardexEntryInput):
+async def kardex_entry(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    data: KardexEntryInput,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
     """Registra una entrada de inventario (compra). Genera asiento contable."""
     try:
         record, entry = _kardex_engine.record_entry(
@@ -422,7 +646,28 @@ async def kardex_entry(tenant_id: Annotated[int, Depends(get_tenant_id)], curren
             reference_type=data.reference_type,
         )
         if entry:
-            _journal.append(entry)
+            from app.adapters.db.repositories.accounting import SQLAlchemyAccountingRepository
+            from app.core.accounting.ports import JournalEntryRecord, JournalLineRecord
+
+            repo = SQLAlchemyAccountingRepository(db, tenant_id=tenant_id)
+            jr = JournalEntryRecord(
+                tenant_id=tenant_id,
+                entry_number=entry.entry_number,
+                date_=entry.date_,
+                description=entry.description,
+                entry_type=entry.entry_type,
+                reference=entry.reference,
+                lines=[
+                    JournalLineRecord(
+                        account_code=line.account_code,
+                        debit=line.debit,
+                        credit=line.credit,
+                        description=line.description,
+                    )
+                    for line in entry.lines
+                ],
+            )
+            await repo.save_journal_entry(jr)
     except (KeyError, ValueError) as e:
         raise HTTPException(400, str(e))
 
@@ -441,7 +686,12 @@ async def kardex_entry(tenant_id: Annotated[int, Depends(get_tenant_id)], curren
 
 
 @kardex_router.post("/exit", response_model=KardexRecordResponse)
-async def kardex_exit(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)], data: KardexExitInput):
+async def kardex_exit(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    data: KardexExitInput,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
     """Registra una salida de inventario (venta/merma). Genera asiento contable."""
     try:
         record, entry = _kardex_engine.record_exit(
@@ -452,7 +702,28 @@ async def kardex_exit(tenant_id: Annotated[int, Depends(get_tenant_id)], current
             reference_type=data.reference_type,
         )
         if entry:
-            _journal.append(entry)
+            from app.adapters.db.repositories.accounting import SQLAlchemyAccountingRepository
+            from app.core.accounting.ports import JournalEntryRecord, JournalLineRecord
+
+            repo = SQLAlchemyAccountingRepository(db, tenant_id=tenant_id)
+            jr = JournalEntryRecord(
+                tenant_id=tenant_id,
+                entry_number=entry.entry_number,
+                date_=entry.date_,
+                description=entry.description,
+                entry_type=entry.entry_type,
+                reference=entry.reference,
+                lines=[
+                    JournalLineRecord(
+                        account_code=line.account_code,
+                        debit=line.debit,
+                        credit=line.credit,
+                        description=line.description,
+                    )
+                    for line in entry.lines
+                ],
+            )
+            await repo.save_journal_entry(jr)
     except (KeyError, ValueError) as e:
         raise HTTPException(400, str(e))
 
@@ -706,12 +977,12 @@ async def get_cashflow(
     target_year = year or current_year
 
     if view == "projected":
-        # HU-F1-004: Intentar cargar desde DB, si no hay, generar desde variables en memoria
+        # HU-F1-001b: Intentar cargar desde DB, fallback a companies.settings.investment_vars
         lines = await CashflowService.load_projection(db, tenant_id, target_year)
 
         if lines:
             report = CashflowReport(
-                company_id=tenant_id,
+                tenant_id=tenant_id,
                 from_date=date_type(target_year, 1, 1),
                 to_date=date_type(target_year, 12, 31),
                 lines=lines,
@@ -723,17 +994,18 @@ async def get_cashflow(
             report.net_cashflow = round(report.total_income - report.total_expenses, 2)
             report.closing_balance = round(report.opening_balance + report.net_cashflow, 2)
         else:
-            # Fallback: generar desde datos en memoria (setup simulado)
-            if not _investment:
+            # Fallback: generar desde investment_vars persistido en companies.settings
+            inv_vars = await _load_investment_vars(db, tenant_id)
+            if not inv_vars:
                 raise HTTPException(
                     404,
                     detail="No hay datos de proyección. Ejecute el setup contable primero.",
                 )
-            report = CashflowService.generate_projection(_investment, target_year)
-            report.company_id = tenant_id
+            report = CashflowService.generate_projection(inv_vars, target_year)
+            report.tenant_id = tenant_id
 
         return CashflowReportResponse(
-            company_id=report.company_id,
+            company_id=report.tenant_id,
             from_date=report.from_date,
             to_date=report.to_date,
             view=report.view,
@@ -775,10 +1047,11 @@ async def get_cashflow(
         except (ValueError, IndexError):
             raise HTTPException(400, detail="Formato de fecha inválido. Use YYYY-MM")
 
-        report = CashflowService.calculate_real(_journal, tenant_id, fd, td)
+        journal = await _get_journal_from_db(db, tenant_id)
+        report = CashflowService.calculate_real(journal, tenant_id, fd, td)
 
         return CashflowReportResponse(
-            company_id=report.company_id,
+            company_id=report.tenant_id,
             from_date=report.from_date,
             to_date=report.to_date,
             view=report.view,
@@ -825,7 +1098,7 @@ async def get_cashflow(
         lines = await CashflowService.load_projection(db, tenant_id, comp_year)
         if lines:
             proj = CashflowReport(
-                company_id=tenant_id,
+                tenant_id=tenant_id,
                 from_date=fd, to_date=td,
                 lines=lines,
                 opening_balance=0.0,
@@ -835,23 +1108,26 @@ async def get_cashflow(
             )
             proj.net_cashflow = round(proj.total_income - proj.total_expenses, 2)
             proj.closing_balance = round(proj.opening_balance + proj.net_cashflow, 2)
-        elif _investment:
-            proj = CashflowService.generate_projection(_investment, comp_year)
-            proj.company_id = tenant_id
         else:
-            raise HTTPException(
-                404,
-                detail="No hay datos de proyección. Ejecute el setup contable primero.",
-            )
+            inv_vars = await _load_investment_vars(db, tenant_id)
+            if inv_vars:
+                proj = CashflowService.generate_projection(inv_vars, comp_year)
+                proj.tenant_id = tenant_id
+            else:
+                raise HTTPException(
+                    404,
+                    detail="No hay datos de proyección. Ejecute el setup contable primero.",
+                )
 
-        # Calcular real
-        actual = CashflowService.calculate_real(_journal, tenant_id, fd, td)
+        # Calcular real desde DB
+        journal = await _get_journal_from_db(db, tenant_id)
+        actual = CashflowService.calculate_real(journal, tenant_id, fd, td)
 
         # Comparar
         report = CashflowService.compare(proj, actual)
 
         return CashflowReportResponse(
-            company_id=report.company_id,
+            company_id=report.tenant_id,
             from_date=report.from_date,
             to_date=report.to_date,
             view=report.view,

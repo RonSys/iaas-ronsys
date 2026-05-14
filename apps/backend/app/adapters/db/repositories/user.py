@@ -14,15 +14,15 @@ from app.models.user import User
 
 
 class UserRepository:
-    """Repositorio de usuarios con scoping automático por company_id."""
+    """Repositorio de usuarios con scoping automático por tenant_id."""
 
-    def __init__(self, session: AsyncSession, company_id: int):
+    def __init__(self, session: AsyncSession, tenant_id: int):
         self.session = session
-        self.company_id = company_id
+        self.tenant_id = tenant_id
 
     def _scope(self, stmt: Select) -> Select:
-        """Agrega filtro de company_id a cualquier query."""
-        return stmt.where(User.company_id == self.company_id)
+        """Agrega filtro de tenant_id a cualquier query."""
+        return stmt.where(User.tenant_id == self.tenant_id)
 
     async def get_by_email(self, email: str) -> Optional[User]:
         stmt = self._scope(select(User).where(User.email == email))

@@ -21,12 +21,14 @@ const taxConfig: CompanyTaxConfig = {
   igv_included_in_price: true,
   igv_rate: 0.18,
   icb_perception_pct: 0,
+  withholding_tax_rate: 0,
 };
 
 const taxConfigNoIcv: CompanyTaxConfig = {
   igv_included_in_price: false,
   igv_rate: 0.18,
   icb_perception_pct: 0,
+  withholding_tax_rate: 0,
 };
 
 const sampleItem: SaleItem = {

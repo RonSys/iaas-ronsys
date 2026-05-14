@@ -5,7 +5,7 @@
  */
 import { render, screen, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
-import { SalesListPage } from "@/pages/SalesListPage";
+import { SalesListPage } from "@/pages/ventas/SalesListPage";
 
 jest.mock("@/services", () => {
   const palette = {

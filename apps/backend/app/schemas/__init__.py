@@ -284,4 +284,5 @@ from app.schemas.sales import (  # noqa: F401, E402
     SaleVoidRequest,
     TaxConfig,
     TicketResponse,
+    get_default_settings,
 )

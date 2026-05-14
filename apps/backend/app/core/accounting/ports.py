@@ -30,7 +30,7 @@ class AccountRecord:
 @dataclass
 class JournalEntryRecord:
     id: Optional[int] = None
-    company_id: int = 1
+    tenant_id: int = 1
     entry_number: str = ""
     date_: date = date.today()
     description: str = ""
@@ -97,7 +97,7 @@ class AccountingRepository(ABC):
     async def create_company(self, record: CompanyRecord) -> CompanyRecord: ...
 
     @abstractmethod
-    async def get_company(self, company_id: int) -> Optional[CompanyRecord]: ...
+    async def get_company(self, tenant_id: int) -> Optional[CompanyRecord]: ...
 
     @abstractmethod
     async def seed_accounts(self, accounts: list[AccountRecord]) -> None: ...
@@ -110,11 +110,11 @@ class AccountingRepository(ABC):
 
     @abstractmethod
     async def get_journal_entries(
-        self, company_id: int, start: Optional[date] = None, end: Optional[date] = None
+        self, tenant_id: int, start: Optional[date] = None, end: Optional[date] = None
     ) -> list[JournalEntryRecord]: ...
 
     @abstractmethod
-    async def clear_journal(self, company_id: int) -> None: ...
+    async def clear_journal(self, tenant_id: int) -> None: ...
 
 
 class InventoryRepository(ABC):

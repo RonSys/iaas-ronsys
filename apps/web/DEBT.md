@@ -1,7 +1,71 @@
 # DEBT.md — Deudas Técnicas del Frontend
 
 > **Proyecto**: IaaS-RonSys Web  
-> **Actualizado**: 2026-05-10
+> **Actualizado**: 2026-05-14
+
+---
+
+## ✅ Fase 0 Implementada (2026-05-14)
+
+### HU-F0-011: Sidebar jerárquico con botón Salir siempre visible
+- **Estado**: Implementado ✅
+- **Cambios**:
+  - Nuevos componentes: `Sidebar.tsx`, `SidebarSection.tsx`, `SidebarItem.tsx` en `components/layout/`
+  - Sidebar jerárquico colapsable con persistencia en sessionStorage
+  - Botón "Cerrar Sesión" en la parte inferior izquierda, SIEMPRE visible
+  - Secciones: PROYECTO DE INVERSIÓN, ERP (Ventas, Restaurante, Inventario, Finanzas), CONFIGURACIÓN
+  - Responsive: desktop sidebar fijo + mobile overlay con hamburguesa
+  - Sección Restaurante oculta según feature flag `tables_enabled` o `businessType === 'restaurant'`
+
+### HU-F0-012: Rutas frontend organizadas por dominio
+- **Estado**: Implementado ✅
+- **Cambios**:
+  - `App.tsx` reorganizado con rutas agrupadas:
+    - `/` → Dashboard
+    - `/inversiones/reportes` → Reports
+    - `/ventas/pos` → PosPage
+    - `/ventas/nueva` → SalesNewPage
+    - `/ventas/historial` → SalesListPage
+    - `/restaurante/mesas` → TablesPage
+    - `/restaurante/menu` → MenuPage
+    - `/restaurante/comandas` → KitchenOrdersPage
+    - `/restaurante/takeaway` → TakeAwayPage
+    - `/restaurante/promociones` → PromotionsPage
+    - `/inventario/kardex` → KardexPage
+    - `/inventario/categorias` → CategoriesPage
+    - `/finanzas/cashflow` → CashflowPage
+    - `/config/marca` → Settings
+  - Redirects 301 para rutas antiguas: `/kardex`→`/inventario/kardex`, `/reportes`→`/inversiones/reportes`, etc.
+  - 404 catch-all
+  - Code-splitting con React.lazy mantenido
+
+### HU-F0-014: Páginas frontend para Restaurante
+- **Estado**: Implementado ✅
+- **Páginas creadas**:
+  - `pages/restaurant/TablesPage.tsx` — Mapa visual de mesas con estados y modales
+  - `pages/restaurant/MenuPage.tsx` — CRUD de ítems del menú con toggle disponibilidad
+  - `pages/restaurant/KitchenOrdersPage.tsx` — Tablero Kanban (Pendiente→Preparando→Listo) con WebSocket + polling fallback
+  - `pages/restaurant/TakeAwayPage.tsx` — Gestión de pedidos takeaway con alertas de atraso
+  - `pages/restaurant/PromotionsPage.tsx` — CRUD de promociones con toggle activo
+- **Cada página maneja 4 estados**: loading (Skeleton), empty (mensaje amigable), error (banner + retry), data
+
+### HU-F0-015: Frontend Ferretería
+- **Estado**: Implementado (parcial - depende de backend) ✅
+- **Cambios**:
+  - `types/accounting.ts`: `KardexProduct` extendido con `unit_price`, `wholesale_price`, `wholesale_min_qty`, `category_id`, `category_name`
+  - `components/sales/ProductSearch.tsx`: Filtro de productos por categoría + muestra precios mayoristas/menoristas
+  - `components/sales/SaleForm.tsx`: Lógica de `getEffectivePrice()` para aplicar precio mayorista según cantidad
+  - `pages/inventario/CategoriesPage.tsx`: CRUD de categorías
+  - `components/sales/SaleItemsList.tsx`: Indicador de precio mayorista en ítems
+
+### Deudas resueltas:
+- D-08 (sidebar jerárquico) — ✅ Resuelto
+- D-09 (botón Salir siempre visible) — ✅ Resuelto
+- D-07 (rutas por dominio) — ✅ Resuelto (parcial: estructura de frontend, backend routers pendientes)
+
+### Deudas nuevas identificadas:
+- **F0-IMP-001**: Páginas de Restaurante dependen de endpoints backend (`/api/v1/restaurant/*`) que aún no existen
+- **F0-IMP-002**: ProductSearch usa `fetch()` directo para categorías — necesita mock global en tests
 
 ---
 

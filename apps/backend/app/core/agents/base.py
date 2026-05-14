@@ -37,7 +37,7 @@ class SkillResult:
 @dataclass
 class AgentContext:
     """Contexto de ejecución para un agente/skill."""
-    company_id: int
+    tenant_id: int
     user_id: Optional[int] = None
     language: str = "es"
     extra: dict[str, Any] = field(default_factory=dict)
@@ -83,7 +83,7 @@ class BaseSkill(ABC):
         Ejecuta la skill con el contexto y parámetros dados.
 
         Args:
-            context: AgentContext con company_id, user_id, etc.
+            context: AgentContext con tenant_id, user_id, etc.
             params: Parámetros específicos de la skill (ej: fechas, filtros)
 
         Returns:

@@ -10,7 +10,7 @@ HU-F2-007: Ticket formateado + payment methods
 Arquitectura: Puertos abstractos → Adaptadores concretos (DB).
 """
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, UTC
 from decimal import Decimal
 from typing import Optional
 
@@ -46,7 +46,7 @@ class PosSessionService:
     @staticmethod
     async def open_session(
         db: AsyncSession,
-        company_id: int,
+        tenant_id: int,
         user_id: int,
         opening_cash: float,
         notes: str | None = None,
@@ -59,7 +59,7 @@ class PosSessionService:
         # Validar: no haya sesión abierta
         existing = await db.execute(
             select(PosSession).where(
-                PosSession.company_id == company_id,
+                PosSession.tenant_id == tenant_id,
                 PosSession.status == "open",
             )
         )
@@ -71,12 +71,12 @@ class PosSessionService:
             )
 
         session = PosSession(
-            company_id=company_id,
+            tenant_id=tenant_id,
             user_id=user_id,
             opening_cash=opening_cash,
             notes=notes,
             status="open",
-            opened_at=datetime.utcnow(),
+            opened_at=datetime.now(UTC),
         )
         db.add(session)
         await db.flush()
@@ -86,12 +86,12 @@ class PosSessionService:
     @staticmethod
     async def get_current_session(
         db: AsyncSession,
-        company_id: int,
+        tenant_id: int,
     ) -> PosSession | None:
         """Obtiene la sesión POS abierta actual."""
         result = await db.execute(
             select(PosSession).where(
-                PosSession.company_id == company_id,
+                PosSession.tenant_id == tenant_id,
                 PosSession.status == "open",
             )
         )
@@ -101,7 +101,7 @@ class PosSessionService:
     async def get_session_with_sales(
         db: AsyncSession,
         session_id: int,
-        company_id: int,
+        tenant_id: int,
     ) -> dict:
         """
         HU-F2-003: Obtiene sesión activa con ventas del turno + totales.
@@ -110,7 +110,7 @@ class PosSessionService:
         result = await db.execute(
             select(PosSession).where(
                 PosSession.id == session_id,
-                PosSession.company_id == company_id,
+                PosSession.tenant_id == tenant_id,
             )
         )
         session = result.scalar_one_or_none()
@@ -147,7 +147,7 @@ class PosSessionService:
 
         return {
             "id": session.id,
-            "company_id": session.company_id,
+            "tenant_id": session.tenant_id,
             "user_id": session.user_id,
             "opened_at": session.opened_at,
             "closed_at": session.closed_at,
@@ -171,7 +171,7 @@ class PosSessionService:
     async def close_session(
         db: AsyncSession,
         session_id: int,
-        company_id: int,
+        tenant_id: int,
         closing_cash: float,
         notes: str | None = None,
     ) -> dict:
@@ -185,7 +185,7 @@ class PosSessionService:
         result = await db.execute(
             select(PosSession).where(
                 PosSession.id == session_id,
-                PosSession.company_id == company_id,
+                PosSession.tenant_id == tenant_id,
             )
         )
         session = result.scalar_one_or_none()
@@ -221,7 +221,7 @@ class PosSessionService:
         session.expected_cash = expected
         session.difference = difference
         session.status = "closed"
-        session.closed_at = datetime.utcnow()
+        session.closed_at = datetime.now(UTC)
         if notes:
             session.notes = notes
 
@@ -250,7 +250,7 @@ class SaleService:
     @staticmethod
     async def create_sale(
         db: AsyncSession,
-        company_id: int,
+        tenant_id: int,
         user_id: int,
         data: dict,  # SaleCreate dict
     ) -> dict:
@@ -264,7 +264,7 @@ class SaleService:
         from fastapi import HTTPException
 
         # 1. Validar sesión abierta
-        session = await PosSessionService.get_current_session(db, company_id)
+        session = await PosSessionService.get_current_session(db, tenant_id)
         if not session:
             raise HTTPException(status_code=409, detail="No hay sesión POS abierta")
 
@@ -286,7 +286,7 @@ class SaleService:
 
         # Cargar empresa para datos de tax
         company_result = await db.execute(
-            select(Company).where(Company.id == company_id)
+            select(Company).where(Company.id == tenant_id)
         )
         company = company_result.scalar_one_or_none()
 
@@ -297,6 +297,21 @@ class SaleService:
             item_disc_pct = float(item_data.get("discount_pct", 0))
             item_disc_amt = float(item_data.get("discount_amount", 0))
             product_id = item_data.get("product_id")
+
+            # HU-F0-010: Aplicar precio mayorista automáticamente
+            if product_id and item_qty > 0:
+                prod_result = await db.execute(
+                    select(Product).where(Product.id == product_id)
+                )
+                product = prod_result.scalar_one_or_none()
+                if product and product.wholesale_price is not None and product.wholesale_min_qty:
+                    if item_qty >= product.wholesale_min_qty:
+                        wholesale_price = float(product.wholesale_price)
+                        # Si el item tiene total calculado desde frontend,
+                        # sobreescribimos el precio con el mayorista
+                        if item_data.get("pricing_type") != "retail":
+                            item_price = wholesale_price
+                            item_data["unit_price"] = wholesale_price
             # QA-F2-01: soportar igv_included (precio ya incluye IGV)
             igv_included = item_data.get("igv_included", False)
             if isinstance(igv_included, str):
@@ -377,7 +392,7 @@ class SaleService:
 
         count_result = await db.execute(
             select(func.count(Sale.id)).where(
-                Sale.company_id == company_id,
+                Sale.tenant_id == tenant_id,
                 Sale.sale_date >= date(year, 1, 1),
             )
         )
@@ -386,12 +401,12 @@ class SaleService:
 
         # 6. Crear Sale
         sale = Sale(
-            company_id=company_id,
+            tenant_id=tenant_id,
             session_id=session.id,
             user_id=user_id,
             sale_number=sale_number,
             sale_date=today,
-            sale_time=datetime.utcnow().time(),
+            sale_time=datetime.now(UTC).time(),
             customer_name=data.get("customer_name"),
             customer_doc=data.get("customer_doc"),
             subtotal=round(subtotal, 2),
@@ -549,7 +564,7 @@ class SaleService:
         await db.refresh(sale)
 
         # Return sale detail
-        return await SaleService.get_sale_detail(db, sale.id, company_id)
+        return await SaleService.get_sale_detail(db, sale.id, tenant_id)
 
     @staticmethod
     async def _generate_journal_entry(
@@ -578,7 +593,7 @@ class SaleService:
         # Contar asientos del año para entry_number
         count_result = await db.execute(
             select(func.count(JournalEntry.id)).where(
-                JournalEntry.company_id == sale.company_id,
+                JournalEntry.tenant_id == sale.tenant_id,
                 JournalEntry.date >= date(year, 1, 1),
             )
         )
@@ -668,7 +683,7 @@ class SaleService:
 
         # Crear asiento
         entry = JournalEntry(
-            company_id=sale.company_id,
+            tenant_id=sale.tenant_id,
             entry_number=entry_number,
             date=today,
             description=f"Venta {sale.sale_number} — {sale.business_type}",
@@ -695,7 +710,7 @@ class SaleService:
     @staticmethod
     async def list_sales(
         db: AsyncSession,
-        company_id: int,
+        tenant_id: int,
         page: int = 1,
         limit: int = 20,
         from_date: date | None = None,
@@ -705,7 +720,7 @@ class SaleService:
         is_voided: bool | None = None,
     ) -> dict:
         """HU-F2-004: Lista ventas paginado con filtros."""
-        conditions = [Sale.company_id == company_id]
+        conditions = [Sale.tenant_id == tenant_id]
 
         if from_date:
             conditions.append(Sale.sale_date >= from_date)
@@ -778,7 +793,7 @@ class SaleService:
     async def get_sale_detail(
         db: AsyncSession,
         sale_id: int,
-        company_id: int,
+        tenant_id: int,
     ) -> dict:
         """HU-F2-004: Detalle de venta con items, payments, especialización."""
         from sqlalchemy.orm import selectinload
@@ -791,7 +806,7 @@ class SaleService:
                 selectinload(Sale.restaurant_sale),
                 selectinload(Sale.hardware_sale),
             )
-            .where(Sale.id == sale_id, Sale.company_id == company_id)
+            .where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
         )
         sale = result.scalar_one_or_none()
         if not sale:
@@ -888,7 +903,7 @@ class SaleService:
     async def void_sale(
         db: AsyncSession,
         sale_id: int,
-        company_id: int,
+        tenant_id: int,
         reason: str,
     ) -> dict:
         """
@@ -904,7 +919,7 @@ class SaleService:
         result = await db.execute(
             select(Sale)
             .options(selectinload(Sale.items))
-            .where(Sale.id == sale_id, Sale.company_id == company_id)
+            .where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
         )
         sale = result.scalar_one_or_none()
         if not sale:
@@ -953,7 +968,7 @@ class SaleService:
             year = date.today().year
             count_result = await db.execute(
                 select(func.count(JournalEntry.id)).where(
-                    JournalEntry.company_id == company_id,
+                    JournalEntry.tenant_id == tenant_id,
                     JournalEntry.date >= date(year, 1, 1),
                 )
             )
@@ -961,7 +976,7 @@ class SaleService:
             entry_number = f"AS-{year}-{count + 1:05d}"
 
             reversal_entry = JournalEntry(
-                company_id=company_id,
+                tenant_id=tenant_id,
                 entry_number=entry_number,
                 date=date.today(),
                 description=f"Anulación venta {sale.sale_number} — {reason}",
@@ -994,7 +1009,7 @@ class SaleService:
         await db.flush()
         await db.refresh(sale)
 
-        return await SaleService.get_sale_detail(db, sale_id, company_id)
+        return await SaleService.get_sale_detail(db, sale_id, tenant_id)
 
     @staticmethod
     def format_ticket(sale_detail: dict, format_type: str = "json") -> dict:

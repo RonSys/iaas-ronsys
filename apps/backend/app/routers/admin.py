@@ -51,9 +51,9 @@ async def create_user(
     """
     Crea un nuevo usuario en el tenant del admin autenticado.
 
-    El company_id siempre es el del admin, NUNCA del request body.
+    El tenant_id siempre es el del admin, NUNCA del request body.
     """
-    repo = UserRepository(db, company_id=tenant_id)
+    repo = UserRepository(db, tenant_id=tenant_id)
 
     # Verificar email único en este tenant
     existing = await repo.get_by_email(data.email)
@@ -68,7 +68,7 @@ async def create_user(
         hashed_password=hash_password(data.password),
         full_name=data.full_name,
         role=data.role,
-        company_id=tenant_id,  # Siempre del admin, no del body
+        tenant_id=tenant_id,  # Siempre del admin, no del body
         is_active=True,
         is_verified=False,
         failed_login_attempts=0,
@@ -99,7 +99,7 @@ async def list_users(
 
     Query params opcionales: role, is_active, search.
     """
-    repo = UserRepository(db, company_id=tenant_id)
+    repo = UserRepository(db, tenant_id=tenant_id)
     users = await repo.get_all(
         role=role,
         is_active=is_active,
@@ -145,6 +145,10 @@ async def update_company_settings(
     # Merge tax_config
     if data.tax_config is not None:
         current_settings["tax_config"] = data.tax_config.model_dump()
+
+    # Merge investment_vars (HU-F1-001b)
+    if data.investment_vars is not None:
+        current_settings["investment_vars"] = data.investment_vars
 
     # QA-02: Persistencia explícita — asignar + flag_modified para JSON columns
     company.settings = current_settings
@@ -197,5 +201,6 @@ async def get_company_settings(
         "settings": {
             "features": merged_features,
             "tax_config": merged_tax,
+            "investment_vars": stored.get("investment_vars"),
         },
     }

@@ -22,6 +22,8 @@ from app.routers.auth import router as auth_router
 from app.routers.admin import router as admin_router
 from app.routers.sales import router as sales_router
 from app.routers.simulator import router as simulator_router
+from app.routers.restaurant import router as restaurant_router
+from app.routers.inventory import router as inventory_router
 
 
 @asynccontextmanager
@@ -76,6 +78,8 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(sales_router)
 app.include_router(simulator_router)
+app.include_router(restaurant_router)
+app.include_router(inventory_router)
 
 
 @app.get("/")
