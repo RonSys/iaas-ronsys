@@ -116,9 +116,9 @@ def _to_kardex_record(km: KardexMovement) -> KardexMovementRecord:
 class SQLAlchemyAccountingRepository(AccountingRepository):
     """Implementación SQLAlchemy del puerto de contabilidad."""
 
-    def __init__(self, session: AsyncSession, company_id: int):
+    def __init__(self, session: AsyncSession, tenant_id: int):
         self.session = session
-        self.company_id = company_id
+        self.tenant_id = tenant_id
 
     async def create_company(self, record: CompanyRecord) -> CompanyRecord:
         company = Company(
@@ -131,8 +131,8 @@ class SQLAlchemyAccountingRepository(AccountingRepository):
         await self.session.flush()
         return _to_company_record(company)
 
-    async def get_company(self, company_id: int) -> Optional[CompanyRecord]:
-        stmt = select(Company).where(Company.id == company_id)
+    async def get_company(self, tenant_id: int) -> Optional[CompanyRecord]:
+        stmt = select(Company).where(Company.id == tenant_id)
         result = await self.session.execute(stmt)
         c = result.scalar_one_or_none()
         return _to_company_record(c) if c else None
@@ -160,7 +160,7 @@ class SQLAlchemyAccountingRepository(AccountingRepository):
 
     async def save_journal_entry(self, record: JournalEntryRecord) -> JournalEntryRecord:
         je = JournalEntry(
-            company_id=record.company_id,
+            tenant_id=record.tenant_id,
             entry_number=record.entry_number,
             date=record.date_,
             description=record.description,
@@ -182,14 +182,14 @@ class SQLAlchemyAccountingRepository(AccountingRepository):
         return _to_journal_entry_record(je)
 
     async def get_journal_entries(
-        self, company_id: int, start: Optional[date] = None, end: Optional[date] = None
+        self, tenant_id: int, start: Optional[date] = None, end: Optional[date] = None
     ) -> list[JournalEntryRecord]:
         from sqlalchemy.orm import selectinload
 
         stmt = (
             select(JournalEntry)
             .options(selectinload(JournalEntry.lines))
-            .where(JournalEntry.company_id == company_id)
+            .where(JournalEntry.tenant_id == tenant_id)
             .order_by(JournalEntry.date, JournalEntry.entry_number)
         )
         if start:
@@ -200,14 +200,14 @@ class SQLAlchemyAccountingRepository(AccountingRepository):
         result = await self.session.execute(stmt)
         return [_to_journal_entry_record(je) for je in result.unique().scalars()]
 
-    async def clear_journal(self, company_id: int) -> None:
+    async def clear_journal(self, tenant_id: int) -> None:
         # Delete lines first
-        subq = select(JournalEntry.id).where(JournalEntry.company_id == company_id)
+        subq = select(JournalEntry.id).where(JournalEntry.tenant_id == tenant_id)
         await self.session.execute(
             delete(JournalEntryLine).where(JournalEntryLine.entry_id.in_(subq))
         )
         await self.session.execute(
-            delete(JournalEntry).where(JournalEntry.company_id == company_id)
+            delete(JournalEntry).where(JournalEntry.tenant_id == tenant_id)
         )
         await self.session.flush()
 
@@ -220,13 +220,13 @@ class SQLAlchemyAccountingRepository(AccountingRepository):
 class SQLAlchemyInventoryRepository(InventoryRepository):
     """Implementación SQLAlchemy del puerto de inventario."""
 
-    def __init__(self, session: AsyncSession, company_id: int):
+    def __init__(self, session: AsyncSession, tenant_id: int):
         self.session = session
-        self.company_id = company_id
+        self.tenant_id = tenant_id
 
     async def create_product(self, record: ProductRecord) -> ProductRecord:
         p = Product(
-            company_id=self.company_id,  # Tenant scoping
+            tenant_id=self.tenant_id,
             code=record.code,
             name=record.name,
             unit_of_measure=record.unit_of_measure,

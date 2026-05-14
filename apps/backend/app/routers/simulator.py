@@ -41,7 +41,7 @@ async def create_scenario(
     """Guarda un escenario de simulación (máx 4 por empresa)."""
     scenario = await ScenarioService.create(
         db=db,
-        company_id=tenant_id,
+        tenant_id=tenant_id,
         user_id=int(current_user.id),
         name=body.name,
         input_data=body.input_data,
@@ -88,7 +88,7 @@ async def update_scenario(
     """Actualiza un escenario (campos opcionales)."""
     scenario = await ScenarioService.update(
         db=db,
-        company_id=tenant_id,
+        tenant_id=tenant_id,
         scenario_id=scenario_id,
         name=body.name,
         input_data=body.input_data,

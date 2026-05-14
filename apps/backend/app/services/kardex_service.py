@@ -261,5 +261,5 @@ async def get_kardex_service(
         async def endpoint(kardex: KardexDBService = Depends(get_kardex_service)):
             ...
     """
-    repo = SQLAlchemyInventoryRepository(db, company_id=tenant_id)
+    repo = SQLAlchemyInventoryRepository(db, tenant_id=tenant_id)
     return KardexDBService(repo)

@@ -53,7 +53,7 @@ class CashflowAlert:
 @dataclass
 class CashflowReport:
     """Reporte completo de flujo de caja."""
-    company_id: int
+    tenant_id: int
     from_date: date
     to_date: date
     lines: list[CashflowLine] = field(default_factory=list)
@@ -178,7 +178,7 @@ class CashflowService:
         net_cf = round(total_income - total_expenses, 2)
 
         report = CashflowReport(
-            company_id=0,
+            tenant_id=0,
             from_date=date(year, 1, 1),
             to_date=date(year, months, 28),
             lines=lines,
@@ -194,7 +194,7 @@ class CashflowService:
     @staticmethod
     def calculate_real(
         journal_entries: list,  # JournalEntry domain objects
-        company_id: int,
+        tenant_id: int,
         from_date: date,
         to_date: date,
     ) -> CashflowReport:
@@ -279,7 +279,7 @@ class CashflowService:
         net_cf = round(total_inc - total_exp, 2)
 
         return CashflowReport(
-            company_id=company_id,
+            tenant_id=tenant_id,
             from_date=from_date,
             to_date=to_date,
             lines=sorted_lines,
@@ -417,7 +417,7 @@ class CashflowService:
         net_cf = round(total_inc - total_exp, 2)
 
         return CashflowReport(
-            company_id=projected.company_id,
+            tenant_id=projected.tenant_id,
             from_date=projected.from_date,
             to_date=projected.to_date,
             lines=cmp_lines,
@@ -461,7 +461,7 @@ class CashflowService:
     @staticmethod
     async def save_projection(
         db,  # AsyncSession
-        company_id: int,
+        tenant_id: int,
         report: CashflowReport,
     ) -> int:
         """
@@ -482,7 +482,7 @@ class CashflowService:
         saved = 0
         for line in report.lines:
             stmt = pg_insert(CashflowProjection).values(
-                company_id=company_id,
+                tenant_id=tenant_id,
                 year=line.year,
                 month=line.month,
                 concept=line.concept,
@@ -501,7 +501,7 @@ class CashflowService:
     @staticmethod
     async def load_projection(
         db,  # AsyncSession
-        company_id: int,
+        tenant_id: int,
         year: int,
     ) -> list[CashflowLine]:
         """
@@ -521,7 +521,7 @@ class CashflowService:
         result = await db.execute(
             select(CashflowProjection)
             .where(
-                CashflowProjection.company_id == company_id,
+                CashflowProjection.tenant_id == tenant_id,
                 CashflowProjection.year == year,
             )
             .order_by(CashflowProjection.month, CashflowProjection.concept)

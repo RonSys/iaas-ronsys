@@ -66,6 +66,10 @@ class User(Base):
         """Backward compatibility alias for tenant_id (DB column renamed by migration)."""
         return self.tenant_id
 
+    @company_id.setter
+    def company_id(self, value: int):
+        self.tenant_id = value
+
     __table_args__ = (
         CheckConstraint(
             "role IN ('admin', 'manager', 'operator', 'viewer')",
@@ -97,6 +101,10 @@ class RefreshToken(Base):
     def company_id(self) -> int:
         """Backward compatibility alias for tenant_id."""
         return self.tenant_id
+
+    @company_id.setter
+    def company_id(self, value: int):
+        self.tenant_id = value
     token_hash: Mapped[str] = mapped_column(
         String(64), unique=True, nullable=False, index=True
     )

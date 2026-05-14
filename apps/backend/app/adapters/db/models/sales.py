@@ -73,6 +73,10 @@ class PosSession(Base):
         """Backward compatibility alias for tenant_id."""
         return self.tenant_id
 
+    @company_id.setter
+    def company_id(self, value: int):
+        self.tenant_id = value
+
     def __repr__(self) -> str:
         return f"<PosSession(id={self.id}, status={self.status})>"
 
@@ -151,6 +155,10 @@ class Sale(Base):
     def company_id(self) -> int:
         """Backward compatibility alias for tenant_id."""
         return self.tenant_id
+
+    @company_id.setter
+    def company_id(self, value: int):
+        self.tenant_id = value
 
     __table_args__ = (
         Index("idx_sales_tenant_date", "tenant_id", "sale_date"),

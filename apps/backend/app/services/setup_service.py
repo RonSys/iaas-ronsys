@@ -98,10 +98,10 @@ class SetupService:
 
         return report
 
-    async def _persist_entry(self, entry: JournalEntry, company_id: int) -> None:
+    async def _persist_entry(self, entry: JournalEntry, tenant_id: int) -> None:
         """Persiste un asiento contable y sus líneas en BD."""
         record = JournalEntryRecord(
-            company_id=company_id,
+            tenant_id=tenant_id,
             entry_number=entry.entry_number,
             date_=entry.date_,
             description=entry.description,

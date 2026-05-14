@@ -54,7 +54,7 @@ async def open_pos_session(
     """
     session = await PosSessionService.open_session(
         db=db,
-        company_id=tenant_id,
+        tenant_id=tenant_id,
         user_id=int(current_user.id),
         opening_cash=opening_cash,
         notes=notes,
@@ -107,7 +107,7 @@ async def close_pos_session(
     return await PosSessionService.close_session(
         db=db,
         session_id=session_id,
-        company_id=tenant_id,
+        tenant_id=tenant_id,
         closing_cash=closing_cash,
         notes=notes,
     )
@@ -141,7 +141,7 @@ async def create_sale(
     """
     return await SaleService.create_sale(
         db=db,
-        company_id=tenant_id,
+        tenant_id=tenant_id,
         user_id=int(current_user.id),
         data=body,
     )
@@ -167,7 +167,7 @@ async def list_sales(
     """
     return await SaleService.list_sales(
         db=db,
-        company_id=tenant_id,
+        tenant_id=tenant_id,
         page=page,
         limit=limit,
         from_date=from_date,

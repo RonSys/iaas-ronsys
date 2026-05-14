@@ -711,7 +711,7 @@ async def get_cashflow(
 
         if lines:
             report = CashflowReport(
-                company_id=tenant_id,
+                tenant_id=tenant_id,
                 from_date=date_type(target_year, 1, 1),
                 to_date=date_type(target_year, 12, 31),
                 lines=lines,
@@ -825,7 +825,7 @@ async def get_cashflow(
         lines = await CashflowService.load_projection(db, tenant_id, comp_year)
         if lines:
             proj = CashflowReport(
-                company_id=tenant_id,
+                tenant_id=tenant_id,
                 from_date=fd, to_date=td,
                 lines=lines,
                 opening_balance=0.0,

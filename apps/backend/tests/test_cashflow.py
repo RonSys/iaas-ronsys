@@ -163,7 +163,7 @@ class TestCashflowReal:
     def test_no_transactions_returns_zeroes(self):
         """Sin transacciones, todas las líneas tienen actual=0."""
         report = CashflowService.calculate_real(
-            [], company_id=1,
+            [], tenant_id=1,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 6, 30),
         )
@@ -173,7 +173,7 @@ class TestCashflowReal:
     def test_generates_lines_for_period(self):
         """Genera líneas para cada mes del período."""
         report = CashflowService.calculate_real(
-            [], company_id=1,
+            [], tenant_id=1,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 6, 30),
         )
@@ -183,7 +183,7 @@ class TestCashflowReal:
     def test_view_is_actual(self):
         """La vista es 'actual'."""
         report = CashflowService.calculate_real(
-            [], company_id=1,
+            [], tenant_id=1,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 1, 31),
         )
@@ -204,7 +204,7 @@ class TestCashflowReal:
             )
         ]
         report = CashflowService.calculate_real(
-            entries, company_id=1,
+            entries, tenant_id=1,
             from_date=date(2026, 3, 1),
             to_date=date(2026, 3, 31),
         )
@@ -227,7 +227,7 @@ class TestCashflowReal:
             )
         ]
         report = CashflowService.calculate_real(
-            entries, company_id=1,
+            entries, tenant_id=1,
             from_date=date(2026, 2, 1),
             to_date=date(2026, 2, 28),
         )
@@ -249,7 +249,7 @@ class TestCashflowReal:
             )
         ]
         report = CashflowService.calculate_real(
-            entries, company_id=1,
+            entries, tenant_id=1,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 3, 31),
         )
@@ -271,7 +271,7 @@ class TestCashflowReal:
             )
         ]
         report = CashflowService.calculate_real(
-            entries, company_id=1,
+            entries, tenant_id=1,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 3, 31),
         )
@@ -317,7 +317,7 @@ class TestCashflowComparison:
             ),
         ]
         return CashflowService.calculate_real(
-            entries, company_id=1,
+            entries, tenant_id=1,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 6, 30),
         )
@@ -361,7 +361,7 @@ class TestCashflowComparison:
             )
         ]
         act = CashflowService.calculate_real(
-            entries, company_id=1,
+            entries, tenant_id=1,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 3, 31),
         )
@@ -399,7 +399,7 @@ class TestCashflowComparison:
             )
         ]
         act = CashflowService.calculate_real(
-            entries, company_id=1,
+            entries, tenant_id=1,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 1, 31),
         )
@@ -434,7 +434,7 @@ class TestCashflowComparison:
             )
         ]
         act = CashflowService.calculate_real(
-            entries, company_id=1,
+            entries, tenant_id=1,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 1, 31),
         )
@@ -462,7 +462,7 @@ class TestCashflowComparison:
             )
         ]
         act = CashflowService.calculate_real(
-            entries, company_id=1,
+            entries, tenant_id=1,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 1, 31),
         )
@@ -508,7 +508,7 @@ class TestCashflowComparison:
             ),
         ]
         act = CashflowService.calculate_real(
-            entries, company_id=1,
+            entries, tenant_id=1,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 1, 31),
         )
@@ -547,7 +547,7 @@ class TestCashflowComparison:
             )
         ]
         act = CashflowService.calculate_real(
-            entries, company_id=1,
+            entries, tenant_id=1,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 1, 31),
         )
@@ -582,5 +582,5 @@ class TestCashflowPersistence:
         """CashflowProjection tiene los campos requeridos."""
         from app.adapters.db.models.accounting import CashflowProjection
         fields = {c.name for c in CashflowProjection.__table__.columns}
-        required = {"id", "company_id", "year", "month", "concept", "category", "amount"}
+        required = {"id", "tenant_id", "year", "month", "concept", "category", "amount"}
         assert required.issubset(fields), f"Faltan campos: {required - fields}"

@@ -145,6 +145,10 @@ class JournalEntry(Base):
         """Backward compatibility alias for tenant_id."""
         return self.tenant_id
 
+    @company_id.setter
+    def company_id(self, value: int):
+        self.tenant_id = value
+
     __table_args__ = (
         Index("idx_journal_entries_tenant_date", "tenant_id", "date"),
     )
@@ -223,6 +227,10 @@ class Product(Base):
         """Backward compatibility alias for tenant_id."""
         return self.tenant_id
 
+    @company_id.setter
+    def company_id(self, value: int):
+        self.tenant_id = value
+
 
 # ═══════════════════════════════════════════════════════════════
 # Movimientos de Kárdex
@@ -297,6 +305,10 @@ class CashflowProjection(Base):
     def company_id(self) -> int:
         """Backward compatibility alias for tenant_id."""
         return self.tenant_id
+
+    @company_id.setter
+    def company_id(self, value: int):
+        self.tenant_id = value
 
     __table_args__ = (
         UniqueConstraint(

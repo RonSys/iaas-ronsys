@@ -48,6 +48,10 @@ class Scenario(Base):
         """Backward compatibility alias for tenant_id."""
         return self.tenant_id
 
+    @company_id.setter
+    def company_id(self, value: int):
+        self.tenant_id = value
+
     __table_args__ = (
         Index("idx_scenarios_tenant", "tenant_id"),
     )
