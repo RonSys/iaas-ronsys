@@ -203,6 +203,16 @@ async def take_order(
     return await KitchenOrdersService.create_order(db, tenant_id, table_id, items)
 
 
+@router.get("/orders/active")
+async def list_active_orders(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    status: str | None = Query(None),
+):
+    return await KitchenOrdersService.list_active_orders(db, tenant_id, status)
+
+
 @router.get("/orders/{order_id}")
 async def get_order_detail(
     order_id: int,
@@ -307,6 +317,27 @@ async def list_takeaway(
     status: str | None = Query(None),
 ):
     return await TakeawayService.list_orders(db, tenant_id, status)
+
+
+@router.patch("/takeaway/{order_id}/status")
+async def update_takeaway_status(
+    order_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: dict,
+):
+    """Actualiza el estado de un pedido takeaway desde cocina (HU-F0-016).
+
+    Transiciones válidas:
+      pending → preparing | cancelled
+      preparing → ready | cancelled
+      ready → picked_up
+    """
+    new_status = body.get("status", "")
+    if not new_status:
+        raise HTTPException(status_code=400, detail="Se requiere 'status'")
+    return await TakeawayService.update_status(db, order_id, tenant_id, new_status)
 
 
 @router.patch("/takeaway/{order_id}/pickup")

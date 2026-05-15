@@ -108,6 +108,41 @@ export function TablesMap() {
   const [selectedModifiers, setSelectedModifiers] = useState<number[]>([]);
   const [pendingMenuItem, setPendingMenuItem] = useState<MenuItem | null>(null);
 
+  // ─── WebSocket para notificaciones de cocina ───
+  const [waiterNotif, setWaiterNotif] = useState<string | null>(null);
+
+  useEffect(() => {
+    const tenantId = 1; // demo tenant
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/api/v1/restaurant/ws/waiter/${tenantId}`;
+    let ws: WebSocket;
+    let reconnectTimer: ReturnType<typeof setTimeout>;
+
+    const connect = () => {
+      ws = new WebSocket(wsUrl);
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.event === "order_ready") {
+            const tableNum = msg.table_number || `Mesa ${msg.table_id}`;
+            setWaiterNotif(`🍽️ ${tableNum}: pedido listo para servir`);
+            setTimeout(() => setWaiterNotif(null), 6000);
+            fetchTables(); // refrescar estados
+          }
+        } catch { /* ignore */ }
+      };
+      ws.onclose = () => {
+        reconnectTimer = setTimeout(connect, 5000);
+      };
+    };
+
+    connect();
+    return () => {
+      ws?.close();
+      clearTimeout(reconnectTimer);
+    };
+  }, []);
+
   const fetchTables = useCallback(async () => {
     try {
       const res = await authFetch("/api/v1/restaurant/tables");
@@ -366,6 +401,43 @@ export function TablesMap() {
     if (menuItem) addToOrder(menuItem, [], true);
   };
 
+  const handleCloseOrder = async () => {
+    if (!selectedTable) return;
+    setSubmitting(true);
+    try {
+      const res = await authFetch(`/api/v1/restaurant/tables/${selectedTable.id}/close-order`, { method: "POST" });
+      if (!res.ok) throw new Error("Error al cerrar mesa");
+      setOrderToast("📋 Cuenta cerrada — lista para pagar");
+      setTimeout(() => setOrderToast(null), 3000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al cerrar");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handlePayTable = async () => {
+    if (!selectedTable) return;
+    setSubmitting(true);
+    try {
+      const res = await authFetch(`/api/v1/restaurant/tables/${selectedTable.id}/pay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: 0, method: "cash" }),
+      });
+      if (!res.ok) throw new Error("Error al procesar pago");
+      setOrderToast("💰 Mesa pagada — ahora está libre ✅");
+      setTimeout(() => setOrderToast(null), 4000);
+      setShowOpenModal(false);
+      setSelectedTable(null);
+      await fetchTables();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al pagar");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleDecrement = async (item: OrderItem) => {
     if (!selectedTable?.order_id) return;
     setAddingItemId(item.menu_item_id);
@@ -474,6 +546,12 @@ export function TablesMap() {
 
   return (
     <div className="space-y-4">
+      {/* Notificación flotante de cocina */}
+      {waiterNotif && (
+        <div className="fixed top-4 right-4 z-[100] max-w-sm p-3 rounded-lg shadow-lg bg-orange-50 border border-orange-200 text-orange-700 text-sm animate-pulse">
+          {waiterNotif}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-brand-text-primary">🪑 Mapa de Mesas</h2>
@@ -713,6 +791,13 @@ export function TablesMap() {
                   </div>
                 )}
 
+                {/* Waiter notification from kitchen */}
+                {waiterNotif && (
+                  <div className="p-2 rounded-lg bg-orange-50 border border-orange-200 text-orange-700 text-xs text-center animate-pulse">
+                    {waiterNotif}
+                  </div>
+                )}
+
                 {/* Menu selector toggle */}
                 {!showMenuSelector ? (
                   <button onClick={() => setShowMenuSelector(true)}
@@ -746,6 +831,20 @@ export function TablesMap() {
                       hover:bg-orange-600 disabled:opacity-50">
                     {sendingToKitchen ? "Enviando..." : "📨 Enviar a Cocina"}
                   </button>
+                )}
+
+                {/* Close order & Pay — liberar mesa */}
+                {selectedTable.status === "occupied" && selectedTable.guests && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={handleCloseOrder}
+                      className="py-2.5 text-sm rounded-lg bg-blue-500 text-white font-medium hover:bg-blue-600">
+                      📋 Cerrar Mesa
+                    </button>
+                    <button onClick={handlePayTable}
+                      className="py-2.5 text-sm rounded-lg bg-green-600 text-white font-medium hover:bg-green-700">
+                      💰 Pagar
+                    </button>
+                  </div>
                 )}
 
                 <button onClick={() => { setShowOpenModal(false); setSelectedTable(null); setShowMenuSelector(false); }}

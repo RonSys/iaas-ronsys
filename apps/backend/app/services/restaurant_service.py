@@ -5,6 +5,19 @@ HU: Mesas, menú, comandas, takeaway, pagos y promociones.
 """
 
 from datetime import datetime, UTC
+from zoneinfo import ZoneInfo
+
+LIMA_TZ = ZoneInfo("America/Lima")
+
+
+def _fmt_dt(dt: datetime | None) -> str | None:
+    """Serialize datetime to ISO string in America/Lima timezone."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        # SQLAlchemy puede devolver naive datetime a pesar de DateTime(timezone=True)
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(LIMA_TZ).isoformat()
 from decimal import Decimal
 from typing import Any
 
@@ -352,7 +365,8 @@ class KitchenOrdersService:
             for mod in modifiers:
                 mid = mod.get("id") if isinstance(mod, dict) else mod
                 if mid:
-                    mod_counts[mid] = mod_counts.get(mid, 0) + 1
+                    mod_qty = mod.get("quantity", 1) if isinstance(mod, dict) else 1
+                    mod_counts[mid] = mod_counts.get(mid, 0) + max(1, mod_qty)
 
             for mid, count in mod_counts.items():
                 db_mod = (await db.execute(
@@ -678,21 +692,58 @@ class TakeawayService:
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Ítem '{menu_item.name}' no disponible",
                 )
+
             qty = item_data.get("quantity", 1)
-            item_total = qty * float(menu_item.price)
+            unit_price = float(menu_item.price)
+            mods_total = 0.0
+
+            # Validar modifiers con max_select y sumar price_adjustment (HU-F0-016)
+            modifiers = item_data.get("modifiers", [])
+            mod_counts: dict[int, int] = {}
+            for mod in modifiers:
+                mid = mod.get("id") if isinstance(mod, dict) else mod
+                if mid:
+                    mod_qty = mod.get("quantity", 1) if isinstance(mod, dict) else 1
+                    mod_counts[mid] = mod_counts.get(mid, 0) + max(1, mod_qty)
+
+            for mid, count in mod_counts.items():
+                db_mod = (await db.execute(
+                    select(MenuModifier).where(MenuModifier.id == mid)
+                )).scalar_one_or_none()
+                if db_mod:
+                    if count > db_mod.max_select:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Modificador '{db_mod.name}': máximo {db_mod.max_select}, enviados {count}",
+                        )
+                    mods_total += float(db_mod.price_adjustment) * count
+
+            item_total = qty * (unit_price + mods_total)
             total += item_total
+
             validated.append({
                 "menu_item_id": menu_item.id, "name": menu_item.name,
-                "quantity": qty, "unit_price": float(menu_item.price),
-                "modifiers": item_data.get("modifiers", []),
+                "quantity": qty, "unit_price": unit_price,
+                "modifiers": modifiers, "modifiers_total": mods_total,
                 "notes": item_data.get("notes", ""), "total": item_total,
             })
+
+        raw_pickup = data.get("pickup_time")
+        if raw_pickup:
+            try:
+                pickup_dt = datetime.fromisoformat(raw_pickup)
+                if pickup_dt.tzinfo is None:
+                    pickup_dt = pickup_dt.replace(tzinfo=LIMA_TZ)
+            except (ValueError, TypeError):
+                pickup_dt = None
+        else:
+            pickup_dt = None
 
         order = TakeawayOrder(
             tenant_id=tenant_id,
             customer_name=data.get("customer_name"),
             customer_phone=data.get("customer_phone"),
-            items=validated, pickup_time=data.get("pickup_time"),
+            items=validated, pickup_time=pickup_dt,
             status="pending", notes=data.get("notes"),
         )
         db.add(order)
@@ -708,9 +759,9 @@ class TakeawayService:
             "id": order.id, "customer_name": order.customer_name,
             "customer_phone": order.customer_phone,
             "status": order.status, "items": validated,
-            "pickup_time": order.pickup_time.isoformat() if order.pickup_time else None,
+            "pickup_time": _fmt_dt(order.pickup_time),
             "notes": order.notes,
-            "created_at": order.created_at.isoformat() if order.created_at else None,
+            "created_at": _fmt_dt(order.created_at),
         }
 
     @staticmethod
@@ -722,7 +773,16 @@ class TakeawayService:
             TakeawayOrder.tenant_id == tenant_id,
         )
         if status_filter:
-            stmt = stmt.where(TakeawayOrder.status == status_filter)
+            # Soporta múltiples status separados por coma (HU-F0-016 Kanban)
+            statuses = [s.strip() for s in status_filter.split(",") if s.strip()]
+            if statuses:
+                stmt = stmt.where(TakeawayOrder.status.in_(statuses))
+        else:
+            # Sin filtro: solo activos (excluye terminales para Kanban)
+            stmt = stmt.where(
+                TakeawayOrder.status != "picked_up",
+                TakeawayOrder.status != "cancelled",
+            )
         stmt = stmt.order_by(TakeawayOrder.created_at.desc())
         result = await db.execute(stmt)
         return [
@@ -730,12 +790,64 @@ class TakeawayService:
                 "id": o.id, "customer_name": o.customer_name,
                 "customer_phone": o.customer_phone,
                 "status": o.status, "items": o.items or [],
-                "pickup_time": o.pickup_time.isoformat() if o.pickup_time else None,
+                "pickup_time": _fmt_dt(o.pickup_time),
                 "notes": o.notes,
-                "created_at": o.created_at.isoformat() if o.created_at else None,
+                "created_at": _fmt_dt(o.created_at),
             }
             for o in result.scalars().all()
         ]
+
+    @staticmethod
+    async def update_status(
+        db: AsyncSession, order_id: int, tenant_id: int, new_status: str,
+    ) -> dict:
+        """Actualiza el estado de un pedido takeaway desde cocina (HU-F0-016)."""
+        stmt = select(TakeawayOrder).where(
+            TakeawayOrder.id == order_id,
+            TakeawayOrder.tenant_id == tenant_id,
+        )
+        result = await db.execute(stmt)
+        order = result.scalar_one_or_none()
+        if not order:
+            raise HTTPException(status_code=404, detail="Pedido no encontrado")
+
+        valid_transitions = {
+            "pending": ["preparing", "cancelled"],
+            "preparing": ["ready", "cancelled"],
+            "ready": ["picked_up"],
+            "picked_up": [],
+            "cancelled": [],
+        }
+        allowed = valid_transitions.get(order.status, [])
+        if new_status not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Transición inválida: '{order.status}' → '{new_status}'",
+            )
+
+        order.status = new_status
+        if new_status == "preparing":
+            order.updated_at = datetime.now(UTC)
+        elif new_status == "ready":
+            order.updated_at = datetime.now(UTC)
+        elif new_status == "picked_up":
+            order.updated_at = datetime.now(UTC)
+        else:
+            order.updated_at = datetime.now(UTC)
+
+        await db.flush()
+
+        detail = {
+            "id": order.id, "customer_name": order.customer_name,
+            "customer_phone": order.customer_phone,
+            "status": order.status, "items": order.items or [],
+            "pickup_time": _fmt_dt(order.pickup_time),
+            "notes": order.notes,
+            "created_at": _fmt_dt(order.created_at),
+            "type": "takeaway",
+        }
+        await manager.broadcast_to_kitchen(tenant_id, "order_updated", detail)
+        return detail
 
     @staticmethod
     async def mark_pickup(

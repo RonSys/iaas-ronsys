@@ -11,6 +11,11 @@
 import { authFetch } from "@/services/authFetch";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Skeleton } from "@/components/dashboard/KPICard";
+import {
+  ModifierBottomSheet,
+  type MenuModifier,
+  type ModifierSelection,
+} from "@/components/restaurante/ModifierBottomSheet";
 
 interface TakeawayOrder {
   id: number;
@@ -30,11 +35,13 @@ interface MenuItemSimple {
   price: number;
   category: string;
   active: boolean;
+  modifiers?: MenuModifier[] | null;
 }
 
 interface CartItem {
   menuItem: MenuItemSimple;
   quantity: number;
+  modifiers: ModifierSelection[];
 }
 
 const STATUS_CONFIG: Record<TakeawayOrder["status"], { label: string; color: string }> = {
@@ -44,6 +51,11 @@ const STATUS_CONFIG: Record<TakeawayOrder["status"], { label: string; color: str
   picked_up: { label: "Recogido", color: "bg-gray-100 text-gray-600" },
   cancelled: { label: "Cancelado", color: "bg-red-100 text-red-600" },
 };
+
+/** Stable key for a modifier array — used to group cart items by modifier combo */
+function modifierKey(mods: ModifierSelection[]): string {
+  return (mods.length > 0 ? mods.map((m) => `${m.id}:${m.quantity}`).sort().join(",") : "");
+}
 
 export function TakeawayPage() {
   const [orders, setOrders] = useState<TakeawayOrder[]>([]);
@@ -62,9 +74,14 @@ export function TakeawayPage() {
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Modifier bottom sheet
+  const [modifierItem, setModifierItem] = useState<MenuItemSimple | null>(null);
+  const [modifierSheetOpen, setModifierSheetOpen] = useState(false);
+  const [modifierPreselected, setModifierPreselected] = useState<number[]>([]);
+
   const fetchOrders = useCallback(async () => {
     try {
-      const res = await authFetch("/api/v1/restaurant/takeaway-orders");
+      const res = await authFetch("/api/v1/restaurant/takeaway");
       if (res.ok) {
         const data = await res.json();
         setOrders(data.orders ?? data);
@@ -98,20 +115,55 @@ export function TakeawayPage() {
 
   const cartTotal = useMemo(
     () =>
-      cart.reduce((sum, c) => sum + c.menuItem.price * c.quantity, 0),
+      cart.reduce((sum, c) => {
+        const modifierSum = c.modifiers.reduce((s, m) => s + m.price_adjustment * m.quantity, 0);
+        return sum + (c.menuItem.price + modifierSum) * c.quantity;
+      }, 0),
     [cart],
   );
 
-  const addToCart = (item: MenuItemSimple) => {
+  const addToCart = (item: MenuItemSimple, preselectedMods: ModifierSelection[] = []) => {
+    // If item has modifiers and no preselected set provided, open bottom sheet
+    if (
+      !modifierSheetOpen &&
+      item.modifiers &&
+      item.modifiers.length > 0 &&
+      preselectedMods.length === 0
+    ) {
+      setModifierItem(item);
+      setModifierPreselected([]);
+      setModifierSheetOpen(true);
+      return;
+    }
+
+    // Direct add (no modifiers or called from sheet confirmation)
+    const mods = preselectedMods.length > 0
+      ? preselectedMods
+      : [];
+
     setCart((prev) => {
-      const existing = prev.find((c) => c.menuItem.id === item.id);
+      const existing = prev.find(
+        (c) =>
+          c.menuItem.id === item.id &&
+          modifierKey(c.modifiers) === modifierKey(mods),
+      );
       if (existing) {
         return prev.map((c) =>
-          c.menuItem.id === item.id ? { ...c, quantity: c.quantity + 1 } : c,
+          c.menuItem.id === item.id && modifierKey(c.modifiers) === modifierKey(mods)
+            ? { ...c, quantity: c.quantity + 1 }
+            : c,
         );
       }
-      return [...prev, { menuItem: item, quantity: 1 }];
+      return [...prev, { menuItem: item, quantity: 1, modifiers: mods }];
     });
+
+    setModifierItem(null);
+  };
+
+  const handleModifierConfirm = (selected: ModifierSelection[]) => {
+    if (modifierItem) {
+      addToCart(modifierItem, selected);
+    }
   };
 
   const removeFromCart = (index: number) => {
@@ -136,11 +188,23 @@ export function TakeawayPage() {
         customer_phone: customerPhone.trim() || null,
         pickup_time: pickupTime || null,
         notes: notes.trim() || null,
-        items: cart.map((c) => ({
-          menu_item_id: c.menuItem.id,
-          quantity: c.quantity,
-          unit_price: c.menuItem.price,
-        })),
+        items: cart.map((c) => {
+          const modifierSum = c.modifiers.reduce((s, m) => s + m.price_adjustment * m.quantity, 0);
+          const item: Record<string, unknown> = {
+            menu_item_id: c.menuItem.id,
+            quantity: c.quantity,
+            unit_price: c.menuItem.price + modifierSum,
+          };
+          if (c.modifiers.length > 0) {
+            item.modifiers = c.modifiers.map((m) => ({
+              id: m.id,
+              name: m.name,
+              price_adjustment: m.price_adjustment,
+              quantity: m.quantity,
+            }));
+          }
+          return item;
+        }),
         payments: [
           {
             payment_method: "cash",
@@ -149,7 +213,7 @@ export function TakeawayPage() {
           },
         ],
       };
-      const res = await authFetch("/api/v1/restaurant/takeaway-orders", {
+      const res = await authFetch("/api/v1/restaurant/takeaway", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -284,27 +348,39 @@ export function TakeawayPage() {
                 </p>
               ) : (
                 <div className="space-y-2 mb-4">
-                  {cart.map((c, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm">
-                      <span className="flex-1 truncate">{c.menuItem.name}</span>
-                      <input
-                        type="number"
-                        min={1}
-                        value={c.quantity}
-                        onChange={(e) => updateCartQty(i, Number(e.target.value))}
-                        className="w-14 px-1.5 py-0.5 border rounded text-center text-xs"
-                      />
-                      <span className="w-16 text-right font-medium">
-                        S/ {(c.menuItem.price * c.quantity).toFixed(2)}
-                      </span>
-                      <button
-                        onClick={() => removeFromCart(i)}
-                        className="text-red-500 text-xs"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
+                  {cart.map((c, i) => {
+                    const itemModifierSum = c.modifiers.reduce((s, m) => s + m.price_adjustment * m.quantity, 0);
+                    const itemUnitPrice = c.menuItem.price + itemModifierSum;
+                    const modLabel = c.modifiers.length > 0
+                      ? ` (${c.modifiers.map((m) => m.quantity > 1 ? `${m.quantity}x ${m.name}` : m.name).join(", ")})`
+                      : "";
+                    return (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <span className="flex-1 truncate">
+                          {c.menuItem.name}
+                          {modLabel && (
+                            <span className="text-xs text-brand-text-secondary">{modLabel}</span>
+                          )}
+                        </span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={c.quantity}
+                          onChange={(e) => updateCartQty(i, Number(e.target.value))}
+                          className="w-14 px-1.5 py-0.5 border rounded text-center text-xs"
+                        />
+                        <span className="w-16 text-right font-medium">
+                          S/ {(itemUnitPrice * c.quantity).toFixed(2)}
+                        </span>
+                        <button
+                          onClick={() => removeFromCart(i)}
+                          className="text-red-500 text-xs"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               <div className="text-lg font-bold text-right border-t pt-2">
@@ -405,6 +481,18 @@ export function TakeawayPage() {
           )}
         </div>
       )}
+      {/* Modifier Bottom Sheet */}
+      <ModifierBottomSheet
+        open={modifierSheetOpen}
+        onOpenChange={(open) => {
+          setModifierSheetOpen(open);
+          if (!open) setModifierItem(null);
+        }}
+        itemName={modifierItem?.name ?? ""}
+        modifiers={modifierItem?.modifiers ?? []}
+        selectedIds={modifierPreselected}
+        onConfirm={handleModifierConfirm}
+      />
     </div>
   );
 }

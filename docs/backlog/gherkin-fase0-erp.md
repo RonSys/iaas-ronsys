@@ -6,7 +6,7 @@
 **Fecha:** 2026-05-14  
 **Branch:** `fase0-real`  
 **Commit base:** `6bfd61a` (snapshot pre-upgrade)  
-**Total Historias:** 15  
+**Total Historias:** 16  
 **Ficha técnica:** Architecture Agent 🏗️ (2026-05-14) — decisiones incorporadas
 
 ---
@@ -454,6 +454,7 @@ HU-F0-001 (tenant_id estandarizado)
   │     │     │     └── HU-F0-007 (frontend menú + pedido)
   │     │     ├── HU-F0-008 (frontend cocina)
   │     │     └── HU-F0-009 (frontend takeaway + promos)
+  │     │           └── HU-F0-016 (modificadores takeaway — bottom sheet + bugfix)
   │     └── HU-F0-014 (sidebar jerárquico — depende de rutas existir)
   │
   ├── HU-F0-010 (POS wholesale/retail + barcode)
@@ -485,12 +486,83 @@ HU-F0-015 (deuda técnica) — independiente
 | HU-F0-013 | Categorías productos | Backend | 1d |
 | HU-F0-014 | Sidebar jerárquico colapsable | Frontend | 2d |
 | HU-F0-015 | Documentar deudas | Equipo | 0.5d |
+| HU-F0-016 | Modificadores Take Away (bottom sheet + bugfix) | Backend+Frontend | 1.5d |
 
-| **Total** | | | **17.3 días** |
+| **Total** | | | **18.8 días** |
 |-----------|---------|----------|------------|
-| Backend | 10 historias | | 11.3d |
-| Frontend | 5 historias | | 5.5d |
+| Backend | 11 historias | | 11.8d |
+| Frontend | 6 historias | | 6.5d |
 | Equipo | 1 historia | | 0.5d |
+
+---
+
+### HU-F0-016: Modificadores en Take Away (Bottom Sheet + Bugfix Backend)
+
+**Como** mesero usando el módulo Take Away en una tablet táctil  
+**Quiero** seleccionar modificadores/adicionales al agregar ítems del menú al carrito  
+**Para** personalizar pedidos para llevar (ej. "huevo frito +S/2.00", "sin cebolla") y que el precio total refleje correctamente los ajustes.
+
+**Contexto:** El Take Away (`/restaurante/takeaway`) ya permite crear pedidos pero no expone el selector de modificadores. En el flujo de Mesas (`TablesMap.tsx`) sí existe, pero usa un modal centrado no óptimo para tablets táctiles. El Architecture Agent 🏗️ analizó y recomendó usar **Bottom Sheet (vaul)** — en tablet se comporta como sheet (sube desde abajo, swipe-to-dismiss, zona del pulgar natural) y en desktop como dialog centrado, una sola implementación.
+
+**Bug crítico confirmado:** `TakeawayService.create()` (línea ~428) guarda los modifiers en el JSON de items pero **NO** suma `price_adjustment` al `unit_price` del ítem. Ej: Hamburguesa S/12 + huevo frito S/2 → total S/12 (debería ser S/14).
+
+**Criterios de aceptación:**
+- [ ] Given un ítem del menú **con** modificadores (ej. Hamburguesa con modifiers: "Huevo frito +S/2.00", "Sin cebolla +S/0.00") When hago clic en el ítem desde Take Away Then se abre un Bottom Sheet (`vaul`) mostrando la lista de modificadores disponibles con checkbox/toggle, nombre y ajuste de precio
+- [ ] Given el Bottom Sheet abierto When selecciono "Huevo frito" y "Sin cebolla" y presiono "Agregar al pedido" Then el ítem se agrega al carrito con `modifiers: [{id, name, price_adjustment}]` poblado, y el subtotal del ítem refleja `precio_base + Σ price_adjustment`
+- [ ] Given un ítem del menú **sin** modificadores (`modifiers: []` o `null`) When hago clic en el ítem Then se agrega directamente al carrito SIN mostrar Bottom Sheet (flujo actual preservado)
+- [ ] Given el carrito tiene ítems con modificadores When veo el resumen Then cada ítem muestra sus modificadores aplicados (ej. "Hamburguesa (huevo frito, sin cebolla)")
+- [ ] Given el carrito con ítems con modificadores When presiono "Confirmar Pedido" Then el payload enviado al backend incluye `modifiers: [{id, name, price_adjustment}]` por cada ítem que los tenga
+- [ ] Given el backend recibe un payload con `modifiers` en `TakeawayService.create()` When calcula el `item_total` Then suma `Σ price_adjustment` de cada modifier al `unit_price` base → `item_total = quantity * (unit_price + Σ price_adjustment)`
+- [ ] Given el backend recibe modifiers con selecciones que exceden `max_select` de un modifier group When valida Then rechaza con 422 y mensaje "Modificador 'X': máximo N, enviados M" (misma lógica que `KitchenOrdersService.create_order()`)
+- [ ] Given el pedido se crea correctamente con modifiers When la cocina ve la comanda en el Kanban Then los items muestran los modificadores aplicados
+- [ ] Given estoy en una tablet táctil (viewport < 768px o dispositivo táctil) When se abre el selector de modificadores Then se comporta como Bottom Sheet (sube desde abajo, swipe-to-dismiss, CTA fijo abajo, zona del pulgar natural)
+- [ ] Given estoy en desktop (viewport ≥ 768px, puntero mouse) When se abre el selector de modificadores Then `vaul` se comporta como dialog centrado automáticamente (comportamiento nativo de vaul)
+- [ ] Given el Bottom Sheet abierto When hago swipe hacia abajo o presiono fuera del sheet Then el sheet se cierra sin agregar el ítem al carrito
+
+**Prioridad:** P0  
+**Esfuerzo estimado:** 1.5 días (Backend 0.5d + Frontend 1d)  
+**Dependencias:** HU-F0-003 (tabla `takeaway_orders`), HU-F0-004 (endpoints restaurante), HU-F0-009 (pantalla Take Away base)  
+**Riesgo:** 🟡 Medio — Bug de pricing ya en producción. El frontend Bottom Sheet requiere instalar `vaul` (npm) y adaptar `CartItem`.
+
+**Notas técnicas:**
+
+**Backend — Fix en `TakeawayService.create()`:**
+- Replicar la lógica de `KitchenOrdersService.create_order()` (líneas ~310-340 de `restaurant_service.py`):
+  - Validar `max_select` por modifier group consultando `MenuModifier`
+  - Calcular `mods_total = Σ (price_adjustment * count)`
+  - `item_total = qty * (unit_price + mods_total)`
+- El payload ya incluye `modifiers: [{id, name, price_adjustment}]` — el fix es solo aritmético y de validación.
+
+**Frontend — Bottom Sheet con vaul:**
+- Instalar `vaul` (`npm install vaul`)
+- Crear componente `ModifierBottomSheet.tsx`:
+  - Props: `item: MenuItem`, `isOpen: boolean`, `onClose: () => void`, `onConfirm: (modifiers: SelectedModifier[]) => void`
+  - Internamente usa `<Drawer>` de vaul con `shouldScaleBackground` y `snapPoints`
+  - Lista de modificadores con checkbox + nombre + badge de precio (verde si +S/0, azul si +S/>0)
+  - CTA "Agregar al pedido — S/XX.XX" sticky en la parte inferior del sheet con precio total actualizado en tiempo real
+  - Vaul automáticamente adapta: en mobile/tablet → bottom sheet, en desktop → dialog centrado
+- Modificar `CartItem` interface:
+  ```ts
+  interface CartItem {
+    menuItem: MenuItemSimple;
+    quantity: number;
+    modifiers: { id: number; name: string; price_adjustment: number }[];
+  }
+  ```
+- Modificar `addToCart` en `TakeawayPage.tsx`:
+  - Si `item.modifiers && item.modifiers.length > 0` → abrir `ModifierBottomSheet`
+  - Si no tiene modifiers → agregar directo (comportamiento actual)
+- Modificar `cartTotal` para incluir `Σ modifier.price_adjustment`
+- Mostrar modifiers en el resumen del carrito: `{item.name} ({mods.map(m => m.name).join(", ")})`
+- El payload POST debe incluir `modifiers` en cada item
+- `vaul` NO requiere configuración especial mobile vs desktop — detecta el dispositivo automáticamente
+
+**Archivos modificados:**
+| Archivo | Cambio |
+|---------|--------|
+| `apps/backend/app/services/restaurant_service.py` | Fix `TakeawayService.create()` — sumar price_adjustment + validar max_select |
+| `apps/web/src/pages/restaurante/TakeawayPage.tsx` | Integrar Bottom Sheet, extender CartItem, mostrar modifiers en carrito |
+| `apps/web/src/components/restaurante/ModifierBottomSheet.tsx` | **NUEVO** — Componente Bottom Sheet con vaul |
 
 ---
 

@@ -19,6 +19,12 @@
 > 🏪 = Solo disponible para **Ferretería**  
 > ✅ = Disponible para **ambos tipos**
 
+### 1.1 Métricas de Éxito — ¿Qué puede hacer el cliente?
+
+> ✅ **Fase 0:** Cliente puede abrir una mesa, tomar pedido, enviar a cocina, cerrar cuenta (con promociones); realizar ventas al por mayor/detal en ferretería; registrar productos con seriales (trazabilidad individual) y productos sin serial (solo cantidad); el campo `barcode` existe en la base de datos pero no se utiliza en la interfaz.
+>
+> 🏷️ **HU-F0-016 — Modificadores:** Cliente puede personalizar cualquier plato del menú desde un bottom sheet deslizable al hacer clic en un ítem con modificadores; cada modificador puede ser gratuito ("Sin cebolla", "Término medio") o con costo adicional ("Huevo frito +S/3.00", "Con conchas +S/5.00"); el precio total se recalcula automáticamente al seleccionar modificadores; el sistema impide exceder el límite máximo de cada modificador (ej. máximo 3 huevos fritos por plato); los modificadores funcionan tanto en **Pedidos en Mesa** como en **Take Away**; el pedido final muestra cada combinación plato+modificadores en su propia fila con el precio ajustado.
+
 ---
 
 ## 2. Acceso al Sistema
@@ -160,9 +166,26 @@ Aquí ves todos los **platos, bebidas, postres y combos** disponibles, organizad
 
 #### Ver el menú
 
-- Cada ítem muestra: **nombre**, **descripción** (si tiene), **precio**, y si tiene **modificadores** (ej. "Sin cebolla", "Extra queso").
+- Cada ítem muestra: **nombre**, **descripción** (si tiene), **precio**, y si tiene **modificadores**.
 - Si un ítem está inactivo, se ve en gris con la etiqueta **"Agotado"**.
 - Usá el buscador 🔍 para filtrar por nombre o categoría al instante.
+
+#### ¿Qué son los modificadores?
+
+Los **modificadores** son opciones de personalización que el cliente puede agregar a un plato. Aparecen como un distintivo 🏷️ en la tarjeta del ítem. Al hacer clic en un plato que tiene modificadores, se abre un **selector con tres tipos de opciones**:
+
+| Tipo | Cómo se ve | Ejemplo |
+|------|-----------|---------|
+| 🔢 **Cuantificable** | Botones **− / +** para elegir cantidad | "Huevo frito +S/3.00" — se puede pedir 1, 2 o hasta 3 por plato |
+| ☑️ **Opción sí/no** | Un simple **checkbox** para activar/desactivar | "Sin cebolla" — va o no va |
+| 🔘 **Grupo excluyente** | **Botones de radio** — solo uno del grupo | "Término de cocción" — medio, 3/4 o bien cocido (solo uno) |
+
+> 💡 **Reglas:**
+> - Los modificadores **cuantificables** tienen un límite máximo (`max_select`). Ej: "Huevo frito" máximo 3. Si intentás más, el sistema te avisa.
+> - Los modificadores **sí/no** son binarios: están o no están.
+> - Los **grupos excluyentes** permiten elegir solo una opción del grupo (ej: no podés pedir término medio Y 3/4 al mismo tiempo).
+> - El **precio total se recalcula automáticamente** conforme seleccionás modificadores.
+> - Los modificadores funcionan tanto en **Pedidos en Mesa** como en **Take Away**.
 
 #### Agregar un ítem al menú (administradores)
 
@@ -196,16 +219,28 @@ El proceso de tomar pedido ocurre desde el **Mapa de Mesas**:
    - 💰 **Precio** (ej. S/ 28.00)
    - Un botón **"➕"** para agregarlo al pedido
 
-> 💡 Si el ítem tiene modificadores (ej. "Sin cebolla", "Término medio", "Extra queso +S/3.50"), se abrirá un modal para seleccionarlos al hacer clic en ➕.
+> 💡 Si el ítem tiene modificadores 🏷️, se abre un **bottom sheet** (panel deslizable) con tres tipos de opciones:
+> - 🔢 **Cuantificables** (ej: Huevo frito +S/3.00): botones −/+ para elegir hasta el máximo.
+> - ☑️ **Sí/no** (ej: Sin cebolla): checkbox para activar/desactivar.
+> - 🔘 **Grupo excluyente** (ej: Término de cocción): radio buttons, solo uno.
+> 
+> El precio se actualiza en tiempo real. Al confirmar, el modificador se suma automáticamente al ítem.
 
-#### Ticket actual
+#### Ticket actual (📋 Pedido Actual)
 
-Arriba del menú se muestra el **ticket** del pedido con:
-- 📋 Items agregados con cantidades
-- 💰 Subtotal por ítem
-- 🔄 El menú sigue visible para seguir agregando más platos
+Arriba del menú se muestra el **ticket** del pedido con los items ya agregados. Cada fila muestra:
 
-#### Enviar pedido a cocina
+```
+⊖ 2 ⊕ Ceviche Clásico               S/ 56.00
+⊖ 1 ⊕ Lomo Saltado (Huevo frito)    S/ 38.00
+⊖ 1 ⊕ Chicha Morada                  S/  4.00
+─────────────────────────────────────────────
+TOTAL                                 S/ 98.00
+```
+
+- **⊖ / ⊕** — Aumentá o disminuí la cantidad de cada producto
+- Si tienen **modificadores**, cada variante (ej. "Lomo Saltado" vs "Lomo Saltado + Huevo frito") aparece en **su propia fila** con su precio ajustado
+- **TOTAL** suma todos los items incluyendo modificadores
 
 1. Revisá el ticket con los items agregados.
 2. Presioná el botón **"📨 Enviar a Cocina"**.
@@ -252,15 +287,20 @@ Cada comanda muestra **minutos transcurridos** desde que se pidió:
 
 ---
 
-### 3.5 Cerrar Cuenta con Promociones
+### 3.5 💰 Cerrar Cuenta con Promociones
 
-#### Cerrar una mesa
+#### Cerrar una mesa (liberar)
 
-1. Desde el Mapa de Mesas, seleccioná la mesa ocupada que querés cerrar.
-2. Revisá el consumo final.
-3. Presioná **"Cerrar Mesa"** desde el detalle de la mesa.
-4. El sistema genera automáticamente la **venta** con los items consumidos.
-5. ✅ La mesa vuelve a estado **🟢 Libre**.
+Cuando los clientes terminan de comer y el cocinero entregó todo, el mesero debe cerrar la mesa:
+
+1. Desde el **Mapa de Mesas**, seleccioná la mesa **🔴 Ocupada**.
+2. En el modal, primero presioná **"📋 Cerrar Mesa"** (azul).
+   - El sistema genera la cuenta con todos los items consumidos.
+3. Luego presioná **"💰 Pagar"** (verde).
+   - El sistema procesa el pago.
+4. ✅ La mesa vuelve a estado **🟢 Libre** y desaparece de la cocina.
+
+> 💡 Si hay promociones aplicables (combos, descuentos), se aplican automáticamente al cerrar la mesa. El sistema elige la mejor opción.
 
 #### ¿Cómo funcionan las promociones?
 
@@ -299,16 +339,23 @@ Las promociones se aplican **automáticamente** al cerrar la cuenta. No necesit�
 
 1. En la pestaña **"+ Nuevo Pedido"**:
    - **Seleccioná items del menú:** buscá o navegá por categoría, hacé clic para agregar al carrito.
-   - **Ajustá cantidades:** usá los campos numéricos en el carrito.
+   - Si el ítem tiene **modificadores** 🏷️, se abre un **bottom sheet** con las opciones:
+     - Marcá los modificadores que quiere el cliente (ej. "Sin cebolla", "Huevo frito +S/3.00").
+     - El **total se actualiza automáticamente** conforme seleccionás.
+     - Cada modificador respeta su **límite máximo** (no podés excederlo).
+     - Presioná **"Agregar"** para confirmar.
+   - **Ajustá cantidades:** usá los campos numéricos ⊕/⊖ en el carrito.
    - Completá los **datos del cliente**:
      - **Nombre * (obligatorio):** ej. "María López".
      - **Teléfono:** ej. "999 888 777".
      - **Hora de Recojo:** cuándo pasará el cliente.
-     - **Notas:** ej. "Sin cebolla, extra picante".
-   - Revisá el **total** en el resumen.
+     - **Notas:** ej. "Llamar antes de entregar".
+   - Revisá el **total** en el resumen (incluye el costo de los modificadores).
    - Presioná **"🥡 Confirmar Pedido"**.
 
 2. ✅ Aparece el mensaje *"✅ Pedido Take Away registrado"*.
+
+> 💡 **Ejemplo:** Si pedís un **Ceviche Clásico (S/28.00) + Con conchas (+S/5.00)** y un **Lomo Saltado (S/35.00) + Huevo frito (+S/3.00)**, el total será **S/71.00** (28+5 + 35+3). El sistema calcula todo automáticamente.
 
 #### Ver pedidos activos
 
@@ -343,13 +390,21 @@ Las categorías organizan tus productos en grupos lógicos: "Fierros", "Cemento"
    - **Nombre * (obligatorio):** ej. "Fierros".
    - **Descripción:** opcional, ej. "Varillas, alambres y perfiles metálicos".
 3. Presioná **"Crear"**.
-4. ✅ La nueva categoría aparece en la lista.
+4. ✅ La nueva categoría aparece en la lista con el contador de productos asignados.
 
 #### Editar o eliminar una categoría
 
 - **Editar:** presioná "Editar" al costado → cambiá nombre o descripción.
 - **Eliminar:** presioná "Eliminar".
   - ❌ **No se puede eliminar** si tiene productos asignados. El sistema muestra el mensaje *"Categoría con productos asignados"*.
+
+#### ¿Cómo se asocian las categorías con los productos?
+
+Cada producto puede tener una **categoría asignada**. Al crear una categoría, esta muestra cuántos productos tiene asociados (ej: "Fierros — 0 producto(s)").
+
+La asignación se realiza al **crear o editar un producto** desde Ventas / POS. Cuando se registra un producto nuevo, se selecciona su categoría. El contador se actualiza automáticamente.
+
+> 💡 Actualmente no hay una página dedicada a "Productos". Los productos se crean desde el flujo de **Ventas / POS → Facturación**. En futuras versiones habrá una página de gestión de productos con CRUD completo.
 
 > 💡 Las categorías ya tienen soporte para **jerarquía** (subcategorías), disponible en futuras versiones.
 
@@ -521,6 +576,16 @@ Podés acceder escribiendo directamente la ruta en el navegador:
 | Pantalla de Cocina | Cada **10 segundos** |
 | Las demás pantallas | Al hacer clic o al cargar la página |
 
+### 🏷️ ¿Cómo funcionan los modificadores?
+
+Los modificadores son personalizaciones que el cliente puede agregar a un plato. Al hacer clic en un ítem con el distintivo 🏷️, se abre un selector con **tres tipos**:
+
+- **🔢 Cuantificables** (ej: Huevo frito +S/3.00): elegís la cantidad con botones −/+ hasta un máximo. El precio se multiplica por la cantidad.
+- **☑️ Opción sí/no** (ej: Sin cebolla): un checkbox para activar o desactivar.
+- **🔘 Grupo excluyente** (ej: Término de cocción): radio buttons donde solo podés elegir una opción del grupo.
+
+El precio se recalcula automáticamente. Funcionan tanto en **Pedidos en Mesa** como en **Take Away**.
+
 ### ❌ ¿Qué hago si veo un error?
 
 1. Primero, presioná el botón **"Reintentar"** que aparece en el mensaje de error.
@@ -573,8 +638,9 @@ No en esta versión. El delivery (con repartidores, zonas y tracking) está plan
 
 | Tabla | Registros |
 |-------|:---------:|
-| `tables` | 12 mesas (Terraza, Salón Principal, VIP) |
-| `menu_items` | 9 ítems (entradas, fondos, bebidas, postres) |
+| `tables` | 17 mesas (Terraza, Salón Principal, VIP) |
+| `menu_items` | 11 ítems (entradas, fondos, bebidas, postres) |
+| `menu_modifiers` | 7 modificadores (3 en Ceviche Clásico, 4 en Lomo Saltado) |
 | `promotions` | 1 combo (Ceviche + Causa - ahorro S/8) |
 
 ### Tecnología del Sistema
@@ -595,12 +661,13 @@ No en esta versión. El delivery (con repartidores, zonas y tracking) está plan
 |---|--------|:------:|
 | 1 | 🍽️ Restaurante (mesas, menú, comandas) | ✅ Completado |
 | 2 | 🥡 Take Away | ✅ Completado |
-| 3 | 🏷️ Promociones (combos, descuentos, 2x1) | ✅ Completado |
-| 4 | 👨‍🍳 Pantalla de Cocina (Kanban) | ✅ Completado |
-| 5 | 🧾 POS mayorista/detal (2 precios) | ✅ Completado |
-| 6 | 📦 Seriales en inventario | ✅ Completado |
-| 7 | 📂 Categorías de productos | ✅ Completado |
-| 8 | 🧭 Sidebar jerárquico colapsable | ✅ Completado |
+| 3 | 🏷️ Modificadores en Take Away y Pedidos (bottom sheet) | ✅ Completado |
+| 4 | 🎟️ Promociones (combos, descuentos, 2x1) | ✅ Completado |
+| 5 | 👨‍🍳 Pantalla de Cocina (Kanban) | ✅ Completado |
+| 6 | 🧾 POS mayorista/detal (2 precios) | ✅ Completado |
+| 7 | 📦 Seriales en inventario | ✅ Completado |
+| 8 | 📂 Categorías de productos | ✅ Completado |
+| 9 | 🧭 Sidebar jerárquico colapsable | ✅ Completado |
 
 ---
 

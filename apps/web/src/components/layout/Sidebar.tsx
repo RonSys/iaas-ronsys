@@ -22,7 +22,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const { businessType } = useCompanySettings();
 
   const handleLogout = async () => {
@@ -185,11 +185,17 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
         </SidebarSection>
       </nav>
 
-      {/* ─── CERRAR SESIÓN — SIEMPRE VISIBLE ─── */}
-      <div className="border-t border-gray-200 p-2 flex-shrink-0">
+      {/* ─── USUARIO + CERRAR SESIÓN — SIEMPRE VISIBLE ─── */}
+      <div className="border-t border-gray-200 pt-2 pb-1 px-3 flex-shrink-0">
+        {user && (
+          <div className="mb-1 text-xs text-brand-text-secondary">
+            <div className="font-medium text-brand-text-primary truncate">{user.full_name || user.email}</div>
+            <div className="capitalize">{user.role === 'admin' ? '👑 Dueño' : user.role === 'operator' ? '🧑‍🍳 Operador' : user.role}</div>
+          </div>
+        )}
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm
             text-red-600 hover:bg-red-50 transition-colors font-medium"
         >
           <span>🚪</span>

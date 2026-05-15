@@ -99,6 +99,14 @@
 |---|-----|-------|-----|
 | 23 | **kitchen_orders sin columna `started_at`** | Modelo espera columna, DB no la tenía | `ALTER TABLE ADD COLUMN` |
 | 24 | **kitchen_orders sin columna `ordered_at`** | Modelo espera columna, DB no la tenía | `ALTER TABLE ADD COLUMN` |
+| 25 | **Route order: `/orders/active` vs `/{order_id}`** | Ruta estática después de paramétrica | Reordenar router |
+| 26 | **KitchenKanban: `modifiers_applied` undefined** | Backend devuelve `modifiers`, frontend espera `modifiers_applied` | Fix renderizado |
+| 27 | **nginx sin WebSocket support** | Faltaban headers Upgrade/Connection | Agregar a nginx.conf |
+| 28 | **Sin notificación mesero ← cocina** | No había WS listener en TablesMap | WebSocket + toast flotante |
+| 29 | **Rate limit 100/h agotado por polling** | KitchenKanban polling 10s = 360 req/h | Subido a 1000/h en `.env` |
+| 30 | **CK constraint: `served` vs `delivered`** | DB esperaba `served`, código usa `delivered` | ALTER TABLE ck_ko_status |
+| 31 | **Sin Cerrar Mesa / Pagar en UI** | No había forma de liberar mesa desde frontend | Botones en modal ocupada |
+| 32 | **Sidebar sin info de usuario** | No se veía quién está logueado | Nombre + rol en sidebar |
 
 ### Bugs de Datos
 
@@ -142,6 +150,16 @@
 | 21:00 | Fix: Modal mesa ocupada no abría (handleTableClick) | Frontend |
 | 21:15 | Fix: addToOrder body sin wrapper items[] | Frontend |
 | 21:27 | Fix: DB columnas faltantes (started_at, ordered_at) | DB ALTER TABLE |
+| 23:30 | Fix: Route order `/orders/active` vs `/{order_id}` | Backend router reorder |
+| 23:40 | Fix: KitchenKanban modifiers crash (`modifiers_applied` vs `modifiers`) | Frontend |
+| 00:10 | Clean deploy (reset data + rebuild) | DB cleanup + rebuild |
+| 00:23 | Fix: WebSocket notification mesero ← cocina | nginx.conf WS + TablesMap WS |
+| 00:26 | Creación usuarios mesero + cocinero | DB insert |
+| 00:41 | Fix: User info en sidebar (nombre + rol siempre visible) | Sidebar.tsx |
+| 01:37 | Fix: Rate limit 100/h agotado por polling cocina | `.env` 100→1000/h |
+| 01:40 | Fix: `ck_ko_status` DB constraint `served` vs `delivered` | ALTER TABLE |
+| 01:40 | Fix: KitchenKanban polling 10s→30s | KitchenKanban.tsx |
+| 01:52 | Fix: Botones Cerrar Mesa + Pagar en modal ocupada | TablesMap.tsx |
 
 ---
 
