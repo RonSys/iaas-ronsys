@@ -35,7 +35,7 @@ def upgrade() -> None:
         sa.Column("hashed_password", sa.String(255), nullable=False),
         sa.Column("full_name", sa.String(150), nullable=False),
         sa.Column("role", sa.String(20), nullable=False, server_default="viewer"),
-        sa.Column("company_id", sa.Integer(), nullable=False),
+        sa.Column("tenant_id", sa.Integer(), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("is_verified", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("failed_login_attempts", sa.Integer(), nullable=False, server_default="0"),
@@ -45,21 +45,21 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("email"),
-        sa.ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["tenant_id"], ["companies.id"], ondelete="CASCADE"),
         sa.CheckConstraint(
             "role IN ('admin', 'manager', 'operator', 'viewer')",
             name="ck_users_role",
         ),
     )
     op.create_index("ix_users_email", "users", ["email"])
-    op.create_index("ix_users_company_id", "users", ["company_id"])
+    op.create_index("ix_users_tenant_id", "users", ["tenant_id"])
 
     # ─── Refresh Tokens ───────────────────────────────────
     op.create_table(
         "refresh_tokens",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("company_id", sa.Integer(), nullable=False),
+        sa.Column("tenant_id", sa.Integer(), nullable=False),
         sa.Column("token_hash", sa.String(64), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
@@ -70,7 +70,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("token_hash"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["company_id"], ["companies.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["tenant_id"], ["companies.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["replaced_by_id"], ["refresh_tokens.id"]),
     )
     op.create_index("ix_refresh_tokens_user_id", "refresh_tokens", ["user_id"])
@@ -104,7 +104,7 @@ def _seed_admin(op) -> None:
         sa.column("hashed_password", sa.String),
         sa.column("full_name", sa.String),
         sa.column("role", sa.String),
-        sa.column("company_id", sa.Integer),
+        sa.column("tenant_id", sa.Integer),
         sa.column("is_active", sa.Boolean),
         sa.column("is_verified", sa.Boolean),
         sa.column("failed_login_attempts", sa.Integer),
@@ -120,7 +120,7 @@ def _seed_admin(op) -> None:
                 "hashed_password": hashed,
                 "full_name": "Admin Principal",
                 "role": "admin",
-                "company_id": 1,
+                "tenant_id": 1,
                 "is_active": True,
                 "is_verified": True,
                 "failed_login_attempts": 0,

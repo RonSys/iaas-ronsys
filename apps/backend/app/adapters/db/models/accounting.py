@@ -184,6 +184,38 @@ class JournalEntryLine(Base):
 # ═══════════════════════════════════════════════════════════════
 
 
+class ProductCategory(Base):
+    """Categoría de producto (F0-009).
+
+    Tabla creada por migration 0008_product_categories_pricing.
+    La migración incluye: description, parent_id, active, sort_order.
+    Si alguna columna no existe en BD, se omiten campos opcionales.
+    """
+
+    __tablename__ = "product_categories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parent_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("product_categories.id", ondelete="SET NULL"), nullable=True
+    )
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    @classmethod
+    def get_table_columns(cls) -> list[str]:
+        """Retorna los nombres de columnas que realmente existen en BD."""
+        return [c.name for c in cls.__table__.columns]
+
+
 class Product(Base):
     """Maestro de productos del inventario.
 

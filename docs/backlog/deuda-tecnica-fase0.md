@@ -35,6 +35,8 @@
 | DT-F0-007 | Promociones: validación general del módulo (aplicación automática al cerrar cuenta, mejor opción para el cliente). | 🟢 Baja | v1.2 | 📝 Pendiente |
 | DT-F0-008 | Evolución cocina: niveles de cocineros (jefe, junior, encargado, habilitador) + comandos de voz IA para cocina. | 🟢 Baja | v3 / v3.5 | 📝 Pendiente |
 | DT-F0-009 | Módulo Ferretería: validar asociación categorías ↔ productos, precios mayorista/detal, seriales/trazabilidad, ventas. Pendiente análisis completo. | 🟡 Media | v0.9 / v1.1 | 📝 Pendiente análisis |
+| DT-F0-010 | Seguridad perimetral: Fail2ban + rate limiting + CORS restringido para sitio público (v0.5). | 🟡 Media | Antes de v1.0 (Fase 4) | 📝 Pendiente |
+| DT-F0-011 | Formulario de feedback para usuarios de prueba (v0.5). Endpoint + modal "💬 Enviar sugerencia". | 🟢 Baja | Antes de v1.0 (Fase 4) | 📝 Pendiente |
 
 ---
 
@@ -189,6 +191,36 @@ Se realiza en función de la **MP principal** del producto. Si varios platos com
 **Versión target:** v0.9 / v1.1
 
 **Archivos relacionados:** `CategoriesPage.tsx`, `SalesNew.tsx`, `Kardex.tsx`, modelos de producto/serial
+
+---
+
+### DT-F0-010 — Seguridad perimetral: Fail2ban + rate limiting (v0.5)
+
+**Problema:** El sitio está expuesto públicamente via Cloudflare Tunnel pero sin protección contra ataques de fuerza bruta.
+
+**Pendiente:**
+- Configurar Fail2ban (bloquear IPs tras N intentos fallidos de login)
+- Rate limiting en nginx (límite de requests/minuto por IP)
+- CORS restringido a solo `https://ronsyserp.com`
+
+**Versión target:** Antes de v1.0 (al cierre de Fase 4, como parte de infraestructura)
+
+**Archivos relacionados:** nginx, `routes/auth.py`
+
+---
+
+### DT-F0-011 — Formulario de feedback para usuarios de prueba (v0.5)
+
+**Problema:** Los beta testers de v0.5 no tienen forma de enviar sugerencias desde la app.
+
+**Pendiente:**
+- Backend: endpoint `POST /api/feedback` que guarda en tabla `feedback` (nombre, mensaje, created_at)
+- Frontend: botón flotante "💬 Enviar sugerencia" → modal con campos nombre + mensaje
+- QA: validar que los datos se reciben correctamente desde internet
+
+**Versión target:** Antes de v1.0 (al cierre de Fase 4)
+
+**Archivos relacionados:** Backend + Frontend, QA
 
 ---
 

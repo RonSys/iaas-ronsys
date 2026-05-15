@@ -303,8 +303,8 @@ load_seed_data() {
     fi
 }
 
-# ─── Resetear contraseña admin ───────────────────────────────────
-verify_admin_password() {
+# ─── Resetear contraseñas demo ───────────────────────────────────
+reset_demo_passwords() {
     log_step "7. Verificando credenciales demo"
 
     local db_name
@@ -314,21 +314,61 @@ verify_admin_password() {
         db_name="${POSTGRES_DB:-iaas_ronsys}"
     fi
 
-    local hashed
-    hashed=$(docker exec -w /app "$BACKEND_CONTAINER" env PYTHONPATH=/app python -c "
+    # Hashear contraseñas (una sola llamada docker para las 4)
+    local hashes
+    hashes=$(docker exec -w /app "$BACKEND_CONTAINER" env PYTHONPATH=/app python -c "
 from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
 ph = PasswordHash([Argon2Hasher()])
-print(ph.hash('admin123'))
+for p in ['admin123', 'ferreteria123', 'mesero123', 'cocinero123']:
+    print(ph.hash(p))
 " 2>/dev/null)
 
-    if [ -n "$hashed" ]; then
+    if [ -z "$hashes" ]; then
+        log_warn "No se pudo hashear contraseñas"
+        return
+    fi
+
+    # Leer hashes línea por línea
+    IFS=$'\n' read -d '' -ra hash_arr <<< "$hashes" || true
+    local h_admin="${hash_arr[0]}"
+    local h_ferretero="${hash_arr[1]}"
+    local h_mesero="${hash_arr[2]}"
+    local h_cocinero="${hash_arr[3]}"
+
+    # UPSERT: INSERT si no existe, UPDATE si existe
+    _upsert_user() {
+        local email="$1" hash="$2" name="$3" role="$4" cid="$5"
+        # Usar el nombre de columna que coincida con la BD (tenant_id o company_id según migración aplicada)
+        local col_name
+        col_name=$(docker exec iaas-postgres psql -U "${POSTGRES_USER:-ron}" -d "$db_name" -tAc \
+            "SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name IN ('tenant_id','company_id') LIMIT 1;" 2>/dev/null)
+        if [ -z "$col_name" ]; then
+            col_name="tenant_id"  # default al modelo ORM
+        fi
         docker exec iaas-postgres psql -U "${POSTGRES_USER:-ron}" -d "$db_name" \
-            -c "UPDATE users SET hashed_password='$hashed', is_verified=true WHERE email='admin@elsegoviano.pe';" \
-            > /dev/null 2>&1
-        log_ok "Contraseña admin reseteada a 'admin123'"
+            -c "INSERT INTO users (email, hashed_password, full_name, role, $col_name, is_active, is_verified, failed_login_attempts, created_at, updated_at)
+                VALUES ('$email', '$hash', '$name', '$role', $cid, true, true, 0, now(), now())
+                ON CONFLICT (email) DO UPDATE SET
+                    hashed_password = EXCLUDED.hashed_password,
+                    full_name = EXCLUDED.full_name,
+                    role = EXCLUDED.role,
+                    is_active = true,
+                    is_verified = true,
+                    updated_at = now();" \
+            > /dev/null 2>&1 && return 0 || return 1
+    }
+
+    local ok=0
+    _upsert_user "admin@elsegoviano.pe" "$h_admin" "Admin Restaurante" "admin" 1 && ((ok++))
+    _upsert_user "ferretero@elsegoviano.pe" "$h_ferretero" "Admin Ferretería" "admin" 2 && ((ok++))
+    _upsert_user "mesero1@elsegoviano.pe" "$h_mesero" "Mesero 1" "operator" 1 && ((ok++))
+    _upsert_user "cocinero1@elsegoviano.pe" "$h_cocinero" "Cocinero 1" "operator" 1 && ((ok++))
+
+    if [ "$ok" -eq 4 ]; then
+        log_ok "Usuarios demo listos (admin123, ferreteria123, mesero123, cocinero123)"
     else
-        log_warn "No se pudo resetear contraseña admin"
+        log_warn "Usuarios verificados: $ok de 4"
     fi
 }
 
@@ -401,10 +441,12 @@ show_summary() {
         echo -e "  Parar todo:        ${YELLOW}docker compose -f docker-compose.yml -f docker-compose.qa.yml down${NC}"
         echo -e "  Reiniciar backend: ${YELLOW}docker restart $BACKEND_CONTAINER${NC}"
         echo -e "  Login test:        ${YELLOW}curl -X POST http://localhost:8001/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@elsegoviano.pe\",\"password\":\"admin123\"}'${NC}"
+        echo -e "  Usuarios demo:     admin@elsegoviano.pe (admin123), ferretero@elsegoviano.pe (ferreteria123), mesero1@elsegoviano.pe (mesero123), cocinero1@elsegoviano.pe (cocinero123)"
     else
         echo -e "  Parar todo:        ${YELLOW}docker compose -f docker-compose.yml -f docker-compose.prod.yml down${NC}"
         echo -e "  Logs frontend:     ${YELLOW}docker logs -f iaas-frontend-prod${NC}"
         echo -e "  Login test:        ${YELLOW}curl -X POST http://localhost:8000/api/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@elsegoviano.pe\",\"password\":\"admin123\"}'${NC}"
+        echo -e "  Usuarios demo:     admin@elsegoviano.pe (admin123), ferretero@elsegoviano.pe (ferreteria123), mesero1@elsegoviano.pe (mesero123), cocinero1@elsegoviano.pe (cocinero123)"
     fi
     echo ""
 }
@@ -419,7 +461,7 @@ main() {
     start_services
     run_migrations
     load_seed_data
-    verify_admin_password
+    reset_demo_passwords
 
     if [ "$DEPLOY_ENV" = "qa" ]; then
         start_frontend_qa

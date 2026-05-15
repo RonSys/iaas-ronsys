@@ -21,7 +21,7 @@ Requisitos:
 
 import asyncio
 import sys
-from datetime import date
+from datetime import date, datetime, UTC
 
 # Verificar Python 3.12
 _py_version = sys.version_info
@@ -193,32 +193,182 @@ async def main():
 
         await session.commit()
 
+    # ─── Segunda Empresa: Ferretería ───────────────
+    async with AsyncSession(engine) as session:
+        existing_ferreteria = await session.execute(
+            select(Company).where(Company.ruc == "20777555552")
+        )
+        ferreteria = existing_ferreteria.scalar_one_or_none()
+        if ferreteria:
+            print(f"\n🏢 Ferretería ya existe: {ferreteria.name} (ID: {ferreteria.id})")
+            company_id_hardware = ferreteria.id
+        else:
+            ferreteria = Company(
+                name="Ferretería El Segoviano",
+                ruc="20777555552",
+                address="Av. Los Industriales 456, Lima",
+                economic_activity="Venta de materiales de construcción y ferretería",
+                business_type="hardware",
+                setup_complete=False,
+            )
+            session.add(ferreteria)
+            await session.flush()
+            company_id_hardware = ferreteria.id
+            print(f"\n🏢 Ferretería creada: {ferreteria.name} (ID: {company_id_hardware})")
+        await session.commit()
+
+    # ─── Usuarios Demo ──────────────────────────────
+    async with AsyncSession(engine) as session:
+        from app.models.user import User
+        from pwdlib import PasswordHash
+        from pwdlib.hashers.argon2 import Argon2Hasher
+
+        # Verificar si ya existen usuarios
+        existing_users = await session.execute(
+            select(User).where(User.email.in_([
+                "admin@elsegoviano.pe",
+                "ferretero@elsegoviano.pe",
+                "mesero1@elsegoviano.pe",
+                "cocinero1@elsegoviano.pe",
+            ]))
+        )
+        existing_emails = {u.email for u in existing_users.scalars().all()}
+
+        if len(existing_emails) == 4:
+            print("👤 Usuarios demo ya existen — omitiendo")
+        else:
+            ph = PasswordHash([Argon2Hasher()])
+            now_utc = datetime.now(UTC)
+
+            users_to_create = [
+                {
+                    "email": "admin@elsegoviano.pe",
+                    "password": "admin123",
+                    "full_name": "Admin Restaurante",
+                    "role": "admin",
+                    "tenant_id": company_id,
+                },
+                {
+                    "email": "ferretero@elsegoviano.pe",
+                    "password": "ferreteria123",
+                    "full_name": "Admin Ferretería",
+                    "role": "admin",
+                    "tenant_id": company_id_hardware,
+                },
+                {
+                    "email": "mesero1@elsegoviano.pe",
+                    "password": "mesero123",
+                    "full_name": "Mesero 1",
+                    "role": "operator",
+                    "tenant_id": company_id,
+                },
+                {
+                    "email": "cocinero1@elsegoviano.pe",
+                    "password": "cocinero123",
+                    "full_name": "Cocinero 1",
+                    "role": "operator",
+                    "tenant_id": company_id,
+                },
+            ]
+
+            created = 0
+            skipped = 0
+            for u in users_to_create:
+                if u["email"] in existing_emails:
+                    skipped += 1
+                    continue
+                user = User(
+                    email=u["email"],
+                    hashed_password=ph.hash(u["password"]),
+                    full_name=u["full_name"],
+                    role=u["role"],
+                    tenant_id=u["tenant_id"],
+                    is_active=True,
+                    is_verified=True,
+                    failed_login_attempts=0,
+                )
+                session.add(user)
+                created += 1
+
+            await session.commit()
+            print(f"👤 Usuarios demo: {created} creados, {skipped} ya existían")
+            for u in users_to_create:
+                if u["email"] not in existing_emails:
+                    print(f"   ✅ {u['email']} ({u['role']}) → {u['password']}")
+
+    # ─── Categorías de Producto (datos maestros) ────
+    # Usamos SQL directo para evitar dependencias del ORM con columnas
+    # que la migración 0008 puede o no haber creado aún.
+    async with engine.begin() as conn:
+        result = await conn.execute(
+            text("SELECT COUNT(*) FROM product_categories WHERE tenant_id = :tid"),
+            {"tid": company_id}
+        )
+        count = result.scalar()
+        if count and count > 0:
+            print(f"📂 Categorías ya existen ({count}) — omitiendo")
+        else:
+            # Categorías para Restaurante
+            restaurant_cats = [
+                (company_id, "Carnes"),
+                (company_id, "Abarrotes"),
+                (company_id, "Lácteos"),
+                (company_id, "Bebidas"),
+                (company_id, "Frutas y Verduras"),
+                (company_id, "Condimentos"),
+            ]
+            # Categorías para Ferretería
+            hardware_cats = [
+                (company_id_hardware, "Materiales de Construcción"),
+                (company_id_hardware, "Ferretería General"),
+                (company_id_hardware, "Pinturas"),
+                (company_id_hardware, "Electricidad"),
+                (company_id_hardware, "Gasfitería"),
+            ]
+            all_cats = restaurant_cats + hardware_cats
+            for tid, name in all_cats:
+                await conn.execute(
+                    text("INSERT INTO product_categories (tenant_id, name) VALUES (:tid, :name)"),
+                    {"tid": tid, "name": name}
+                )
+            print(f"📂 Categorías sembradas: {len(restaurant_cats)} (restaurante) + {len(hardware_cats)} (ferretería)")
+
     # ─── Productos y Kárdex ────────────────────────
     async with AsyncSession(engine) as session:
+        # Buscar categorías por nombre para asignarlas a los productos (SQL directo)
+        cat_map = {}
+        result = await session.execute(
+            text("SELECT id, name FROM product_categories WHERE tenant_id = :tid"),
+            {"tid": company_id}
+        )
+        for row in result.all():
+            cat_map[row[1]] = row[0]
+
         existing_products = await session.execute(
-            select(Product).where(Product.company_id == company_id).limit(1)
+            select(Product).where(Product.tenant_id == company_id).limit(1)
         )
         if existing_products.scalar_one_or_none():
             print("📦 Productos ya existen — omitiendo")
         else:
             products_data = [
-                {"code": "INS-001", "name": "Pollo (pechuga)", "unit": "kg", "stock": 30, "cost": 12.50},
-                {"code": "INS-002", "name": "Cerdo (lomo)", "unit": "kg", "stock": 15, "cost": 14.00},
-                {"code": "INS-003", "name": "Papa amarilla", "unit": "kg", "stock": 50, "cost": 3.00},
-                {"code": "INS-004", "name": "Aceite vegetal", "unit": "litro", "stock": 20, "cost": 8.50},
-                {"code": "INS-005", "name": "Arroz", "unit": "kg", "stock": 100, "cost": 3.50},
+                {"code": "INS-001", "name": "Pollo (pechuga)", "unit": "kg", "stock": 30, "cost": 12.50, "category": "Carnes"},
+                {"code": "INS-002", "name": "Cerdo (lomo)", "unit": "kg", "stock": 15, "cost": 14.00, "category": "Carnes"},
+                {"code": "INS-003", "name": "Papa amarilla", "unit": "kg", "stock": 50, "cost": 3.00, "category": "Frutas y Verduras"},
+                {"code": "INS-004", "name": "Aceite vegetal", "unit": "litro", "stock": 20, "cost": 8.50, "category": "Condimentos"},
+                {"code": "INS-005", "name": "Arroz", "unit": "kg", "stock": 100, "cost": 3.50, "category": "Abarrotes"},
             ]
 
             # Store product info before commit to avoid detached instance errors
             product_info = []
             for pdata in products_data:
                 p = Product(
-                    company_id=company_id,
+                    tenant_id=company_id,
                     code=pdata["code"],
                     name=pdata["name"],
                     unit_of_measure=pdata["unit"],
                     current_stock=pdata["stock"],
                     average_cost=pdata["cost"],
+                    category_id=cat_map.get(pdata["category"]),
                 )
                 session.add(p)
                 product_info.append((pdata["code"], pdata["name"], pdata["stock"], pdata["unit"], pdata["cost"]))
@@ -259,19 +409,24 @@ async def main():
 
     # ─── Resumen Final ──────────────────────────────
     async with AsyncSession(engine) as session:
+        from app.models.user import User
         company_count = (await session.execute(select(Company))).scalars().all()
         accounts_count = (await session.execute(select(Account))).scalars().all()
         entries_count = (await session.execute(select(JournalEntry))).scalars().all()
         products_count = (await session.execute(select(Product))).scalars().all()
         km_count = (await session.execute(select(KardexMovement))).scalars().all()
+        users_count = (await session.execute(select(User))).scalars().all()
+        categories_count = (await session.execute(text("SELECT COUNT(*) FROM product_categories"))).scalar() or 0
 
     await engine.dispose()
 
     print("\n" + "=" * 70)
     print("  ✅ Seed Data completado")
     print(f"  🏢 Empresas:       {len(company_count)}")
+    print(f"  👤 Usuarios:       {len(users_count)}")
     print(f"  📋 Cuentas:        {len(accounts_count)}")
     print(f"  📝 Asientos:       {len(entries_count)}")
+    print(f"  📂 Categorías:     {categories_count}")
     print(f"  📦 Productos:      {len(products_count)}")
     print(f"  📊 Mov. Kárdex:    {len(km_count)}")
     print("=" * 70)
