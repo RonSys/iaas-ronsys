@@ -14,6 +14,7 @@
 import { authFetch } from "@/services/authFetch";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Skeleton } from "@/components/dashboard/KPICard";
+import { RecipeModal } from "@/components/restaurante/RecipeModal";
 
 interface MenuItem {
   id: number;
@@ -23,6 +24,7 @@ interface MenuItem {
   price: number;
   cost_price: number | null;
   item_type: "food" | "beverage" | "dessert" | "combo";
+  preparation_area?: string;
   modifiers: MenuModifier[] | null;
   image_url: string | null;
   active: boolean;
@@ -34,6 +36,14 @@ interface MenuModifier {
   max_select?: number;
 }
 
+interface FormModifier {
+  _key: string;
+  name: string;
+  price: number;
+  max_select: number;
+  modifier_group_id: string | null;
+}
+
 interface MenuItemForm {
   name: string;
   description: string;
@@ -41,7 +51,9 @@ interface MenuItemForm {
   price: number;
   cost_price: number | null;
   item_type: string;
+  preparation_area: string;
   active: boolean;
+  modifiers: FormModifier[];
 }
 
 const DEFAULT_FORM: MenuItemForm = {
@@ -51,7 +63,9 @@ const DEFAULT_FORM: MenuItemForm = {
   price: 0,
   cost_price: null,
   item_type: "food",
+      preparation_area: "cocina",
   active: true,
+  modifiers: [],
 };
 
 export function MenuPage() {
@@ -63,6 +77,10 @@ export function MenuPage() {
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [form, setForm] = useState<MenuItemForm>(DEFAULT_FORM);
   const [submitting, setSubmitting] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string>("");
+
+  // ─── Recipe modal state ────────────────────────────────────
+  const [recipeModalItem, setRecipeModalItem] = useState<MenuItem | null>(null);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -104,6 +122,41 @@ export function MenuPage() {
     return acc;
   }, [filtered]);
 
+  const categories = useMemo(() => Object.keys(grouped), [grouped]);
+
+  // ─── Detectar categoría activa al hacer scroll ────────────
+  useEffect(() => {
+    if (categories.length === 0) return;
+
+    const getCatSections = () => {
+      return categories
+        .map((cat) => {
+          const el = document.querySelector(`[data-category-section="${cat.replace(/"/g,'\\"')}"]`);
+          return el instanceof HTMLElement ? { cat, top: el.getBoundingClientRect().top } : null;
+        })
+        .filter(Boolean) as { cat: string; top: number }[];
+    };
+
+    const updateActive = () => {
+      const PILLS_HEIGHT = 64;
+      const sections = getCatSections();
+      if (sections.length === 0) return;
+
+      let current = sections[0].cat;
+      for (const s of sections) {
+        if (s.top <= PILLS_HEIGHT + 10) {
+          current = s.cat;
+        }
+      }
+      setActiveCategory(current);
+    };
+
+    // Set initial
+    requestAnimationFrame(updateActive);
+    window.addEventListener("scroll", updateActive, { passive: true });
+    return () => window.removeEventListener("scroll", updateActive);
+  }, [categories]);
+
   const openCreate = () => {
     setEditingItem(null);
     setForm(DEFAULT_FORM);
@@ -120,6 +173,14 @@ export function MenuPage() {
       cost_price: item.cost_price,
       item_type: item.item_type,
       active: item.active,
+      preparation_area: item.preparation_area ?? "cocina",
+      modifiers: (item.modifiers ?? []).map((m, i) => ({
+        _key: `mod_${i}_${Date.now()}`,
+        name: m.name,
+        price: m.price,
+        max_select: m.max_select ?? 1,
+        modifier_group_id: "",
+      })),
     });
     setShowModal(true);
   };
@@ -132,10 +193,18 @@ export function MenuPage() {
         ? `/api/v1/restaurant/menu/${editingItem.id}`
         : "/api/v1/restaurant/menu";
       const method = editingItem ? "PATCH" : "POST";
+      const body = {
+        ...form,
+        modifiers: form.modifiers.map((m) => ({
+          name: m.name,
+          price: m.price,
+          max_select: m.max_select,
+        })),
+      };
       const res = await authFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Error al guardar ítem");
       await fetchItems();
@@ -218,7 +287,7 @@ export function MenuPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-brand-text-primary">📜 Menú</h2>
+          <h2 className="text-xl font-bold text-brand-text-primary">📜 Maestro de Platos</h2>
           <p className="text-sm text-brand-text-secondary">
             {items.length} ítem(s) · {Object.keys(grouped).length} categoría(s)
           </p>
@@ -246,8 +315,36 @@ export function MenuPage() {
         />
       </div>
 
+      {/* ═══ Píldoras de navegación por categoría ═══ */}
+      <div className="sticky -top-1 z-20 bg-brand-background/95 backdrop-blur-sm pt-3 pb-3 -mx-1 px-1 border-b border-gray-100 shadow-sm mb-3">
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => {
+                const el = document.querySelector(`[data-category-section="${cat.replace(/"/g,'\\"')}"]`);
+                if (el) {
+                  el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  setActiveCategory(cat);
+                }
+              }}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all border shrink-0
+                ${activeCategory === cat
+                  ? "bg-brand-primary text-white border-brand-primary shadow-sm scale-105 font-semibold"
+                  : "bg-brand-surface text-brand-text-secondary border-gray-200 hover:border-brand-primary/50"
+                }`}
+            >
+              {cat}
+              {activeCategory === cat && (
+                <span className="ml-1 opacity-80">({grouped[cat]?.length || 0})</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {Object.entries(grouped).map(([category, categoryItems]) => (
-        <div key={category}>
+        <div key={category} data-category-section={category} data-category={category} className="scroll-mt-20">
           <h3 className="text-sm font-bold text-brand-text-primary uppercase tracking-wider mb-2 px-1">
             {category}
           </h3>
@@ -291,6 +388,15 @@ export function MenuPage() {
                     />
                     <div className="w-8 h-4 bg-gray-300 rounded-full peer peer-checked:bg-brand-success peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all" />
                   </label>
+                  {item.preparation_area === "cocina" && (
+                    <button
+                      onClick={() => setRecipeModalItem(item)}
+                      className="text-xs px-2 py-1 rounded border border-brand-primary/30 text-brand-primary hover:bg-brand-primary/5"
+                      title="Gestionar receta"
+                    >
+                      📋 Receta
+                    </button>
+                  )}
                   <button
                     onClick={() => openEdit(item)}
                     className="text-xs text-brand-primary hover:underline"
@@ -313,6 +419,18 @@ export function MenuPage() {
           onChange={setForm}
           onSave={handleSave}
           onClose={() => setShowModal(false)}
+        />
+      )}
+
+      {/* Recipe Modal */}
+      {recipeModalItem && (
+        <RecipeModal
+          menuItemId={recipeModalItem.id}
+          menuItemName={recipeModalItem.name}
+          menuItemPrice={recipeModalItem.price}
+          preparationArea={recipeModalItem.preparation_area ?? "cocina"}
+          onClose={() => setRecipeModalItem(null)}
+          onSaved={fetchItems}
         />
       )}
     </div>
@@ -383,9 +501,21 @@ function MenuFormModal({
                 className="w-full px-3 py-2 border rounded-lg text-sm"
               >
                 <option value="food">Plato</option>
-                <option value="beverage">Bebida</option>
+                <option value="beverage">Producto</option>
                 <option value="dessert">Postre</option>
                 <option value="combo">Combo</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Área de preparación</label>
+              <select
+                value={form.preparation_area}
+                onChange={(e) => set("preparation_area", e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg text-sm"
+              >
+                <option value="cocina">🍳 Cocina</option>
+                <option value="barra">🍸 Barra</option>
+                <option value="none">📦 Ninguno (venta directa)</option>
               </select>
             </div>
           </div>
@@ -422,6 +552,113 @@ function MenuFormModal({
               onChange={(e) => set("active", e.target.checked)}
               className="w-4 h-4"
             />
+          </div>
+
+          {/* ─── Modificadores / Adicionales ─── */}
+          <div className="border-t border-gray-200 pt-4 mt-2">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-bold text-brand-text-primary">Modificadores / Adicionales</h4>
+              <button
+                type="button"
+                onClick={() =>
+                  set("modifiers", [
+                    ...form.modifiers,
+                    { _key: `mod_${Date.now()}`, name: "", price: 0, max_select: 1, modifier_group_id: null },
+                  ])
+                }
+                className="px-2 py-1 text-xs rounded bg-brand-primary text-white hover:bg-brand-secondary"
+              >
+                + Agregar modificador
+              </button>
+            </div>
+
+            {form.modifiers.length === 0 && (
+              <p className="text-xs text-brand-text-secondary text-center py-3">
+                No hay modificadores. Hacé clic en "+ Agregar modificador" para añadir.
+              </p>
+            )}
+
+            {form.modifiers.map((mod, idx) => (
+              <div key={mod._key} className="p-3 rounded-lg border border-gray-200 mb-2">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-brand-text-secondary">
+                    Modificador #{idx + 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      set("modifiers", form.modifiers.filter((_, i) => i !== idx))
+                    }
+                    className="text-xs text-red-500 hover:text-red-700"
+                    title="Eliminar modificador"
+                  >
+                    🗑️ Eliminar
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-medium mb-0.5">Nombre</label>
+                    <input
+                      type="text"
+                      value={mod.name}
+                      onChange={(e) => {
+                        const updated = [...form.modifiers];
+                        updated[idx] = { ...updated[idx], name: e.target.value };
+                        set("modifiers", updated);
+                      }}
+                      className="w-full px-2 py-1.5 border rounded text-xs"
+                      placeholder="Ej: Conchas negras"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium mb-0.5">Precio adicional (S/)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={mod.price}
+                      onChange={(e) => {
+                        const updated = [...form.modifiers];
+                        updated[idx] = { ...updated[idx], price: Number(e.target.value) };
+                        set("modifiers", updated);
+                      }}
+                      className="w-full px-2 py-1.5 border rounded text-xs"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <label className="block text-[10px] font-medium mb-0.5">Máx. selección</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={mod.max_select}
+                      onChange={(e) => {
+                        const updated = [...form.modifiers];
+                        updated[idx] = { ...updated[idx], max_select: Number(e.target.value) };
+                        set("modifiers", updated);
+                      }}
+                      className="w-full px-2 py-1.5 border rounded text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium mb-0.5">Grupo (opcional)</label>
+                    <input
+                      type="text"
+                      value={mod.modifier_group_id ?? ""}
+                      onChange={(e) => {
+                        const updated = [...form.modifiers];
+                        updated[idx] = { ...updated[idx], modifier_group_id: e.target.value || null };
+                        set("modifiers", updated);
+                      }}
+                      className="w-full px-2 py-1.5 border rounded text-xs"
+                      placeholder="Ej: Cocción"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
         <div className="flex gap-2 justify-end mt-6">

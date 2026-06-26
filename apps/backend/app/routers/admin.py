@@ -159,6 +159,20 @@ async def update_company_settings(
     }
 
 
+DEFAULT_PALETTE = {
+    "primary": "#1a365d",
+    "secondary": "#2b6cb0",
+    "accent": "#e53e3e",
+    "background": "#f7fafc",
+    "surface": "#ffffff",
+    "text_primary": "#1a202c",
+    "text_secondary": "#718096",
+    "success": "#38a169",
+    "warning": "#d69e2e",
+    "error": "#e53e3e",
+}
+
+
 @router.get("/company/settings")
 async def get_company_settings(
     tenant_id: Annotated[int, Depends(get_tenant_id)],
@@ -166,7 +180,9 @@ async def get_company_settings(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """
-    Obtiene la configuración completa de la empresa (features + tax + defaults).
+    Obtiene la configuración completa de la empresa (features + tax + palette + branding).
+
+    Retorna un objeto plano compatible con CompanySettingsResponse del frontend.
     """
     result = await db.execute(
         select(Company).where(Company.id == tenant_id)
@@ -191,11 +207,24 @@ async def get_company_settings(
     merged_tax = defaults.tax_config.model_dump()
     merged_tax.update(tax_raw)
 
+    # Palette: stored o defaults
+    palette = stored.get("palette") or dict(DEFAULT_PALETTE)
+    # Merge stored palette keys over defaults (por si solo guardaron algunos)
+    if stored.get("palette"):
+        merged_palette = dict(DEFAULT_PALETTE)
+        merged_palette.update(stored["palette"])
+        palette = merged_palette
+
     return {
         "company_id": company.id,
         "business_type": company.business_type,
-        "settings": {
-            "features": merged_features,
-            "tax_config": merged_tax,
-        },
+        "business_name": company.name,
+        "features": merged_features,
+        "tax_config": merged_tax,
+        "palette": palette,
+        "logo_url": stored.get("logo_url"),
+        "favicon_url": stored.get("favicon_url"),
+        "date_format": stored.get("date_format", "DD/MM/YYYY"),
+        "currency": stored.get("currency", "PEN"),
+        "timezone": stored.get("timezone", "America/Lima"),
     }

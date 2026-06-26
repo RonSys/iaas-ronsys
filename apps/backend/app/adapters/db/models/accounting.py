@@ -92,6 +92,9 @@ class Account(Base):
     """
 
     __tablename__ = "accounts"
+    __table_args__ = (
+        UniqueConstraint('code', name='uq_accounts_code'),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False, index=True)
@@ -249,9 +252,18 @@ class Product(Base):
     wholesale_price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     wholesale_min_qty: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     barcode: Mapped[str | None] = mapped_column(String(50), nullable=True, unique=True)
+    # F0-009: Seriales + garantía
+    has_serial: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    warranty_months: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    manufacturer: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    # Relación a unidades serializadas
+    serial_units: Mapped[list["ProductUnit"]] = relationship(
+        "ProductUnit", back_populates="product", lazy="dynamic"
     )
 
     @property
@@ -262,6 +274,62 @@ class Product(Base):
     @company_id.setter
     def company_id(self, value: int):
         self.tenant_id = value
+
+
+# ═══════════════════════════════════════════════════════════════
+# Unidades Serializadas (F0-009)
+# ═══════════════════════════════════════════════════════════════
+
+
+class ProductUnit(Base):
+    """Unidad individual de producto con número de serie.
+
+    Cada fila representa una unidad física con trazabilidad completa:
+      - Registro (compra)
+      - Venta (sale_id + sale_item_id)
+      - Anulación (vuelve a available)
+      - Garantía (warranty_expiry)
+
+    status values:
+      - available: disponible para venta
+      - sold: vendida
+      - reserved: reservada temporalmente (futuro)
+      - damaged: dañada / merma
+      - voided: anulada (devolución)
+    """
+
+    __tablename__ = "product_units"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    product_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("products.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    serial_number: Mapped[str] = mapped_column(
+        String(100), unique=True, nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="available"
+    )  # available | sold | reserved | damaged | voided
+    purchase_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    cost_price: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+    warranty_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    sale_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("sales.id", ondelete="SET NULL"), nullable=True
+    )
+    sale_item_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("sale_items.id", ondelete="SET NULL"), nullable=True
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    # Relaciones
+    product: Mapped["Product"] = relationship("Product", back_populates="serial_units")
+
+    __table_args__ = (
+        Index("idx_product_units_product_status", "product_id", "status"),
+        Index("idx_product_units_sale", "sale_id"),
+        Index("idx_product_units_warranty_expiry", "warranty_expiry"),
+    )
 
 
 # ═══════════════════════════════════════════════════════════════

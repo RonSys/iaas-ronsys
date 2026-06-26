@@ -9,6 +9,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useSalesList, useSaleVoid } from "@/hooks/useSales";
 import { SalesList } from "@/components/sales/SalesList";
 import { Skeleton } from "@/components/dashboard/KPICard";
+import { getSaleDetail, getSaleTicket } from "@/services/api";
 import type { SaleFilters, SaleDetail as SaleDetailType } from "@/types";
 
 const DEFAULT_FILTERS: SaleFilters = { page: 1, limit: 20 };
@@ -31,10 +32,7 @@ export function SalesListPage() {
     setDetailLoading(true);
     setDetailError(null);
     try {
-      const response = await fetch(`/api/sales/sale/${saleId}`);
-      if (!response.ok) throw new Error("Error cargando detalle");
-      const d = await response.json();
-      return d;
+      return await getSaleDetail(saleId);
     } catch (err: any) {
       setDetailError(err.message);
       throw err;
@@ -47,9 +45,7 @@ export function SalesListPage() {
     setTicketLoading(true);
     setTicketError(null);
     try {
-      const response = await fetch(`/api/sales/sale/${saleId}/ticket?format=text`);
-      if (!response.ok) throw new Error("Error cargando ticket");
-      return await response.json();
+      return await getSaleTicket(saleId, "text");
     } catch (err: any) {
       setTicketError(err.message);
       throw err;

@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ─── helpers ───────────────────────────────────────────
 
   const deriveTenant = useCallback((u: User) => {
-    const t: Tenant = { id: u.company_id };
+    const t: Tenant = { id: u.company_id ?? 0 };
     setTenant(t);
   }, []);
 
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: payload.email ?? "",
         full_name: payload.name ?? "",
         role: payload.role ?? "viewer",
-        company_id: payload.company_id ?? 0,
+        company_id: payload.company_id ?? null,
       };
       setUser(u);
       deriveTenant(u);
@@ -106,49 +106,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     const refreshToken = authStore.getRefreshToken();
     if (refreshToken) {
-      fetch("/api/auth/logout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      }).catch(() => {
-        /* fire-and-forget */
-      });
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+      } catch {
+        // Falla silenciosa — el token expirará eventualmente
+      }
     }
     authStore.setTokens(null);
     setUser(null);
     setTenant(null);
   }, []);
 
-  // ─── init: restore session on mount ────────────────────
+  // ─── Efecto: restaurar sesión al montar ───── 0 ──────────
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("refresh_token");
-    if (stored) {
-      // Set refresh token in store so refreshSession can find it
-      authStore.setTokens({
-        accessToken: "",
-        refreshToken: stored,
-      });
-      refreshSession().finally(() => setIsLoading(false));
-    } else {
-      setIsLoading(false);
-    }
-  }, [refreshSession]);
-
-  // ─── register callbacks en authStore (para api.ts) ────
-  useEffect(() => {
-    authStore.setRefreshCallback(refreshSession);
-    authStore.setLogoutCallback(() => {
-      logout();
-    });
-  }, [refreshSession, logout]);
+    (async () => {
+      try {
+        await refreshSession();
+      } catch {
+        // Sin sesión válida — welcome screen
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── context value ─────────────────────────────────────
 
   const value: AuthContextType = {
     user,
     tenant,
-    isAuthenticated: user !== null,
+    isAuthenticated: !!user,
     isLoading,
     login,
     logout,
@@ -158,11 +151,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-/** Hook para acceder al AuthContext desde cualquier componente */
 export function useAuth(): AuthContextType {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    throw new Error("useAuth debe usarse dentro de <AuthProvider>");
+    throw new Error("useAuth debe usarse dentro de un AuthProvider");
   }
   return ctx;
 }

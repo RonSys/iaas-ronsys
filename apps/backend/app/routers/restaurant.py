@@ -1,9 +1,10 @@
 """
-🍽️ Restaurant Router — Endpoints Restaurante (F0-004 a F0-008).
+🍽️ Restaurant Router — Endpoints Restaurante (F0-004 a F0-008, Caso 6).
 
 Endpoints:
   Tables:  GET /tables, GET /tables/{id}, POST /tables/{id}/open
   Menu:    GET /menu, POST /menu, PATCH /menu/{id}
+  Recipes: GET /menu/{id}/recipe, PUT /menu/{id}/recipe, GET /products
   Orders:  POST /tables/{id}/order, GET /orders/{id}
            POST /orders/{id}/send-to-kitchen, PATCH /orders/{id}/status
            GET /orders/active
@@ -29,6 +30,8 @@ from app.services.restaurant_service import (
     KitchenOrdersService,
     MenuService,
     PromotionsService,
+    RecipesService,
+    SectionsService,
     TablesService,
     TakeawayService,
 )
@@ -59,6 +62,7 @@ async def create_table(
         number=str(number),
         capacity=body.get("capacity", 4),
         section=body.get("section"),
+        section_id=body.get("section_id"),
     )
 
 
@@ -91,8 +95,9 @@ async def list_tables(
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     status: str | None = Query(None, description="Filtrar por estado"),
+    section_id: int | None = Query(None, description="Filtrar por sección"),
 ):
-    return await TablesService.list_tables(db, tenant_id, status)
+    return await TablesService.list_tables(db, tenant_id, status, section_id)
 
 
 @router.get("/tables/{table_id}")
@@ -103,10 +108,11 @@ async def get_table(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     table = await TablesService.get_table(db, table_id, tenant_id)
+    section_name = TablesService._get_section_name(table)
     return {
         "id": table.id, "number": table.number,
         "capacity": table.capacity, "status": table.status,
-        "section": table.section,
+        "section": section_name, "section_id": table.section_id,
         "guests": table.guests, "waiter_name": table.waiter_name,
         "opened_at": table.opened_at.isoformat() if table.opened_at else None,
     }
@@ -130,7 +136,7 @@ async def free_table(
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Libera una mesa reservada (reserved → available)."""
+    """Libera una mesa (reserved/occupied → available)."""
     return await TablesService.update_table_status(db, table_id, tenant_id, "available")
 
 
@@ -142,10 +148,22 @@ async def open_table(
     db: Annotated[AsyncSession, Depends(get_db)],
     body: dict,
 ):
+    import logging
+    logger = logging.getLogger(__name__)
+
+    waiter_name = body.get("waiter_name") or current_user.full_name
+
+    # Security audit: log if waiter_name differs from authenticated user
+    if waiter_name != current_user.full_name:
+        logger.warning(
+            "Waiter_name override: user '%s' (id=%d) opened table %d with waiter_name='%s'",
+            current_user.full_name, current_user.id, table_id, waiter_name,
+        )
+
     return await TablesService.open_table(
         db, table_id, tenant_id,
         guests=body.get("guests", 1),
-        waiter_name=body.get("waiter_name"),
+        waiter_name=waiter_name,
     )
 
 
@@ -172,6 +190,61 @@ async def create_menu_item(
     body: dict,
 ):
     return await MenuService.create_item(db, tenant_id, body)
+
+
+# ═══════════════════════════════════════════════════════════════
+# RECIPES (Caso 6: Recetas e Insumos)
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/menu/{item_id}/recipe")
+async def get_recipe(
+    item_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    GET /api/v1/restaurant/menu/{id}/recipe
+
+    Obtener la receta de un plato del menú.
+    Retorna ingredientes, costo estimado y margen.
+    Solo platos con preparation_area="cocina" pueden tener receta.
+    """
+    return await RecipesService.get_recipe(db, item_id, tenant_id)
+
+
+@router.put("/menu/{item_id}/recipe")
+async def save_recipe(
+    item_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(require_role("admin", "manager"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: dict,
+):
+    """
+    PUT /api/v1/restaurant/menu/{id}/recipe
+
+    Guardar/actualizar receta completa de un plato.
+    Reemplaza todos los ingredientes.
+    Solo platos con preparation_area="cocina" pueden tener receta.
+    """
+    ingredients = body.get("ingredients", [])
+    return await RecipesService.save_recipe(db, item_id, tenant_id, ingredients)
+
+
+@router.get("/products")
+async def list_products_for_recipe(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    GET /api/v1/restaurant/products
+
+    Listar productos del inventario (activos) para selector de insumos en receta.
+    Retorna id, name, unit_of_measure, average_cost, current_stock.
+    """
+    return await RecipesService.list_products_for_recipe(db, tenant_id)
 
 
 @router.patch("/menu/{item_id}")
@@ -259,16 +332,6 @@ async def remove_order_item(
     return await KitchenOrdersService.remove_item(db, order_id, menu_item_id, tenant_id)
 
 
-@router.get("/orders/active")
-async def list_active_orders(
-    tenant_id: Annotated[int, Depends(get_tenant_id)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-    status: str | None = Query(None),
-):
-    return await KitchenOrdersService.list_active_orders(db, tenant_id, status)
-
-
 # ═══════════════════════════════════════════════════════════════
 # CLOSE & PAY (F0-007)
 # ═══════════════════════════════════════════════════════════════
@@ -281,6 +344,20 @@ async def close_order(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await ClosePayService().close_order(db, table_id, tenant_id)
+
+
+@router.get("/tables/{table_id}/orders/status")
+async def get_table_orders_status(
+    table_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Retorna si todas las comandas de una mesa están entregadas
+    (para que el frontend sepa si habilitar el botón Pagar).
+    """
+    return await ClosePayService().get_table_orders_status(db, table_id, tenant_id)
 
 
 @router.post("/tables/{table_id}/pay")
@@ -394,6 +471,70 @@ async def apply_promotion(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await PromotionsService.apply_promotion(db, order_id, promotion_id, tenant_id)
+
+
+# ═══════════════════════════════════════════════════════════════
+# SECTIONS (Caso 2: Mantenimiento de Secciones)
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/sections", status_code=201)
+async def create_section(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(require_role("admin", "manager"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: dict,
+):
+    """Crea una nueva sección del salón."""
+    if not body.get("name"):
+        raise HTTPException(status_code=400, detail="'name' es requerido")
+    return await SectionsService.create_section(db, tenant_id, body)
+
+
+@router.get("/sections")
+async def list_sections(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Lista todas las secciones ordenadas por sort_order, name."""
+    return await SectionsService.list_sections(db, tenant_id)
+
+
+@router.get("/sections/{section_id}")
+async def get_section(
+    section_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Obtiene una sección por ID."""
+    return await SectionsService.get_section(db, section_id, tenant_id)
+
+
+@router.patch("/sections/{section_id}")
+async def update_section(
+    section_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(require_role("admin", "manager"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: dict,
+):
+    """Actualiza una sección (nombre, descripción, orden)."""
+    return await SectionsService.update_section(db, section_id, tenant_id, body)
+
+
+@router.delete("/sections/{section_id}", status_code=204)
+async def delete_section(
+    section_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(require_role("admin", "manager"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Elimina una sección (solo si no tiene mesas asociadas).
+
+    Si tiene mesas asociadas devuelve 409 Conflict.
+    """
+    await SectionsService.delete_section(db, section_id, tenant_id)
 
 
 # ═══════════════════════════════════════════════════════════════

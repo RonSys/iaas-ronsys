@@ -80,7 +80,7 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
           />
           <SidebarItem
             icon="🛒"
-            label="Facturación"
+            label="Nueva Venta"
             path="/ventas/nueva"
             onClick={onMobileClose}
           />
@@ -101,6 +101,12 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
             defaultExpanded={false}
           >
             <SidebarItem
+              icon="📋"
+              label="Secciones"
+              path="/restaurante/secciones"
+              onClick={onMobileClose}
+            />
+            <SidebarItem
               icon="🪑"
               label="Mesas"
               path="/restaurante/mesas"
@@ -108,7 +114,7 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
             />
             <SidebarItem
               icon="📜"
-              label="Menú"
+              label="Maestro de Platos"
               path="/restaurante/menu"
               onClick={onMobileClose}
             />
@@ -130,6 +136,14 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
               path="/restaurante/promociones"
               onClick={onMobileClose}
             />
+            {user?.role === "admin" && (
+              <SidebarItem
+                icon="📊"
+                label="Inversión"
+                path="/restaurante/inversion"
+                onClick={onMobileClose}
+              />
+            )}
           </SidebarSection>
         )}
 
@@ -144,6 +158,12 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
             icon="📊"
             label="Kárdex"
             path="/inventario/kardex"
+            onClick={onMobileClose}
+          />
+          <SidebarItem
+            icon="📦"
+            label="Productos"
+            path="/inventario/productos"
             onClick={onMobileClose}
           />
           <SidebarItem
@@ -183,6 +203,35 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
             onClick={onMobileClose}
           />
         </SidebarSection>
+
+        {/* ─── SUPERADMIN — solo visible para superadmin ─── */}
+        {user?.role === "superadmin" && (
+          <SidebarSection
+            icon="🌐"
+            label="Superadmin"
+            storageKey="sidebar:superadmin"
+            defaultExpanded={true}
+          >
+            <SidebarItem
+              icon="📊"
+              label="Dashboard Global"
+              path="/superadmin"
+              onClick={onMobileClose}
+            />
+            <SidebarItem
+              icon="👥"
+              label="Usuarios"
+              path="/superadmin/usuarios"
+              onClick={onMobileClose}
+            />
+            <SidebarItem
+              icon="🏢"
+              label="Empresas"
+              path="/superadmin/empresas"
+              onClick={onMobileClose}
+            />
+          </SidebarSection>
+        )}
       </nav>
 
       {/* ─── USUARIO + CERRAR SESIÓN — SIEMPRE VISIBLE ─── */}
@@ -190,7 +239,7 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
         {user && (
           <div className="mb-1 text-xs text-brand-text-secondary">
             <div className="font-medium text-brand-text-primary truncate">{user.full_name || user.email}</div>
-            <div className="capitalize">{user.role === 'admin' ? '👑 Dueño' : user.role === 'operator' ? '🧑‍🍳 Operador' : user.role}</div>
+            <div className="capitalize">{user.role === 'superadmin' ? '🌐 Superadmin' : user.role === 'admin' ? '👑 Dueño' : user.role === 'operator' ? '🧑‍🍳 Operador' : user.role}</div>
           </div>
         )}
         <button

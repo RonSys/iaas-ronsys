@@ -1,3 +1,6 @@
+# no-git — Secrets / Local-only (NO subir)
+no-git/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -55,6 +58,8 @@ htmlcov/
 playwright-report/
 test-results/
 coverage/
+apps/web/coverage/
+apps/web/dist/
 
 # TypeScript
 *.tsbuildinfo

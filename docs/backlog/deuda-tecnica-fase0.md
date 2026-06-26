@@ -224,4 +224,19 @@ Se realiza en función de la **MP principal** del producto. Si varios platos com
 
 ---
 
-*Generado: 2026-05-15. Actualizar al resolver cada deuda.*
+### DT-F0-0XX: Raw `fetch()` sin headers de auth en componentes nuevos
+
+| Campo | Valor |
+|-------|-------|
+| **Deuda** | Componentes/páginas nuevas usan `fetch()` directo sin pasar por `request()` (api.ts) ni `authFetch()` (authFetch.ts), omitiendo el header JWT y X-Tenant-ID. |
+| **Severidad** | 🔴 Crítica |
+| **Síntoma** | Endpoints protegidos responden 401 o "X-Tenant-ID header required". El drawer de detalle de venta se abre y se cierra instantáneamente por el error. |
+| **Causa raíz** | No hay una regla de desarrollo que obligue a usar los wrappers de auth. Los devs copian patrones viejos con `fetch()` crudo. |
+| **Solución** | Establecer como **estándar obligatorio**: toda llamada a API debe pasar por `request()` (api.ts) o `authFetch()` (authFetch.ts). Prohibido `fetch()` directo. |
+| **Prevención** | Agregar a `AGENTS.md` como regla de desarrollo + code review check. |
+| **Versión target** | Inmediata (ya aplica) |
+| **Estado** | 🟡 Pendiente — se resolvieron los casos conocidos (SalesListPage) pero puede reaparecer al agregar nuevos endpoints. |
+
+---
+
+*Generado: 2026-05-20. Actualizar al resolver cada deuda.*

@@ -29,14 +29,45 @@ export function SaleItemsList({
     [items],
   );
 
+  const rate = taxConfig.igv_rate / 100;
+
+  /** Per-item savings including IGV: (retail - wholesale) × qty × (1 + rate) */
+  const itemSavings = useMemo(
+    () =>
+      items.map((it) => {
+        if (
+          it.wholesale_price != null &&
+          it.wholesale_min_qty != null &&
+          it.quantity >= it.wholesale_min_qty &&
+          it.retail_price != null &&
+          it.retail_price > it.wholesale_price
+        ) {
+          return (
+            (it.retail_price - it.wholesale_price) *
+            it.quantity *
+            (1 + rate)
+          );
+        }
+        return 0;
+      }),
+    [items, rate],
+  );
+
+  const wholesaleDiscount = useMemo(
+    () => itemSavings.reduce((sum, s) => sum + s, 0),
+    [itemSavings],
+  );
+
   const taxAmount = useMemo(() => {
     if (taxConfig.igv_included_in_price) {
-      return subtotal - subtotal / (1 + taxConfig.igv_rate);
+      return subtotal - subtotal / (1 + rate);
     }
-    return subtotal * taxConfig.igv_rate;
-  }, [subtotal, taxConfig]);
+    return subtotal * rate;
+  }, [subtotal, taxConfig, rate]);
 
-  const total = subtotal - discountTotal;
+  const total = taxConfig.igv_included_in_price
+    ? subtotal - discountTotal
+    : subtotal + taxAmount - discountTotal;
 
   if (items.length === 0) {
     return (
@@ -57,6 +88,7 @@ export function SaleItemsList({
             <tr className="border-b text-xs text-brand-text-secondary uppercase tracking-wider">
               <th className="py-2 text-left">Producto</th>
               <th className="py-2 text-right">Precio</th>
+              <th className="py-2 text-right">Ahorro</th>
               <th className="py-2 text-right">Cant.</th>
               <th className="py-2 text-right">Total</th>
               <th className="py-2 w-8"></th>
@@ -72,6 +104,18 @@ export function SaleItemsList({
                 </td>
                 <td className="py-2 text-right text-brand-text-secondary">
                   {fmtCurrency(item.unit_price)}
+                </td>
+                <td className="py-2 text-right">
+                  {itemSavings[i] > 0 ? (
+                    <span
+                      className="text-brand-success font-medium"
+                      title={`Ahorro S/${((item.retail_price ?? 0) - (item.wholesale_price ?? 0)) * item.quantity} + IGV S/${(itemSavings[i] - ((item.retail_price ?? 0) - (item.wholesale_price ?? 0)) * item.quantity).toFixed(2)}`}
+                    >
+                      {fmtCurrency(itemSavings[i])}
+                    </span>
+                  ) : (
+                    <span className="text-brand-text-secondary">—</span>
+                  )}
                 </td>
                 <td className="py-2 text-right">
                   <input
@@ -106,13 +150,19 @@ export function SaleItemsList({
 
       {/* Totals */}
       <div className="border-t mt-2 pt-2 space-y-1 text-sm">
+        {wholesaleDiscount > 0 && (
+          <div className="flex justify-between text-brand-warning">
+            <span>Dto. Mayorista</span>
+            <span>-{fmtCurrency(wholesaleDiscount)}</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span className="text-brand-text-secondary">Subtotal</span>
           <span>{fmtCurrency(subtotal)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-brand-text-secondary">
-            IGV ({Math.round(taxConfig.igv_rate * 100)}%)
+            IGV ({Math.round(taxConfig.igv_rate)}%)
             {taxConfig.igv_included_in_price ? " (incl.)" : ""}
           </span>
           <span>{fmtCurrency(taxAmount)}</span>

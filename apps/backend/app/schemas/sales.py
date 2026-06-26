@@ -64,6 +64,8 @@ class SaleItemCreate(BaseModel):
     tax_pct: float = Field(18.0, ge=0, le=100)
     tax_amount: float = Field(0.0, ge=0)
     total: float = Field(..., ge=0)
+    # F0-009: Seriales para productos con has_serial
+    serials: list[str] | None = None
 
 
 class SalePaymentCreate(BaseModel):
@@ -135,6 +137,8 @@ class SaleItemResponse(BaseModel):
     tax_amount: float
     total: float
     kardex_movement_id: int | None = None
+    # F0-009: Seriales vendidos en este item
+    serials: list[str] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -71,6 +71,12 @@ const TakeawayPage = lazy(() =>
 const PromotionsPage = lazy(() =>
   import("@/pages/restaurante/PromotionsPage").then((m) => ({ default: m.PromotionsPage })),
 );
+const SectionsManagement = lazy(() =>
+  import("@/pages/restaurante/SectionsManagement").then((m) => ({ default: m.SectionsManagement })),
+);
+const InvestmentPage = lazy(() =>
+  import("@/pages/restaurante/InvestmentPage").then((m) => ({ default: m.InvestmentPage })),
+);
 
 // Inventario
 const KardexPage = lazy(() =>
@@ -78,6 +84,9 @@ const KardexPage = lazy(() =>
 );
 const CategoriesPage = lazy(() =>
   import("@/pages/ferreteria/CategoriesPage").then((m) => ({ default: m.CategoriesPage })),
+);
+const ProductsPage = lazy(() =>
+  import("@/pages/inventario/ProductsPage").then((m) => ({ default: m.ProductsPage })),
 );
 
 // Finanzas
@@ -88,6 +97,17 @@ const CashflowPage = lazy(() =>
 // Configuración
 const Settings = lazy(() =>
   import("@/pages/Settings").then((m) => ({ default: m.Settings })),
+);
+
+// Superadmin
+const SuperAdminDashboard = lazy(() =>
+  import("@/pages/superadmin/Dashboard").then((m) => ({ default: m.SuperAdminDashboard })),
+);
+const SuperAdminUsers = lazy(() =>
+  import("@/pages/superadmin/Users").then((m) => ({ default: m.SuperAdminUsers })),
+);
+const SuperAdminCompanies = lazy(() =>
+  import("@/pages/superadmin/Companies").then((m) => ({ default: m.SuperAdminCompanies })),
 );
 
 function PageLoader() {
@@ -250,7 +270,7 @@ function AppRoutes() {
           path="/restaurante/menu"
           element={
             <PrivateRoute>
-              <SuspendedPage title="Menú">
+              <SuspendedPage title="Maestro de Platos">
                 <MenuPage />
               </SuspendedPage>
             </PrivateRoute>
@@ -286,6 +306,26 @@ function AppRoutes() {
             </PrivateRoute>
           }
         />
+        <Route
+          path="/restaurante/secciones"
+          element={
+            <PrivateRoute>
+              <SuspendedPage title="Secciones">
+                <SectionsManagement />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/restaurante/inversion"
+          element={
+            <PrivateRoute allowedRoles={["admin"]}>
+              <SuspendedPage title="Inversión — Puesta en Marcha">
+                <InvestmentPage />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
 
         {/* ═══════════════════════════════════════════════════════
            📦 INVENTARIO
@@ -296,6 +336,16 @@ function AppRoutes() {
             <PrivateRoute>
               <SuspendedPage title="Kárdex">
                 <KardexPage />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/inventario/productos"
+          element={
+            <PrivateRoute>
+              <SuspendedPage title="Productos">
+                <ProductsPage />
               </SuspendedPage>
             </PrivateRoute>
           }
@@ -334,6 +384,40 @@ function AppRoutes() {
             <PrivateRoute allowedRoles={["admin", "manager"]}>
               <SuspendedPage title="Marca / Branding">
                 <Settings />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+
+        {/* ═══════════════════════════════════════════════════════
+           🌐 SUPERADMIN (solo rol superadmin)
+           ═══════════════════════════════════════════════════════ */}
+        <Route
+          path="/superadmin"
+          element={
+            <PrivateRoute allowedRoles={["superadmin"]}>
+              <SuspendedPage title="Panel Superadmin">
+                <SuperAdminDashboard />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/superadmin/usuarios"
+          element={
+            <PrivateRoute allowedRoles={["superadmin"]}>
+              <SuspendedPage title="Usuarios — Superadmin">
+                <SuperAdminUsers />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/superadmin/empresas"
+          element={
+            <PrivateRoute allowedRoles={["superadmin"]}>
+              <SuspendedPage title="Empresas — Superadmin">
+                <SuperAdminCompanies />
               </SuspendedPage>
             </PrivateRoute>
           }

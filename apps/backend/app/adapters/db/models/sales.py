@@ -48,9 +48,9 @@ class PosSession(Base):
         Integer, ForeignKey("users.id"), nullable=False
     )
     opened_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     opening_cash: Mapped[float] = mapped_column(
         Numeric(12, 2), nullable=False, default=0
     )
@@ -95,8 +95,8 @@ class Sale(Base):
     tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id"), nullable=False, index=True
     )
-    session_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("pos_sessions.id"), nullable=False, index=True
+    session_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("pos_sessions.id"), nullable=True, index=True
     )
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=False

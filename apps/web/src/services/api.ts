@@ -349,7 +349,14 @@ export async function getSales(
   if (filters.page) sp.set("page", String(filters.page));
   if (filters.limit) sp.set("limit", String(filters.limit));
   const qs = sp.toString();
-  return request(`/sales/sales${qs ? `?${qs}` : ""}`);
+  const raw: any = await request(`/sales/sales${qs ? `?${qs}` : ""}`);
+  // Backend devuelve "items" pero frontend espera "sales" — normalizar
+  return {
+    sales: raw.items ?? raw.sales ?? [],
+    total: raw.total ?? 0,
+    page: raw.page ?? 1,
+    limit: raw.limit ?? 20,
+  };
 }
 
 export async function getSaleDetail(saleId: number): Promise<SaleDetail> {
@@ -419,4 +426,69 @@ export async function updateScenario(
 
 export async function deleteScenario(id: number): Promise<void> {
   return request(`/simulator/scenarios/${id}`, { method: "DELETE" });
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// Superadmin
+// ═══════════════════════════════════════════════════════════
+
+export async function getSuperadminDashboard(): Promise<any> {
+  return request("/superadmin/dashboard");
+}
+
+export async function getSuperadminCompanies(): Promise<any> {
+  return request("/superadmin/companies");
+}
+
+export async function createSuperadminCompany(data: {
+  name: string;
+  ruc: string;
+  address?: string;
+  economic_activity?: string;
+  business_type: string;
+}): Promise<any> {
+  return request("/superadmin/companies", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteSuperadminCompany(id: number): Promise<void> {
+  return request(`/superadmin/companies/${id}`, { method: "DELETE" });
+}
+
+export async function getSuperadminUsers(params?: {
+  tenant_id?: number;
+  role?: string;
+}): Promise<any> {
+  let path = "/superadmin/users";
+  const qs = new URLSearchParams();
+  if (params?.tenant_id) qs.set("tenant_id", String(params.tenant_id));
+  if (params?.role) qs.set("role", params.role);
+  const q = qs.toString();
+  if (q) path += "?" + q;
+  return request(path);
+}
+
+export async function createSuperadminUser(data: {
+  email: string;
+  full_name: string;
+  password: string;
+  role: string;
+  tenant_id: number;
+  is_verified?: boolean;
+}): Promise<any> {
+  return request("/superadmin/users", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteSuperadminUser(id: number): Promise<any> {
+  return request(`/superadmin/users/${id}`, { method: "DELETE" });
+}
+
+export async function activateSuperadminUser(id: number): Promise<any> {
+  return request(`/superadmin/users/${id}/activate`, { method: "POST" });
 }

@@ -19,13 +19,13 @@ import type {
 
 const taxConfig: CompanyTaxConfig = {
   igv_included_in_price: true,
-  igv_rate: 0.18,
+  igv_rate: 18,
   icb_perception_pct: 0,
 };
 
 const taxConfigNoIcv: CompanyTaxConfig = {
   igv_included_in_price: false,
-  igv_rate: 0.18,
+  igv_rate: 18,
   icb_perception_pct: 0,
 };
 
@@ -36,9 +36,10 @@ const sampleItem: SaleItem = {
   quantity: 2,
   unit_of_measure: "plato",
   unit_price: 35,
+  retail_price: 35,
   discount_pct: 0,
   discount_amount: 0,
-  tax_pct: 0.18,
+  tax_pct: 18,
   tax_amount: 0,
   total: 70,
 };
@@ -68,8 +69,8 @@ describe("SaleItemsList", () => {
       />,
     );
     expect(screen.getByText("Lomo Saltado")).toBeInTheDocument();
-    // Total column shows S/ 70
-    const totals = screen.getAllByText("S/ 70");
+    // Total column shows S/ 70.00
+    const totals = screen.getAllByText("S/ 70.00");
     expect(totals.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -111,7 +112,7 @@ describe("SaleItemsList", () => {
         onRemoveItem={jest.fn()}
       />,
     );
-    expect(screen.getByText("-S/ 10")).toBeInTheDocument();
+    expect(screen.getByText("-S/ 10.00")).toBeInTheDocument();
   });
 
   it("calls onRemoveItem when X button clicked", () => {
@@ -141,7 +142,7 @@ describe("PaymentSection", () => {
       />,
     );
     expect(screen.getByText("Pagado")).toBeInTheDocument();
-    expect(screen.getByText("S/ 0")).toBeInTheDocument();
+    expect(screen.getByText("S/ 0.00")).toBeInTheDocument();
     expect(screen.getByText("Pendiente")).toBeInTheDocument();
   });
 

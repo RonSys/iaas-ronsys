@@ -333,6 +333,31 @@ async def main():
                 )
             print(f"📂 Categorías sembradas: {len(restaurant_cats)} (restaurante) + {len(hardware_cats)} (ferretería)")
 
+    # ─── Secciones demo (Restaurante) ──────────────
+    async with engine.begin() as conn:
+        result = await conn.execute(
+            text("SELECT COUNT(*) FROM restaurant_sections WHERE tenant_id = :tid"),
+            {"tid": company_id},
+        )
+        count = result.scalar()
+        if count and count > 0:
+            print(f"🍽️ Secciones ya existen ({count}) — omitiendo")
+        else:
+            sections = [
+                (company_id, "Sala Principal", 1),
+                (company_id, "Terraza", 2),
+                (company_id, "Segundo Nivel", 3),
+            ]
+            for tid, name, sort_order in sections:
+                await conn.execute(
+                    text(
+                        "INSERT INTO restaurant_sections (tenant_id, name, sort_order, created_at, updated_at) "
+                        "VALUES (:tid, :name, :sort_order, NOW(), NOW())"
+                    ),
+                    {"tid": tid, "name": name, "sort_order": sort_order},
+                )
+            print(f"🍽️ Secciones sembradas: {len(sections)} para El Segoviano")
+
     # ─── Productos y Kárdex ────────────────────────
     async with AsyncSession(engine) as session:
         # Buscar categorías por nombre para asignarlas a los productos (SQL directo)

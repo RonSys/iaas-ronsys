@@ -12,8 +12,13 @@
  * @module pages/restaurante/TablesMap
  */
 import { authFetch } from "@/services/authFetch";
+import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Skeleton } from "@/components/dashboard/KPICard";
+import {
+  ModifierBottomSheet,
+  type ModifierSelection,
+} from "@/components/restaurante/ModifierBottomSheet";
 
 interface Table {
   id: number;
@@ -21,6 +26,8 @@ interface Table {
   capacity: number;
   status: "available" | "occupied" | "reserved" | "cleaning";
   section: string | null;
+  section_id?: number | null;
+  section_name?: string | null;
   guests?: number;
   waiter_name?: string;
   opened_at?: string;
@@ -28,11 +35,19 @@ interface Table {
   order_id?: number | null;
 }
 
+interface Section {
+  id: number;
+  name: string;
+  description?: string;
+  table_count: number;
+}
+
 interface MenuModifier {
   id: number;
   name: string;
   price_adjustment: number;
-  max_select?: number;
+  max_select: number;
+  modifier_group_id?: number | null;
 }
 
 interface MenuItem {
@@ -51,12 +66,14 @@ interface OrderItem {
   quantity: number;
   unit_price: number;
   modifiers?: { id: number; name: string; price_adjustment: number }[];
+  notes?: string;
 }
 
 interface TableFormData {
   number: string;
   capacity: number;
   section: string;
+  section_id: number | null;
 }
 
 const STATUS_COLORS: Record<Table["status"], string> = {
@@ -84,15 +101,22 @@ export function TablesMap() {
   // Open modal
   const [showOpenModal, setShowOpenModal] = useState(false);
   const [openGuests, setOpenGuests] = useState(2);
-  const [openWaiter, setOpenWaiter] = useState("");
+  const { user } = useAuth();
+  const [openWaiter, setOpenWaiter] = useState(user?.full_name ?? "");
+  const [showManualWaiter, setShowManualWaiter] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Create/Edit modal
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingTable, setEditingTable] = useState<Table | null>(null);
-  const [formData, setFormData] = useState<TableFormData>({ number: "", capacity: 4, section: "" });
+  const [formData, setFormData] = useState<TableFormData>({ number: "", capacity: 4, section: "", section_id: null });
   const [formError, setFormError] = useState<string | null>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
+
+  // Sections state
+  const [sections, setSections] = useState<Section[]>([]);
+  const [sectionsLoading, setSectionsLoading] = useState(true);
+  const [sectionFilter, setSectionFilter] = useState<number | "all" | "none">("all");
 
   // Menu / Order state
   const [showMenuSelector, setShowMenuSelector] = useState(false);
@@ -101,12 +125,22 @@ export function TablesMap() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [addingItemId, setAddingItemId] = useState<number | null>(null);
   const [sendingToKitchen, setSendingToKitchen] = useState(false);
+  const [orderSent, setOrderSent] = useState(false);
   const [orderToast, setOrderToast] = useState<string | null>(null);
 
-  // Modifier modal state
-  const [showModifierModal, setShowModifierModal] = useState(false);
-  const [selectedModifiers, setSelectedModifiers] = useState<number[]>([]);
-  const [pendingMenuItem, setPendingMenuItem] = useState<MenuItem | null>(null);
+  // Payment modal state
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "yape" | "split">("cash");
+  const [yapeAmount, setYapeAmount] = useState(0);
+  const [cashAmount, setCashAmount] = useState(0);
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paySubmitting, setPaySubmitting] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+
+  // Modifier Bottom Sheet state
+  const [modifierSheetOpen, setModifierSheetOpen] = useState(false);
+  const [modifierItem, setModifierItem] = useState<MenuItem | null>(null);
+  const [modifierNotes, setModifierNotes] = useState("");
 
   // ─── WebSocket para notificaciones de cocina ───
   const [waiterNotif, setWaiterNotif] = useState<string | null>(null);
@@ -157,6 +191,21 @@ export function TablesMap() {
     }
   }, []);
 
+  // ─── Fetch sections ───
+  const fetchSections = useCallback(async () => {
+    try {
+      const res = await authFetch("/api/v1/restaurant/sections");
+      if (!res.ok) throw new Error("Error al cargar secciones");
+      const data = await res.json();
+      setSections(data.sections ?? data);
+    } catch {
+      setSections([]);
+    } finally {
+      setSectionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchSections(); }, [fetchSections]);
   useEffect(() => { fetchTables(); }, [fetchTables]);
 
   useEffect(() => {
@@ -202,7 +251,7 @@ export function TablesMap() {
         number: String(num),
         capacity: formData.capacity,
       };
-      if (formData.section.trim()) body.section = formData.section.trim();
+      if (formData.section_id) body.section_id = formData.section_id;
       const res = await authFetch("/api/v1/restaurant/tables", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -237,7 +286,7 @@ export function TablesMap() {
         number: String(num),
         capacity: formData.capacity,
       };
-      if (formData.section.trim()) body.section = formData.section.trim();
+      body.section_id = formData.section_id ?? null;
       const res = await authFetch(`/api/v1/restaurant/tables/${editingTable.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -326,14 +375,19 @@ export function TablesMap() {
     }
   }, []);
 
-  const addToOrder = async (menuItem: MenuItem, modifierIds: number[] = [], skipModifiers = false) => {
+  const addToOrder = async (
+    menuItem: MenuItem,
+    modifierIds: number[] = [],
+    notes = "",
+    skipModifiers = false,
+  ) => {
     if (!selectedTable) return;
 
-    // If item has modifiers and no modifierIds passed, show modifier modal (unless skipping)
-    if (!skipModifiers && menuItem.modifiers && menuItem.modifiers.length > 0 && modifierIds.length === 0 && !showModifierModal) {
-      setPendingMenuItem(menuItem);
-      setSelectedModifiers([]);
-      setShowModifierModal(true);
+    // If item has modifiers and no modifierIds passed, open ModifierBottomSheet (unless skipping)
+    if (!skipModifiers && menuItem.modifiers && menuItem.modifiers.length > 0 && modifierIds.length === 0 && !modifierSheetOpen) {
+      setModifierItem(menuItem);
+      setModifierNotes("");
+      setModifierSheetOpen(true);
       return;
     }
 
@@ -352,7 +406,7 @@ export function TablesMap() {
             menu_item_id: menuItem.id,
             quantity: 1,
             modifiers,
-            notes: "",
+            notes: notes || "",
           }],
         }),
       });
@@ -367,14 +421,26 @@ export function TablesMap() {
         setSelectedTable({ ...selectedTable, order_id: newOrderId });
       }
       const modNames = modifiers.length > 0 ? ` (${modifiers.map((m: any) => m.name).join(", ")})` : "";
-      setOrderToast(`✅ ${menuItem.name}${modNames} agregado`);
+      const noteSuffix = notes.trim() ? ` [${notes.trim()}]` : "";
+      setOrderToast(`✅ ${menuItem.name}${modNames}${noteSuffix} agregado`);
       setTimeout(() => setOrderToast(null), 2000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error al agregar");
     } finally {
       setAddingItemId(null);
-      setPendingMenuItem(null);
+      setModifierItem(null);
     }
+  };
+
+  const handleModifierConfirm = (selected: ModifierSelection[]) => {
+    if (modifierItem) {
+      addToOrder(
+        modifierItem,
+        selected.map((s) => s.id),
+        modifierNotes,
+      );
+    }
+    setModifierSheetOpen(false);
   };
 
   const sendToKitchen = async () => {
@@ -387,6 +453,7 @@ export function TablesMap() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail ?? "Error al enviar");
       }
+      setOrderSent(true);
       setOrderToast("📨 Pedido enviado a cocina");
       setTimeout(() => setOrderToast(null), 3000);
     } catch (err: unknown) {
@@ -398,7 +465,7 @@ export function TablesMap() {
 
   const handleIncrement = async (item: OrderItem) => {
     const menuItem = menuItems.find((m) => m.id === item.menu_item_id);
-    if (menuItem) addToOrder(menuItem, [], true);
+    if (menuItem) addToOrder(menuItem, [], "", true);
   };
 
   const handleCloseOrder = async () => {
@@ -416,25 +483,63 @@ export function TablesMap() {
     }
   };
 
-  const handlePayTable = async () => {
+  const handlePayTable = () => {
     if (!selectedTable) return;
-    setSubmitting(true);
+    const total = selectedTable.total_provisional ?? 0;
+    setPaymentMethod("cash");
+    setYapeAmount(0);
+    setCashAmount(total);
+    setPaymentReference("");
+    setShowPayModal(true);
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!selectedTable) return;
+    const total = selectedTable.total_provisional ?? 0;
+
+    // Build payments array based on selected method
+    let payments: { method: string; amount: number; reference?: string }[] = [];
+
+    if (paymentMethod === "cash") {
+      payments = [{ method: "cash", amount: total }];
+    } else if (paymentMethod === "yape") {
+      payments = [{ method: "yape", amount: total }];
+      if (paymentReference.trim()) {
+        payments[0].reference = paymentReference.trim();
+      }
+    } else if (paymentMethod === "split") {
+      if (Math.abs(yapeAmount + cashAmount - total) > 0.01) {
+        setError(`Los montos no cubren el total (S/ ${total.toFixed(2)})`);
+        return;
+      }
+      const yapePayment: { method: string; amount: number; reference?: string } = {
+        method: "yape",
+        amount: Math.round(yapeAmount * 100) / 100,
+      };
+      if (paymentReference.trim()) {
+        yapePayment.reference = paymentReference.trim();
+      }
+      payments = [
+        yapePayment,
+        { method: "cash", amount: Math.round(cashAmount * 100) / 100 },
+      ];
+    }
+
+    setPaySubmitting(true);
     try {
       const res = await authFetch(`/api/v1/restaurant/tables/${selectedTable.id}/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: 0, method: "cash" }),
+        body: JSON.stringify({ payments }),
       });
       if (!res.ok) throw new Error("Error al procesar pago");
-      setOrderToast("💰 Mesa pagada — ahora está libre ✅");
-      setTimeout(() => setOrderToast(null), 4000);
-      setShowOpenModal(false);
-      setSelectedTable(null);
-      await fetchTables();
+      setPaymentSuccess(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error al pagar");
     } finally {
-      setSubmitting(false);
+      // Pequeña pausa para ver el spinner
+      await new Promise(r => setTimeout(r, 800));
+      setPaySubmitting(false);
     }
   };
 
@@ -456,15 +561,16 @@ export function TablesMap() {
     }
   };
 
-  // Agrupar items por menu_item_id + modifiers para el ticket
+  // Agrupar items por menu_item_id + modifiers + notes para el ticket
   const groupedItems = useMemo(() => {
-    const map = new Map<string, OrderItem & { displayModifiers: string; unitPriceWithMods: number }>();
+    const map = new Map<string, OrderItem & { displayModifiers: string; displayNotes: string; unitPriceWithMods: number }>();
     orderItems.forEach((item) => {
       const modIds = (item.modifiers || [])
         .map((m) => m.id)
         .sort((a, b) => a - b)
         .join(",");
-      const key = `${item.menu_item_id}|${modIds}`;
+      const noteKey = item.notes ?? "";
+      const key = `${item.menu_item_id}|${modIds}|${noteKey}`;
       const modsTotal = (item.modifiers || []).reduce(
         (sum, m) => sum + (m.price_adjustment || 0),
         0,
@@ -478,6 +584,7 @@ export function TablesMap() {
           quantity: item.quantity || 1,
           unitPriceWithMods: (item.unit_price || 0) + modsTotal,
           displayModifiers: (item.modifiers || []).map((m) => m.name).join(", "),
+          displayNotes: item.notes ?? "",
         });
       }
     });
@@ -489,10 +596,12 @@ export function TablesMap() {
     setSelectedTable(table);
     setShowMenuSelector(false);
     setOrderItems([]);
+    setOrderSent(false);
     setShowOpenModal(true);
     if (table.status === "available" || table.status === "reserved") {
       setOpenGuests(2);
-      setOpenWaiter("");
+      setOpenWaiter(user?.full_name ?? "");
+      setShowManualWaiter(false);
     }
     if (table.status === "occupied") {
       fetchMenu();
@@ -502,14 +611,19 @@ export function TablesMap() {
 
   const openCreateModal = () => {
     setEditingTable(null);
-    setFormData({ number: "", capacity: 4, section: "" });
+    setFormData({ number: "", capacity: 4, section: "", section_id: null });
     setFormError(null);
     setShowFormModal(true);
   };
 
   const openEditModal = (table: Table) => {
     setEditingTable(table);
-    setFormData({ number: table.number, capacity: table.capacity, section: table.section ?? "" });
+    setFormData({
+      number: table.number,
+      capacity: table.capacity,
+      section: table.section ?? "",
+      section_id: table.section_id ?? null,
+    });
     setFormError(null);
     setShowOpenModal(false);
     setShowFormModal(true);
@@ -574,16 +688,48 @@ export function TablesMap() {
         </div>
       )}
 
+      {/* ─── Section filter ─── */}
+      {sections.length > 0 && (
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-brand-text-secondary">Filtrar por sección:</label>
+          <select
+            value={sectionFilter}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSectionFilter(val === "all" ? "all" : val === "none" ? "none" : Number(val));
+            }}
+            className="px-3 py-2 border rounded-lg text-sm"
+          >
+            <option value="all">Todas las secciones</option>
+            <option value="none">Sin sección</option>
+            {sections.map((sec) => (
+              <option key={sec.id} value={sec.id}>{sec.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Grid de mesas */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        {tables.map((table) => (
+        {tables
+          .filter((table) =>
+            sectionFilter === "all" ? true :
+            sectionFilter === "none" ? table.section_id === null :
+            table.section_id === sectionFilter
+          )
+          .map((table) => (
           <button
             key={table.id}
             onClick={() => handleTableClick(table)}
             className={`relative p-4 rounded-xl border-2 text-left transition-all hover:shadow-md group ${STATUS_COLORS[table.status]}`}
           >
             <div className="text-lg font-bold">{table.number}</div>
-            <div className="text-xs mt-1">{table.capacity} pers. · {table.section ?? "General"}</div>
+            <div className="text-xs mt-1">{table.capacity} pers.</div>
+            {(table.section_name || table.section) && (
+              <span className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-brand-primary/10 text-brand-primary">
+                {table.section_name ?? table.section}
+              </span>
+            )}
             <div className="text-xs font-medium mt-1">{STATUS_LABELS[table.status]}</div>
             {table.status === "occupied" && (
               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-lg p-2 shadow text-xs text-left">
@@ -592,7 +738,7 @@ export function TablesMap() {
                 {table.opened_at && (
                   <div>🕐 {new Date(table.opened_at).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })}</div>
                 )}
-                {table.total_provisional !== undefined && (
+                {table.total_provisional != null && (
                   <div className="font-bold mt-1">S/ {table.total_provisional.toFixed(2)}</div>
                 )}
               </div>
@@ -601,13 +747,29 @@ export function TablesMap() {
         ))}
       </div>
 
-      {tables.length === 0 && !loading && (
+      {tables.length === 0 && !loading && !sectionsLoading && (
         <div className="p-10 text-center text-brand-text-secondary">
           <span className="text-4xl block mb-3">🪑</span>
-          <p>No hay mesas configuradas.</p>
-          <button onClick={openCreateModal} className="mt-3 px-4 py-2 bg-brand-primary text-white rounded-lg text-sm">
-            ➕ Crear Primera Mesa
-          </button>
+          {/* ─── Onboarding: no tables AND no sections ─── */}
+          {sections.length === 0 && !sectionsLoading ? (
+            <>
+              <p className="mb-2">Configura tus secciones primero.</p>
+              <p className="text-xs text-gray-400 mb-4">Las secciones agrupan mesas (Terraza, Salón, etc.)</p>
+              <a
+                href="/restaurante/secciones"
+                className="inline-block px-4 py-2 bg-brand-primary text-white rounded-lg text-sm hover:bg-brand-secondary"
+              >
+                ➕ Configurar Secciones
+              </a>
+            </>
+          ) : (
+            <>
+              <p>No hay mesas configuradas.</p>
+              <button onClick={openCreateModal} className="mt-3 px-4 py-2 bg-brand-primary text-white rounded-lg text-sm">
+                ➕ Crear Primera Mesa
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -643,10 +805,31 @@ export function TablesMap() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Nombre del Mesero *</label>
-                    <input
-                      value={openWaiter} onChange={(e) => setOpenWaiter(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Ej: Carlos" autoFocus
-                    />
+                    <select
+                      value={showManualWaiter ? "__other__" : (user?.full_name ?? "")}
+                      onChange={(e) => {
+                        if (e.target.value === "__other__") {
+                          setOpenWaiter("");
+                          setShowManualWaiter(true);
+                        } else {
+                          setOpenWaiter(e.target.value);
+                          setShowManualWaiter(false);
+                        }
+                      }}
+                      className="w-full px-3 py-2 border rounded-lg text-sm"
+                    >
+                      <option value={user?.full_name ?? ""}>{user?.full_name ?? "Sin nombre"}</option>
+                      <option value="__other__">Otro...</option>
+                    </select>
+                    {showManualWaiter && (
+                      <input
+                        value={openWaiter}
+                        onChange={(e) => setOpenWaiter(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg text-sm mt-2"
+                        placeholder="Escribir otro nombre"
+                        autoFocus
+                      />
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -689,7 +872,7 @@ export function TablesMap() {
               <>
                 <div className="mb-4 text-sm text-brand-text-secondary">
                   <p>Capacidad: {selectedTable.capacity} pers.</p>
-                  <p>Sección: {selectedTable.section ?? "General"}</p>
+                  <p>Sección: {selectedTable.section_name ?? selectedTable.section ?? "General"}</p>
                 </div>
                 <div className="space-y-2">
                   <button onClick={() => handleFree(selectedTable.id)}
@@ -725,12 +908,12 @@ export function TablesMap() {
               <div className="space-y-3">
                 <div className="text-sm text-brand-text-secondary">
                   <p>Capacidad: {selectedTable.capacity} pers.</p>
-                  <p>Sección: {selectedTable.section ?? "General"}</p>
+                  <p>Sección: {selectedTable.section_name ?? selectedTable.section ?? "General"}</p>
                   {selectedTable.guests && <p>Comensales: {selectedTable.guests}</p>}
                   {selectedTable.waiter_name && <p>Mesero: {selectedTable.waiter_name}</p>}
-                  {selectedTable.total_provisional !== undefined && (
+                  {selectedTable.total_provisional != null && (
                     <p className="font-bold text-brand-text-primary mt-1">
-                      Total prov: S/ {selectedTable.total_provisional.toFixed(2)}
+                      Total: S/ {selectedTable.total_provisional.toFixed(2)}
                     </p>
                   )}
                 </div>
@@ -739,7 +922,7 @@ export function TablesMap() {
                 {orderItems.length > 0 && (
                   <div className="bg-gray-50 rounded-lg p-3 mb-2">
                     <h4 className="text-xs font-bold text-brand-text-primary mb-2">📋 Pedido Actual</h4>
-                    <div className="max-h-32 overflow-y-auto space-y-0.5">
+                    <div className="max-h-64 overflow-y-auto space-y-0.5">
                       {groupedItems.map((item, i) => (
                         <div key={i} className="flex justify-between text-xs py-1">
                           <div className="flex items-center gap-1 flex-1 min-w-0">
@@ -768,6 +951,16 @@ export function TablesMap() {
                             {item.displayModifiers && (
                               <span className="text-[10px] text-gray-400 truncate">
                                 ({item.displayModifiers})
+                              </span>
+                            )}
+                            {item.displayNotes && (
+                              <span className="text-[10px] text-orange-500 truncate ml-1">
+                                📝 {item.displayNotes}
+                              </span>
+                            )}
+                            {item.unitPriceWithMods > item.unit_price && (
+                              <span className="text-[10px] text-orange-600 ml-1">
+                                +S/ {(item.unitPriceWithMods - (item.unit_price || 0)).toFixed(2)} mods
                               </span>
                             )}
                           </div>
@@ -825,13 +1018,17 @@ export function TablesMap() {
                 )}
 
                 {/* Send to kitchen */}
-                {orderItems.length > 0 && selectedTable.order_id && (
+                {orderSent ? (
+                  <div className="w-full py-2.5 text-sm rounded-lg bg-green-100 border border-green-300 text-green-700 text-center font-medium">
+                    ✅ Pedido enviado a cocina
+                  </div>
+                ) : orderItems.length > 0 && selectedTable.order_id ? (
                   <button onClick={sendToKitchen} disabled={sendingToKitchen}
                     className="w-full py-2.5 text-sm rounded-lg bg-orange-500 text-white font-medium
                       hover:bg-orange-600 disabled:opacity-50">
-                    {sendingToKitchen ? "Enviando..." : "📨 Enviar a Cocina"}
+                    {sendingToKitchen ? "📨 Enviando..." : "📨 Enviar a Cocina"}
                   </button>
-                )}
+                ) : null}
 
                 {/* Close order & Pay — liberar mesa */}
                 {selectedTable.status === "occupied" && selectedTable.guests && (
@@ -840,10 +1037,17 @@ export function TablesMap() {
                       className="py-2.5 text-sm rounded-lg bg-blue-500 text-white font-medium hover:bg-blue-600">
                       📋 Cerrar Mesa
                     </button>
-                    <button onClick={handlePayTable}
-                      className="py-2.5 text-sm rounded-lg bg-green-600 text-white font-medium hover:bg-green-700">
-                      💰 Pagar
-                    </button>
+                    {selectedTable.order_id ? (
+                      <button onClick={handlePayTable}
+                        className="py-2.5 text-sm rounded-lg bg-green-600 text-white font-medium hover:bg-green-700">
+                        💰 Pagar
+                      </button>
+                    ) : (
+                      <div className="py-2.5 text-sm rounded-lg bg-gray-300 text-gray-500 text-center flex items-center justify-center"
+                        title="Esperar que cocina entregue">
+                        ⏳ Pagar
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -859,7 +1063,7 @@ export function TablesMap() {
               <>
                 <div className="mb-4 text-sm text-brand-text-secondary">
                   <p>Capacidad: {selectedTable.capacity} pers.</p>
-                  <p>Sección: {selectedTable.section ?? "General"}</p>
+                  <p>Sección: {selectedTable.section_name ?? selectedTable.section ?? "General"}</p>
                   <p>Estado: Limpieza</p>
                 </div>
                 <div className="flex justify-end">
@@ -874,88 +1078,214 @@ export function TablesMap() {
         </div>
       )}
 
-      {/* Modal: Modificadores */}
-      {showModifierModal && pendingMenuItem && pendingMenuItem.modifiers && (
+      {/* Modifier Bottom Sheet */}
+      <ModifierBottomSheet
+        open={modifierSheetOpen}
+        onOpenChange={(open) => {
+          setModifierSheetOpen(open);
+          if (!open) setModifierItem(null);
+        }}
+        itemName={modifierItem?.name ?? ""}
+        itemPrice={modifierItem?.price}
+        modifiers={modifierItem?.modifiers ?? []}
+        notes={modifierNotes}
+        onNotesChange={setModifierNotes}
+        onConfirm={handleModifierConfirm}
+      />
+
+      {/* Payment Modal */}
+      {showPayModal && selectedTable && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm mx-4 shadow-xl max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-brand-text-primary mb-1">
-              {pendingMenuItem.name}
-            </h3>
-            <p className="text-xs text-brand-text-secondary mb-4">
-              Personalizá tu pedido
-            </p>
-            <div className="space-y-2">
-              {pendingMenuItem.modifiers.map((mod) => {
-                const isSelected = selectedModifiers.includes(mod.id);
-                return (
-                  <label
-                    key={mod.id}
-                    className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                      isSelected
-                        ? "border-brand-primary bg-brand-primary/5"
-                        : "border-gray-200 hover:bg-gray-50"
-                    }`}
-                    style={{ minHeight: 44 }}
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm mx-4 shadow-xl">
+            {paymentSuccess ? (
+              <>
+                <h3 className="text-lg font-bold text-green-600 mb-4">
+                  ✅ Pagado con éxito
+                </h3>
+                <p className="text-sm text-brand-text-secondary mb-2">
+                  Mesa {selectedTable.number} — S/ {(selectedTable.total_provisional ?? 0).toFixed(2)}
+                </p>
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={async () => {
+                      await handleFree(selectedTable.id);
+                      setShowPayModal(false);
+                      setShowOpenModal(false);
+                      setSelectedTable(null);
+                      setPaymentSuccess(false);
+                      await fetchTables();
+                    }}
+                    className="flex-1 py-2.5 text-sm rounded-lg bg-green-600 text-white font-medium hover:bg-green-700"
                   >
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium">{mod.name}</span>
-                      {mod.price_adjustment > 0 && (
-                        <span className="text-xs text-orange-600 ml-1">
-                          +S/ {mod.price_adjustment.toFixed(2)}
-                        </span>
-                      )}
-                    </div>
-                    <div
-                      className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ml-2 ${
-                        isSelected
-                          ? "bg-brand-primary border-brand-primary"
-                          : "border-gray-300"
-                      }`}
-                    >
-                      {isSelected && (
-                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => {
-                        setSelectedModifiers((prev) =>
-                          prev.includes(mod.id)
-                            ? prev.filter((id) => id !== mod.id)
-                            : [...prev, mod.id],
-                        );
-                      }}
-                      className="sr-only"
-                    />
-                  </label>
-                );
-              })}
-            </div>
-            <div className="flex gap-2 justify-end mt-4">
+                    🚪 Liberar Mesa
+                  </button>
+                  <button
+                    onClick={() => { setShowPayModal(false); setPaymentSuccess(false); }}
+                    className="flex-1 py-2.5 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+            <h3 className="text-lg font-bold text-brand-text-primary mb-4">
+              💰 Pagar Mesa {selectedTable.number}
+            </h3>
+            <p className="text-sm text-brand-text-secondary mb-4">
+              Total:{" "}
+              <span className="font-bold text-brand-text-primary">
+                S/ {(selectedTable.total_provisional ?? 0).toFixed(2)}
+              </span>
+            </p>
+
+            {/* Payment method selection */}
+            <div className="space-y-2 mb-4">
               <button
                 onClick={() => {
-                  setShowModifierModal(false);
-                  setPendingMenuItem(null);
+                  setPaymentMethod("cash");
+                  const total = selectedTable.total_provisional ?? 0;
+                  setCashAmount(total);
+                  setYapeAmount(0);
+                  setPaymentReference("");
                 }}
-                className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+                className={`w-full text-left px-4 py-3 rounded-lg border-2 text-sm transition-all ${
+                  paymentMethod === "cash"
+                    ? "border-green-500 bg-green-50"
+                    : "border-gray-200 hover:border-gray-300"
+                }`}
+              >
+                <span className="font-medium">💵 Todo en Efectivo</span>
+              </button>
+              <button
+                disabled
+                className="w-full text-left px-4 py-3 rounded-lg border-2 text-sm border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed"
+                title="Próximamente"
+              >
+                <span className="font-medium">📱 Todo con Yape 🔜</span>
+              </button>
+              <button
+                disabled
+                className="w-full text-left px-4 py-3 rounded-lg border-2 text-sm border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed"
+                title="Próximamente"
+              >
+                <span className="font-medium">✂️ Dividir pago 🔜</span>
+              </button>
+            </div>
+
+            {/* Yape reference (shown for yape and split) */}
+            {paymentMethod === "yape" && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">
+                  Nombre/Referencia (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={paymentReference}
+                  onChange={(e) => setPaymentReference(e.target.value)}
+                  placeholder="Nombre del cliente o N° operación"
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                />
+              </div>
+            )}
+
+            {/* Split payment inputs */}
+            {paymentMethod === "split" && (
+              <div className="space-y-3 mb-4 p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Monto Yape
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={yapeAmount}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      const total = selectedTable.total_provisional ?? 0;
+                      setYapeAmount(val);
+                      setCashAmount(
+                        Math.round((total - val) * 100) / 100,
+                      );
+                    }}
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Monto Efectivo
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={cashAmount}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0;
+                      const total = selectedTable.total_provisional ?? 0;
+                      setCashAmount(val);
+                      setYapeAmount(
+                        Math.round((total - val) * 100) / 100,
+                      );
+                    }}
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                  />
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-brand-text-secondary">
+                    Suma:{" "}
+                    <span
+                      className={`font-semibold ${
+                        Math.abs(
+                          yapeAmount +
+                            cashAmount -
+                            (selectedTable.total_provisional ?? 0),
+                        ) > 0.01
+                          ? "text-red-500"
+                          : "text-green-600"
+                      }`}
+                    >
+                      S/ {(yapeAmount + cashAmount).toFixed(2)}
+                    </span>
+                  </span>
+                  <span className="font-medium text-brand-text-primary">
+                    Total: S/{" "}
+                    {(selectedTable.total_provisional ?? 0).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowPayModal(false)}
+                className="flex-1 py-2.5 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+                disabled={paySubmitting}
               >
                 Cancelar
               </button>
               <button
-                onClick={() => {
-                  if (pendingMenuItem) {
-                    addToOrder(pendingMenuItem, selectedModifiers);
-                  }
-                  setShowModifierModal(false);
-                }}
-                className="px-4 py-2 text-sm rounded-lg bg-brand-primary text-white hover:bg-brand-secondary"
+                onClick={handleConfirmPayment}
+                disabled={
+                  paySubmitting ||
+                  (paymentMethod === "split" &&
+                    Math.abs(
+                      yapeAmount +
+                        cashAmount -
+                        (selectedTable.total_provisional ?? 0),
+                    ) > 0.01)
+                }
+                className="flex-1 py-2.5 text-sm rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 disabled:opacity-50"
               >
-                Agregar
+                {paySubmitting
+                  ? "⏳ Procesando..."
+                  : "✅ Confirmar pago"}
               </button>
             </div>
+            </>
+          )}
           </div>
         </div>
       )}
@@ -989,14 +1319,37 @@ export function TablesMap() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Sección</label>
-                <input
-                  value={formData.section}
-                  onChange={(e) => setFormData({ ...formData, section: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Ej: Terraza, Salón Principal"
-                />
+                <select
+                  value={formData.section_id ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "") {
+                      setFormData({ ...formData, section_id: null, section: "" });
+                    } else {
+                      const secId = Number(val);
+                      const sec = sections.find((s) => s.id === secId);
+                      setFormData({
+                        ...formData,
+                        section_id: secId,
+                        section: sec?.name ?? "",
+                      });
+                    }
+                  }}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                >
+                  <option value="">Sin sección</option>
+                  {sections.map((sec) => (
+                    <option key={sec.id} value={sec.id}>{sec.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
-            <div className="flex gap-2 justify-end mt-6">
+            {!editingTable && sections.length === 0 && (
+              <div className="mt-4 p-2 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-700 text-xs text-center">
+                ⚠️ Aún no hay secciones. Puedes crearlas en <a href="/restaurante/secciones" className="underline">Mantenimiento de Secciones</a>.
+              </div>
+            )}
+            <div className="flex gap-2 justify-end mt-4">
               <button onClick={() => { setShowFormModal(false); setEditingTable(null); }}
                 className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50" disabled={formSubmitting}>
                 Cancelar

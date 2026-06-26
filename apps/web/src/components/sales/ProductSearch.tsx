@@ -63,10 +63,15 @@ export function ProductSearch({ onSelect, disabled }: ProductSearchProps) {
       try {
         const params = new URLSearchParams({ search: query });
         if (selectedCategory) params.set("category_id", selectedCategory);
-        const res = await authFetch(`/api/accounting/kardex/products?${params.toString()}`);
+        const res = await authFetch(`/api/v1/inventory/products?${params.toString()}`);
         if (res.ok) {
           const data = await res.json();
-          setResults(data);
+          const mapped = (data.products ?? []).map((p: any) => ({
+            ...p,
+            unit: p.unit_of_measure,
+            unit_price: p.retail_price,
+          }));
+          setResults(mapped);
           setShowResults(true);
         }
       } catch {

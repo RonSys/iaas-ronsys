@@ -14,7 +14,7 @@ from datetime import date, datetime, time, UTC
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import func, select, or_
+from sqlalchemy import func, select, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.db.models.sales import (
@@ -31,6 +31,7 @@ from app.adapters.db.models.accounting import (
     JournalEntryLine,
     KardexMovement,
     Product,
+    ProductUnit,
 )
 from app.core.accounting.kardex import KardexEngine
 
@@ -248,6 +249,23 @@ class SaleService:
     """Servicio de ventas con integración completa."""
 
     @staticmethod
+    def _resolve_unit_price(product: Product, quantity: float) -> float:
+        """
+        HU-F0-009-03: Resuelve precio unitario según reglas mayorista/detal.
+
+        Si wholesale_price y wholesale_min_qty están definidos y
+        quantity >= wholesale_min_qty, se usa wholesale_price.
+        De lo contrario, retail_price.
+        """
+        retail = float(product.retail_price) if product.retail_price else 0.0
+        wholesale = float(product.wholesale_price) if product.wholesale_price else None
+        min_qty = float(product.wholesale_min_qty) if product.wholesale_min_qty else None
+
+        if wholesale is not None and wholesale > 0 and min_qty is not None and quantity >= min_qty:
+            return wholesale
+        return retail
+
+    @staticmethod
     async def create_sale(
         db: AsyncSession,
         tenant_id: int,
@@ -263,15 +281,22 @@ class SaleService:
         """
         from fastapi import HTTPException
 
-        # 1. Validar sesión abierta
+        # 1. Validar sesión abierta (opcional en Fase 1)
         session = await PosSessionService.get_current_session(db, tenant_id)
-        if not session:
-            raise HTTPException(status_code=409, detail="No hay sesión POS abierta")
 
-        # 2. Validar total de venta
+        # 2. Cargar empresa (business_type + tax + defaults)
+        company_result = await db.execute(
+            select(Company).where(Company.id == tenant_id)
+        )
+        company = company_result.scalar_one_or_none()
+
         items_data = data.get("items", [])
         payments_data = data.get("payments", [])
-        business_type = data.get("business_type", "retail")
+        # Usar business_type de la compañía; fallback al request o "retail"
+        business_type = (
+            company.business_type if company
+            else data.get("business_type", "retail")
+        )
 
         if not items_data:
             raise HTTPException(status_code=400, detail="La venta debe tener al menos un ítem")
@@ -284,19 +309,17 @@ class SaleService:
         tax_total = 0.0
         total_items = 0.0
 
-        # Cargar empresa para datos de tax
-        company_result = await db.execute(
-            select(Company).where(Company.id == tenant_id)
-        )
-        company = company_result.scalar_one_or_none()
-
         for item_data in items_data:
             item_total = float(item_data.get("total", 0))
             item_qty = float(item_data.get("quantity", 0))
             item_price = float(item_data.get("unit_price", 0))
             item_disc_pct = float(item_data.get("discount_pct", 0))
             item_disc_amt = float(item_data.get("discount_amount", 0))
-            product_id = item_data.get("product_id")
+            product_id_raw = item_data.get("product_id")
+            try:
+                product_id = int(product_id_raw) if product_id_raw is not None else None
+            except (ValueError, TypeError):
+                product_id = None
             # QA-F2-01: soportar igv_included (precio ya incluye IGV)
             igv_included = item_data.get("igv_included", False)
             if isinstance(igv_included, str):
@@ -340,13 +363,61 @@ class SaleService:
                     select(Product).where(Product.id == product_id)
                 )
                 product = product_result.scalar_one_or_none()
-                if product and float(product.current_stock) < item_qty:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=f"Stock insuficiente de '{product.name}': "
-                              f"disponible {float(product.current_stock)}, "
-                              f"solicitado {item_qty}"
-                    )
+
+                if product:
+                    # HU-F0-009-03: Aplicar wholesale pricing automáticamente
+                    resolved_price = SaleService._resolve_unit_price(product, item_qty)
+                    if resolved_price != item_price:
+                        item_data["unit_price"] = resolved_price
+                        item_price = resolved_price
+                        item_data["applied_wholesale"] = True
+
+                    # HU-F0-009-05: Validar seriales si has_serial
+                    if product.has_serial:
+                        item_serials = item_data.get("serials")
+                        if not item_serials or len(item_serials) != int(item_qty):
+                            raise HTTPException(
+                                status_code=422,
+                                detail=f"El producto '{product.name}' requiere seriales. "
+                                       f"Debe seleccionar exactamente {int(item_qty)} serial(es)."
+                            )
+                        # Validar que los seriales existen y están disponibles
+                        serials_result = await db.execute(
+                            select(ProductUnit).where(
+                                ProductUnit.serial_number.in_(item_serials),
+                                ProductUnit.product_id == product_id,
+                                ProductUnit.status == "available",
+                            ).with_for_update()
+                        )
+                        available_units = serials_result.scalars().all()
+                        available_serials = {u.serial_number for u in available_units}
+
+                        missing = set(item_serials) - available_serials
+                        if missing:
+                            raise HTTPException(
+                                status_code=409,
+                                detail=f"Seriales no disponibles para '{product.name}': "
+                                       f"{', '.join(sorted(missing))}"
+                            )
+
+                        # Stock para seriales = count de available
+                        serial_stock = len(available_units)
+                        if serial_stock < item_qty:
+                            raise HTTPException(
+                                status_code=409,
+                                detail=f"Stock insuficiente de '{product.name}': "
+                                       f"solo {serial_stock} seriales disponibles, "
+                                       f"solicitado {item_qty}"
+                            )
+                    else:
+                        # Producto sin serial: validar stock numérico tradicional
+                        if product and float(product.current_stock) < item_qty:
+                            raise HTTPException(
+                                status_code=409,
+                                detail=f"Stock insuficiente de '{product.name}': "
+                                      f"disponible {float(product.current_stock)}, "
+                                      f"solicitado {item_qty}"
+                            )
 
             subtotal += round(item_qty * base_price, 2)
             discount_total += item_disc_amt
@@ -382,12 +453,13 @@ class SaleService:
             )
         )
         count = count_result.scalar() or 0
-        sale_number = f"VEN-{year}-{count + 1:05d}"
+        import time as _time
+        sale_number = f"VEN-{year}-{count + 1:05d}-{int(_time.time()) % 1000:03d}"
 
         # 6. Crear Sale
         sale = Sale(
             tenant_id=tenant_id,
-            session_id=session.id,
+            session_id=session.id if session else None,
             user_id=user_id,
             sale_number=sale_number,
             sale_date=today,
@@ -408,7 +480,11 @@ class SaleService:
         # 7. Crear SaleItems + movimientos kárdex
         sale_items_list = []
         for item_data in items_data:
-            product_id = item_data.get("product_id")
+            product_id_raw = item_data.get("product_id")
+            try:
+                product_id = int(product_id_raw) if product_id_raw is not None else None
+            except (ValueError, TypeError):
+                product_id = None
             item_qty = float(item_data.get("quantity", 0))
             item_price = float(item_data.get("unit_price", 0))
             item_total = float(item_data.get("total", 0))
@@ -448,10 +524,45 @@ class SaleService:
                 )).scalar_one_or_none()
 
                 if product:
-                    avg_cost = float(product.average_cost)
-                    exit_total = round(item_qty * avg_cost, 2)
-                    new_qty = float(product.current_stock) - item_qty
-                    new_total = round(new_qty * avg_cost, 2)
+                    if product.has_serial:
+                        # HU-F0-009-05: Para seriales, el costo es el promedio de los seriales vendidos
+                        item_serials = item_data.get("serials", [])
+                        serial_units = (await db.execute(
+                            select(ProductUnit).where(
+                                ProductUnit.serial_number.in_(item_serials),
+                                ProductUnit.product_id == product_id,
+                            )
+                        )).scalars().all()
+
+                        # Calcular costo promedio de los seriales vendidos
+                        costs = [
+                            float(u.cost_price) if u.cost_price else float(product.average_cost)
+                            for u in serial_units
+                        ]
+                        avg_serial_cost = round(sum(costs) / len(costs), 4) if costs else float(product.average_cost)
+                        exit_total = round(item_qty * avg_serial_cost, 2)
+
+                        # Actualizar average_cost del producto con el costo real de venta
+                        new_avg_cost = avg_serial_cost
+                    else:
+                        avg_cost = float(product.average_cost)
+                        exit_total = round(item_qty * avg_cost, 2)
+                        new_avg_cost = avg_cost
+
+                    # Calcular balance para kárdex
+                    if product.has_serial:
+                        # Stock para seriales = count de available restantes después de la venta
+                        available_after = await db.execute(
+                            select(func.count(ProductUnit.id)).where(
+                                ProductUnit.product_id == product_id,
+                                ProductUnit.status == "available",
+                            )
+                        )
+                        new_qty = float(available_after.scalar() or 0)
+                    else:
+                        new_qty = float(product.current_stock) - item_qty
+
+                    new_total = round(new_qty * new_avg_cost, 2)
 
                     kardex_move = KardexMovement(
                         product_id=product_id,
@@ -460,10 +571,10 @@ class SaleService:
                         reference_type="venta",
                         reference_id=sale.id,
                         quantity=item_qty,
-                        unit_cost=avg_cost,
+                        unit_cost=new_avg_cost,
                         total=exit_total,
                         balance_quantity=new_qty,
-                        balance_avg_cost=avg_cost,
+                        balance_avg_cost=new_avg_cost,
                         balance_total=new_total,
                         date=today,
                     )
@@ -473,8 +584,9 @@ class SaleService:
                     kardex_movement_id = kardex_move.id
 
                     # Actualizar stock del producto
-                    product.current_stock = new_qty
-                    product.average_cost = avg_cost
+                    if not product.has_serial:
+                        product.current_stock = new_qty
+                    product.average_cost = new_avg_cost
 
             sale_item = SaleItem(
                 sale_id=sale.id,
@@ -493,6 +605,33 @@ class SaleService:
             )
             db.add(sale_item)
             sale_items_list.append(sale_item)
+
+        await db.flush()
+
+        # 7b. HU-F0-009-05: Asignar seriales a sale_items
+        for item_data in items_data:
+            if item_data.get("product_id") and item_data.get("serials"):
+                # Encontrar el SaleItem recién creado
+                matching_item = next(
+                    (si for si in sale_items_list
+                     if si.product_id == item_data.get("product_id")
+                     and si.item_name == item_data.get("item_name", "")
+                     and float(si.quantity) == float(item_data.get("quantity", 0))),
+                    None
+                )
+                if matching_item:
+                    serial_numbers = item_data.get("serials", [])
+                    await db.execute(
+                        update(ProductUnit)
+                        .where(ProductUnit.serial_number.in_(serial_numbers))
+                        .values(
+                            status="sold",
+                            sale_id=sale.id,
+                            sale_item_id=matching_item.id,
+                        )
+                    )
+                    # Store serials on item for response
+                    matching_item._serials = serial_numbers
 
         await db.flush()
 
@@ -548,8 +687,13 @@ class SaleService:
         await db.flush()
         await db.refresh(sale)
 
-        # Return sale detail
-        return await SaleService.get_sale_detail(db, sale.id, tenant_id)
+        # Return sale detail with post-sale message
+        sale_detail = await SaleService.get_sale_detail(db, sale.id, tenant_id)
+        return {
+            "sale": sale_detail,
+            "message": "✅ Venta registrada. Inventario actualizado.",
+            "warning": "📋 Guía de remisión pendiente",
+        }
 
     @staticmethod
     async def _generate_journal_entry(
@@ -831,6 +975,10 @@ class SaleService:
                     "tax_amount": float(i.tax_amount),
                     "total": float(i.total),
                     "kardex_movement_id": i.kardex_movement_id,
+                    # HU-F0-009-06: Seriales vendidos en este item
+                    "serials": (
+                        list(getattr(i, '_serials', [])) or None
+                    ),
                 }
                 for i in sale.items
             ],
@@ -912,8 +1060,22 @@ class SaleService:
         if sale.is_voided:
             raise HTTPException(status_code=409, detail="La venta ya está anulada")
 
-        # Revertir kárdex (HU-F2-005)
+        # Revertir kárdex (HU-F2-005) y seriales (HU-F0-009-06)
         for item in sale.items:
+            if item.product_id:
+                # HU-F0-009-06: Revertir seriales a 'available'
+                serials_result = await db.execute(
+                    select(ProductUnit).where(
+                        ProductUnit.sale_item_id == item.id,
+                        ProductUnit.status == "sold",
+                    )
+                )
+                sold_units = serials_result.scalars().all()
+                for unit in sold_units:
+                    unit.status = "available"
+                    unit.sale_id = None
+                    unit.sale_item_id = None
+
             if item.product_id and item.kardex_movement_id:
                 product_result = await db.execute(
                     select(Product).where(Product.id == item.product_id)

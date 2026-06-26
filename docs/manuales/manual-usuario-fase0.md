@@ -108,9 +108,13 @@ En la parte superior se muestra un resumen: *"14 mesas · 8 libres"*.
 1. Hacé clic en la mesa que esté en estado **🟢 Libre**.
 2. Se abre una ventana modal donde debés ingresar:
    - **N° de Comensales:** cuántas personas son (no puede exceder la capacidad de la mesa).
-   - **Nombre del Mesero:** tu nombre o el del encargado.
+   - **Nombre del Mesero:** se autocompleta automáticamente con tu **nombre completo** (obtenido de tu sesión). Podés:
+     - ✅ Usarlo tal cual (es lo más común — solo presioná **"Abrir Mesa"**)
+     - 🔽 Elegir **"Otro…"** del desplegable y escribir manualmente otro nombre (ej. si estás cubriendo para un compañero)
 3. Presioná **"Abrir Mesa"**.
 4. ✅ La mesa cambiará a color **🔴 Ocupada**.
+
+> 💡 **¿Cómo sabe el sistema tu nombre?** Al iniciar sesión, el sistema obtiene tus datos (nombre, email, rol) del backend. El campo "Nombre del Mesero" se completa automáticamente para que no tengas que escribirlo cada vez que abrís una mesa.
 
 #### Reservar una mesa (para cuando llegarán clientes)
 
