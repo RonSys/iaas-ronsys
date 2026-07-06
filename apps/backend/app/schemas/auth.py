@@ -27,7 +27,7 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
     role: str
-    company_id: int
+    company_id: Optional[int] = None  # None = superadmin (multi-tenant)
     is_active: bool
     is_verified: bool
     created_at: Optional[datetime] = None
@@ -118,7 +118,7 @@ class AdminUserResponse(BaseModel):
     email: str
     full_name: str
     role: str
-    company_id: int
+    company_id: Optional[int] = None  # None = superadmin
     is_active: bool
     is_verified: bool
     created_at: Optional[datetime] = None

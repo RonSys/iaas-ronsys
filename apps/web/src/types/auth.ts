@@ -8,8 +8,8 @@ export interface User {
   id: number;
   email: string;
   full_name: string;
-  role: "admin" | "manager" | "operator" | "viewer";
-  company_id: number;
+  role: "superadmin" | "admin" | "manager" | "operator" | "viewer";
+  company_id: number | null;
 }
 
 export interface Tenant {

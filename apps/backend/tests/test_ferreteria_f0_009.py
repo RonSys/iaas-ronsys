@@ -356,7 +356,8 @@ class TestMigration0009:
         )
         assert ("0009_product_units_and_serials" in result.stdout
                 or "0010_product_categories_missing_columns" in result.stdout
-                or "4bc771f43a4e" in result.stdout)
+                or "4bc771f43a4e" in result.stdout
+                or "0013_investment_items" in result.stdout)
 
 
 # ═══════════════════════════════════════════════════════════════

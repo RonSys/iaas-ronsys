@@ -45,9 +45,9 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(150), nullable=False)
     role: Mapped[str] = mapped_column(
         String(20), nullable=False, default="viewer"
-    )  # ENUM: admin|manager|operator|viewer
-    tenant_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )  # ENUM: superadmin|admin|manager|operator|viewer
+    tenant_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -72,7 +72,7 @@ class User(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "role IN ('admin', 'manager', 'operator', 'viewer')",
+            "role IN ('superadmin', 'admin', 'manager', 'operator', 'viewer')",
             name="ck_users_role",
         ),
     )
@@ -93,8 +93,8 @@ class RefreshToken(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    tenant_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    tenant_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=True
     )
 
     @property

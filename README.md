@@ -342,7 +342,9 @@ make test
 | 9 | 🔐 **Auth Multi-Tenant (JWT + RBAC)** | ✅ | `docs/architecture/auth-multi-tenant-design.md` |
 | 10 | 💰 **Flujo de Caja** | 🟡 Parcial | `simulador-financiero/docs/05-flujo-caja.md` |
 | 11 | 🤖 **Agentes IA (skills)** | 🟡 Puerto diseñado | `simulador-financiero/docs/07-integracion-erp.md` |
-| 12 | 🧾 **Sales / POS** | ⬜ Futuro | — |
+| 12 | 🧾 **Sales / POS** | ✅ | `docs/manuales/manual-usuario.md#9-pos--punto-de-venta` |
+| 13 | 🏢 **Secciones / Zonas de Mesas** | ✅ | `docs/manuales/manual-usuario.md#96-mantenimiento-de-secciones` |
+| 14 | 🍽️ **Menú / Modificadores / Área de Preparación** | ✅ | `docs/manuales/manual-usuario.md#97-modificadores-del-menú` |
 
 ---
 
@@ -390,6 +392,24 @@ Base URL: `http://localhost:8000`
 | `GET` | `/api/accounting/kardex/{code}` | Kárdex de un producto |
 | `GET` | `/api/accounting/kardex/inventory/summary` | Inventario actual |
 | `POST` | `/api/accounting/kardex/warehouse-close` | Cierre de almacén |
+
+### Secciones / Zonas de Mesas
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/api/sections` | Listar secciones del tenant |
+| `POST` | `/api/sections` | Crear nueva sección |
+| `PUT` | `/api/sections/{id}` | Actualizar sección |
+| `DELETE` | `/api/sections/{id}` | Eliminar sección (sin mesas asociadas) |
+
+### Menú / Modificadores / Área de Preparación
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `POST` | `/api/menu/items` | Crear plato del menú (incluye modifiers y preparation_area) |
+| `GET` | `/api/menu/items` | Listar platos del menú del tenant (incluye preparation_area) |
+| `GET` | `/api/menu/items/{id}` | Obtener detalle de un plato con sus modifiers y preparation_area |
+| `PUT` | `/api/menu/items/{id}` | Actualizar plato (incluye modifiers y preparation_area) |
+| `DELETE` | `/api/menu/items/{id}` | Eliminar plato del menú |
+| `GET` | `/api/menu/items/{id}/modifiers` | Obtener modifiers de un plato específico |
 
 ### Configuración / Branding
 | Método | Ruta | Descripción |

@@ -94,12 +94,14 @@ async def get_current_user(
         )
 
     # ─── Validación de tenant (US-10) ────────────────────
-    tenant_id = _get_tenant_from_request(request)
-    if tenant_id is not None and user.company_id != tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this tenant",
-        )
+    # Superadmin puede acceder a cualquier tenant
+    if user.role != "superadmin":
+        tenant_id = _get_tenant_from_request(request)
+        if tenant_id is not None and user.company_id != tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this tenant",
+            )
 
     return user
 
@@ -125,11 +127,15 @@ def require_role(*allowed_roles: str):
     Factory de dependencia que restringe acceso por rol.
 
     US-03: Uso: Depends(require_role("admin", "manager"))
+    Superadmin siempre pasa cualquier restricción de rol.
     """
 
     async def _require_role(
         current_user: Annotated[User, Depends(get_current_active_user)],
     ) -> User:
+        # Superadmin tiene todos los permisos
+        if current_user.role == "superadmin":
+            return current_user
         if current_user.role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

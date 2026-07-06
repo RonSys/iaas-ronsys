@@ -1,8 +1,8 @@
 # 🚀 Guía de Inicio Rápido — IaaS-RonSys
 
-> **Versión:** 2.0  
-> **Fecha:** 2026-05-12  
-> **Sistema:** IaaS-RonSys v0.2.0 — ERP SaaS Financiero-Contable + POS  
+> **Versión:** 2.1  
+> **Fecha:** 2026-05-26  
+> **Sistema:** IaaS-RonSys v0.3.0 — ERP SaaS Financiero-Contable + POS + Restaurante  
 > **Franquicia:** El Segoviano 🐟
 
 ---

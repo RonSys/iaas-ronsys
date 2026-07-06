@@ -39,9 +39,14 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   itemName: string;
+  itemPrice?: number;
   modifiers: MenuModifier[];
   onConfirm: (selected: ModifierSelection[]) => void;
   selectedIds?: number[];
+  /** Notas/observaciones para el pedido */
+  notes?: string;
+  /** Callback cuando cambian las notas */
+  onNotesChange?: (notes: string) => void;
 }
 
 /**
@@ -70,8 +75,11 @@ export function ModifierBottomSheet({
   open,
   onOpenChange,
   itemName,
+  itemPrice,
   modifiers,
   onConfirm,
+  notes,
+  onNotesChange,
   selectedIds: _externalSelectedIds,
 }: Props) {
   // ── Ref-based selection state (avoids synchronous re-render during pointer events) ──
@@ -406,6 +414,11 @@ export function ModifierBottomSheet({
             <Drawer.Title className="text-lg font-bold text-brand-text-primary">
               {itemName}
             </Drawer.Title>
+            {itemPrice !== undefined && (
+              <p className="text-sm text-brand-text-secondary mt-1">
+                Precio base: <span className="font-semibold">S/ {itemPrice.toFixed(2)}</span>
+              </p>
+            )}
             <Drawer.Description className="text-xs text-brand-text-secondary mt-0.5">
               Personalizá tu pedido
             </Drawer.Description>
@@ -419,6 +432,23 @@ export function ModifierBottomSheet({
               <p className="text-sm text-brand-text-secondary text-center py-8">
                 Este ítem no tiene modificadores disponibles.
               </p>
+            )}
+
+            {/* ─── Notas/Observaciones (solo si se proporcionan props) ─── */}
+            {onNotesChange !== undefined && (
+              <div className="pt-2">
+                <label className="block text-xs font-medium text-brand-text-secondary mb-1">
+                  📝 Observaciones para cocina
+                </label>
+                <textarea
+                  data-vaul-no-drag
+                  value={notes ?? ""}
+                  onChange={(e) => onNotesChange(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm resize-none"
+                  rows={2}
+                  placeholder="Ej: sin cebolla, bien cocido..."
+                />
+              </div>
             )}
           </div>
 

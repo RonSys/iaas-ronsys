@@ -1,8 +1,8 @@
 # 📘 Manual de Usuario — IaaS-RonSys
 
-> **Versión:** 2.0  
-> **Fecha:** 2026-05-12  
-> **Sistema:** IaaS-RonSys v0.2.0 — ERP SaaS + POS + Cashflow  
+> **Versión:** 2.3  
+> **Fecha:** 2026-05-27  
+> **Sistema:** IaaS-RonSys v0.4.1 — ERP SaaS + POS + Restaurante  
 > **Franquicia:** El Segoviano 🐟  
 
 ---
@@ -18,6 +18,14 @@
 7. [Kárdex — Inventario](#7-kárdex--inventario)
 8. [Flujo de Caja](#8-flujo-de-caja)
 9. [POS — Punto de Venta](#9-pos--punto-de-venta)
+    - 9.1 [Abrir Turno de Caja](#91-abrir-turno-de-caja)
+    - 9.2 [Registrar una Venta](#92-registrar-una-venta)
+    - 9.3 [Campos Especializados por Tipo de Negocio](#93-campos-especializados-por-tipo-de-negocio)
+    - 9.4 [Cerrar Turno de Caja](#94-cerrar-turno-de-caja)
+    - 9.5 [Listado de Ventas](#95-listado-de-ventas)
+    - 9.6 [Mantenimiento de Secciones](#96-mantenimiento-de-secciones)
+    - 9.7 [Modificadores del Menú](#97-modificadores-del-menú)
+    - 9.8 [Área de Preparación](#98-área-de-preparación)
 10. [Settings — Personalización](#10-settings--personalización)
 11. [Gestión de Usuarios (Admin)](#11-gestión-de-usuarios-admin)
 12. [FAQ / Problemas Comunes](#12-faq--problemas-comunes)
@@ -548,7 +556,7 @@ Dependiendo del `business_type` de tu empresa, aparecen campos adicionales:
 | **Mesa #** | Número de mesa del comensal |
 | **Comensales** | Cantidad de personas en la mesa |
 | **Tipo de Orden** | En Mesa / Para Llevar / Delivery |
-| **Mesero** | Nombre del mesero que tomó el pedido |
+| **Mesero** | Nombre del mesero que tomó el pedido — se **autocompleta** automáticamente con el nombre del usuario logueado. Si se necesita otro nombre, se puede seleccionar "Otro…" y escribirlo manualmente |
 | **Propina** | Monto o porcentaje de propina (visible si `tips_enabled = true`) |
 | **Notas de Cocina** | Instrucciones especiales para la cocina |
 
@@ -582,7 +590,447 @@ Ve a **📋 Ventas** para ver el historial completo:
 - **Acciones**: ver detalle completo o anular venta
 - La anulación genera un asiento contable de reversión
 
+### 9.6 Mantenimiento de Secciones
+
+El módulo de **Secciones** permite agrupar las mesas del restaurante por zonas físicas (Terraza, Salón, VIP, Barra, etc.).
+
+> Esta funcionalidad está disponible solo para negocios de tipo **restaurante** (`business_type = restaurant`).
+
 ---
+
+#### 🎯 Escenario didáctico: \"El Segoviano\" crea sus zonas
+
+**Objetivo:** El restaurante \"El Segoviano\" tiene 3 zonas físicas: Terraza (6 mesas), Salón Principal (10 mesas) y VIP (4 mesas). Quiere registrarlas en el sistema.
+
+---
+
+#### 1️⃣ Acceder al Módulo
+
+| Opción | Ruta |
+|--------|------|
+| **Sidebar** | Haz clic en **🍽️ Secciones** |
+| **Onboarding** | Si no hay mesas ni secciones, aparece un enlace directo en la pantalla de Mesas |
+
+---
+
+#### 2️⃣ Crear una Sección — Paso a Paso
+
+**Ejemplo:** Crear la sección \"Terraza\"
+
+1. Haz clic en **+ Nueva Sección**
+2. Completa:
+
+| Campo | Valor del ejemplo | Explicación |
+|-------|------------------|-------------|
+| **Nombre** | `Terraza` | Nombre visible en todos los desplegables |
+| **Descripción** | `Mesas al aire libre, vista al mar` | Texto informativo (opcional) |
+| **Orden** | `1` | Número para ordenar en listas (menor = primero) |
+
+3. Haz clic en **Guardar**
+
+**Resultado esperado:**
+```
+✅ Sección \"Terraza\" creada correctamente
+```
+
+**Repite** para las otras zonas:
+
+| Sección | Descripción | Orden |
+|---------|-------------|:-----:|
+| `Salón Principal` | Zona interior del restaurante | 2 |
+| `VIP` | Zona exclusiva para eventos | 3 |
+
+---
+
+#### 3️⃣ Ver las Secciones Creadas
+
+En el listado de secciones verás:
+
+| # | Nombre | Mesas | Descripción | Acciones |
+|:-:|--------|:-----:|-------------|----------|
+| 1 | 🪑 Terraza | 0 | Mesas al aire libre, vista al mar | ✏️ 🗑️ |
+| 2 | 🏠 Salón Principal | 0 | Zona interior del restaurante | ✏️ 🗑️ |
+| 3 | ⭐ VIP | 0 | Zona exclusiva para eventos | ✏️ 🗑️ |
+
+La columna **Mesas** muestra cuántas mesas tiene asignadas cada sección (0 si son nuevas).
+
+---
+
+#### 4️⃣ Editar una Sección
+
+**Ejemplo:** La \"Terraza\" ahora se llamará \"Terraza al Mar\"
+
+1. Haz clic en **✏️ Editar** en la fila de \"Terraza\"
+2. Cambia el nombre a `Terraza al Mar`
+3. Haz clic en **Guardar**
+
+---
+
+#### 5️⃣ Eliminar una Sección
+
+> ⚠️ **Regla de negocio:** No se puede eliminar una sección que tenga mesas asociadas.
+
+**Caso A — Sección sin mesas (✅ permitido):**
+1. Haz clic en **🗑️ Eliminar** en una sección vacía
+2. Confirma → La sección se elimina
+
+**Caso B — Sección con mesas (🚫 bloqueado):**
+```
+❌ Error: No se puede eliminar: la sección \"Salón Principal\" tiene 10 mesa(s) asociada(s)
+```
+Solución: Reasigna o elimina las mesas de esa sección primero.
+
+---
+
+#### 6️⃣ Vincular Secciones a Mesas
+
+Al **crear** o **editar** una mesa en la pantalla **🪑 Mapa de Mesas**, aparece el campo:
+
+| Campo | Comportamiento |
+|-------|----------------|
+| **Sección** | Desplegable con TODAS las secciones registradas + opción \"Sin sección\" |
+
+**Ejemplo:** Crear mesa \"Mesa 1\" en la Terraza
+
+| Campo | Valor |
+|-------|-------|
+| Número | `1` |
+| Capacidad | `4` personas |
+| Sección | **Terraza** (seleccionar del desplegable) |
+
+**Resultado:**
+```
+Mesa #1 → Terraza  (la card muestra el badge \"Terraza\")
+```
+
+---
+
+#### 7️⃣ Filtrar Mesas por Sección
+
+En el **Mapa de Mesas**, hay un filtro desplegable en la parte superior:
+
+| Opción del filtro | Resultado |
+|-------------------|-----------|
+| `Todas las secciones` | Muestra TODAS las mesas |
+| `Terraza` | Solo mesas de la Terraza |
+| `Salón Principal` | Solo mesas del Salón |
+| `Sin sección` | Mesas sin sección asignada |
+
+**Ejemplo:** Seleccionar \"Terraza\" en el filtro → solo se muestran las mesas con `section_id = Terraza`
+
+---
+
+#### 🔄 Flujo completo de ejemplo
+
+```
+1. Crear sección \"Terraza\"           → ✅ Creada
+2. Crear sección \"Salón Principal\"    → ✅ Creada
+3. Crear mesa \"Mesa 1\" → sección: Terraza → ✅ Badge \"Terraza\" visible
+4. Crear mesa \"Mesa 2\" → sección: Terraza → ✅ Badge \"Terraza\" visible
+5. Crear mesa \"Mesa 3\" → sección: Salón   → ✅ Badge \"Salón Principal\" visible
+6. Filtrar por Terraza               → Se ven solo Mesa 1 y Mesa 2 ✅
+7. Intentar eliminar \"Terraza\"       → ❌ Error: tiene 2 mesas
+8. Eliminar Mesa 1 y Mesa 2          → ✅ Eliminadas
+9. Eliminar \"Terraza\"                → ✅ Eliminada
+```
+
+![Placeholder: Captura del listado de secciones con 3 secciones]
+
+
+
+### 9.7 Modificadores del Menú
+
+Los **modificadores** son opciones adicionales que el cliente puede agregar a un plato al momento del pedido. Pueden tener costo adicional o ser gratuitos.
+
+> Esta funcionalidad está disponible solo para negocios de tipo **restaurante** (`business_type = restaurant`).
+
+---
+
+#### 🎯 Escenario didáctico: Personalizar el \"Ceviche Clásico\"
+
+**Objetivo:** El restaurante ofrece un Ceviche Clásico a S/28. El cliente quiere:
+- Agregar **conchas negras** (+S/5)
+- Que NO lleve **cebolla** (S/0, pedido especial)
+- **Bien fresco** (observación para cocina)
+
+El cocinero debe ver en su pantalla: `Ceviche Clásico | Conchas negras, Sin cebolla | 📝 Bien fresco`
+
+---
+
+#### 1️⃣ Crear el Plato con sus Modificadores
+
+Ve a **🍽️ Menú → + Nuevo Ítem**
+
+| Campo | Valor |
+|-------|-------|
+| Nombre | `Ceviche Clásico` |
+| Categoría | `Entradas` |
+| Precio | `28.00` |
+| Tipo | `Plato` |
+| Área de preparación | `🍳 Cocina` |
+
+**Agrega los modificadores uno por uno:**
+
+| # | Nombre | Precio adicional | Máx selección | Grupo |
+|:-:|--------|:----------------:|:-------------:|-------|
+| 1 | `Conchas negras` | S/ 5.00 | 3 | *(vacío)* |
+| 2 | `Sin cebolla` | S/ 0.00 | 1 | *(vacío)* |
+| 3 | `Extra queso` | S/ 3.00 | 1 | *(vacío)* |
+| 4 | `Término medio` | S/ 0.00 | 1 | `Cocción` |
+| 5 | `Bien cocido` | S/ 0.00 | 1 | `Cocción` |
+| 6 | `Poco cocido` | S/ 0.00 | 1 | `Cocción` |
+
+**Explicación de los grupos:**
+- **Conchas negras** (máx 3) → Contador +/− en el modal, el cliente elige cuántas
+- **Sin cebolla** (máx 1) → Checkbox, se marca o no
+- **Cocción** (mismo grupo) → Radios 🔘, solo se puede elegir UNA opción
+
+> 💡 Los modificadores con el **mismo nombre de grupo** se convierten en radios (excluyente). Los sin grupo son checkboxes o contadores.
+
+---
+
+#### 2️⃣ Ver los Modificadores en el Listado
+
+En el listado del menú, el plato muestra:
+```
+Ceviche Clásico · S/ 28.00 · + 6 modificador(es)
+```
+
+---
+
+#### 3️⃣ Tomar Pedido con Modificadores
+
+**Flujo en la mesa:**
+
+1. Mesa ocupada → click en **🍽️ Tomar Pedido**
+2. Buscar \"Ceviche Clásico\" en el menú
+3. Click en el plato → se abre el **ModifierBottomSheet**:
+
+```
+┌──────────────────────────────────────┐
+│  Ceviche Clásico                      │
+│  Precio base: S/ 28.00                │
+│  Personalizá tu pedido                │
+├──────────────────────────────────────┤
+│  ☐ Conchas negras (+S/ 5.00)          │  ← Checkbox
+│  ☐ Sin cebolla                        │  ← Checkbox (sin costo)
+│  ☐ Extra queso (+S/ 3.00)             │  ← Checkbox
+│                                        │
+│  Elegí una opción                      │
+│  ○ Término medio                       │  ← Radio (grupo \"Cocción\")
+│  ○ Bien cocido                         │  ← Radio
+│  ○ Poco cocido                         │  ← Radio
+│                                        │
+│  📝 Observaciones para cocina          │  ← Campo de texto
+│  [Bien fresco                    ]    │
+│                                        │
+│  Ajuste por modificadores: +S/ 5.00   │
+├──────────────────────────────────────┤
+│  [     Agregar al pedido     ]        │
+└──────────────────────────────────────┘
+```
+
+4. El mesero marca:
+   - ✅ Conchas negras (+S/5.00)
+   - ✅ Sin cebolla (S/0.00)
+   - ✅ Término medio
+   - Escribe: \"Bien fresco\"
+5. Click en **Agregar al pedido**
+
+---
+
+#### 4️⃣ Ver el Item en el Resumen del Pedido
+
+En la pantalla de la mesa, el pedido muestra:
+```
+📋 Pedido Actual
+  1x Ceviche Clásico (Conchas negras, Término medio) +S/5.00 mods
+                                        S/ 33.00
+  ─────────────────────────────────────────────
+  TOTAL                               S/ 33.00
+```
+
+---
+
+#### 5️⃣ Enviar a Cocina
+
+Click en **📨 Enviar a Cocina** → el cocinero ve:
+```
+┌──────────────────────────────────────┐
+│  Mesa #5 · 2 comensales              │
+│  🧑 Mesero 1                         │
+├──────────────────────────────────────┤
+│  1x Ceviche Clásico                   │
+│  Conchas negras, Término medio       │
+│  📝 Bien fresco                       │
+└──────────────────────────────────────┘
+```
+
+**Nota:** Los modificadores con costo aparecen igual que los gratuitos — la cocina solo ve nombres y cantidades, sin precios.
+
+---
+
+#### 🧪 Casos adicionales de ejemplo
+
+| Plato | Modificador | Costo | Tipo en UI |
+|-------|-------------|:-----:|------------|
+| Lomo Saltado | Extra salsa | S/ 0.00 | Checkbox |
+| Lomo Saltado | Papas fritas | S/ 4.00 | Checkbox |
+| Pizza | Pepperoni (hasta 3) | S/ 5.00 c/u | Contador +/− |
+| Pizza | Tamaño: Personal/Mediana/Familiar | S/ 0.00 | Radios 🔘 |
+| Jugo Natural | Sin azúcar | S/ 0.00 | Checkbox |
+| Jugo Natural | Con hielo/Sin hielo | S/ 0.00 | Radios 🔘 |
+
+---
+
+#### 🔄 Flujo completo de ejemplo
+
+```
+1. Crear plato \"Ceviche Clásico\" S/28       → ✅ Creado
+2. Agregar modificador \"Conchas negras\" +5   → ✅ Agregado
+3. Agregar modificador \"Sin cebolla\" S/0     → ✅ Agregado
+4. Agregar grupo \"Cocción\" con 3 opciones    → ✅ Grupo creado
+5. Abrir mesa → Tomar Pedido → Click plato   → ✅ Modal con modificadores
+6. Seleccionar: Conchas + Sin cebolla + TM   → ✅ Ajuste: +S/5.00
+7. Escribir: \"Bien fresco\"                   → ✅ Nota guardada
+8. Agregar al pedido → Ver resumen           → ✅ Total: S/33.00
+9. Enviar a cocina                           → ✅ Cocinero ve todo
+```
+
+![Placeholder: Captura del formulario de creación de plato con modificadores]
+
+
+
+### 9.8 Área de Preparación
+
+> 🍽️ Esta funcionalidad está disponible solo para negocios de tipo **restaurante** (`business_type = restaurant`).
+
+El **Área de Preparación** determina qué platos aparecen en el kanban de cocina y cuáles pasan directamente a barra o se entregan sin preparación.
+
+---
+
+#### 🎯 Escenario didáctico: Organizar el menú por áreas
+
+**Objetivo:** El restaurante \"El Segoviano\" tiene 3 tipos de productos:
+
+| Tipo | Ejemplo | ¿Se prepara en cocina? | ¿Va al kanban? |
+|------|---------|:----------------------:|:--------------:|
+| 🍳 **Platos** | Ceviche, Lomo Saltado | ✅ Sí, el cocinero lo prepara | ✅ Mostrar |
+| 🍸 **Bebidas de barra** | Gaseosa, Cerveza | ❌ No, se sirven directo | ❌ Ocultar |
+| 📦 **Productos** | Galletas, Snacks empaquetados | ❌ No, se entregan cerrados | ❌ Ocultar |
+
+---
+
+#### 1️⃣ Configurar el Área al Crear un Ítem
+
+Al **crear** o **editar** un ítem en **🍽️ Menú**, aparece el campo:
+
+| Valor | Significado | ¿Se ve en cocina? |
+|-------|-------------|:-----------------:|
+| 🍳 **Cocina** | El plato requiere preparación del cocinero | ✅ Sí |
+| 🍸 **Barra** | Bebida o trago que se sirve sin pasar por cocina | ❌ No |
+| 📦 **Ninguno** | Producto empaquetado, venta directa | ❌ No |
+
+**Ejemplos de configuración:**
+
+| Ítem | Tipo | Área de preparación | Resultado |
+|------|:----:|:-------------------:|-----------|
+| `Ceviche Clásico` | food | 🍳 **Cocina** | ✅ Visible en cocina |
+| `Lomo Saltado` | food | 🍳 **Cocina** | ✅ Visible en cocina |
+| `Coca Cola` | beverage | 🍸 **Barra** | ❌ Oculta en cocina |
+| `Cerveza Artesanal` | beverage | 🍸 **Barra** | ❌ Oculta en cocina |
+| `Galleta Empacada` | food | 📦 **Ninguno** | ❌ Oculta en cocina |
+| `Papas Fritas Bolsa` | food | 📦 **Ninguno** | ❌ Oculta en cocina |
+
+![Placeholder: Captura del campo \"Área de preparación\" con las 3 opciones]
+
+---
+
+#### 2️⃣ Comparativa: Antes vs Ahora
+
+**Antes** (solo `item_type`):
+```
+Los jugos naturales (item_type=beverage) se ocultaban de cocina
+Incluso si necesitaban preparación (exprimir naranjas)
+```
+
+**Ahora** (con `preparation_area`):
+```
+Jugo Natural → item_type=beverage → preparation_area=🍳cocina  ✅ Visible
+Coca Cola    → item_type=beverage → preparation_area=🍸barra   ❌ Oculta
+
+¡Cada item decide independientemente de su tipo!
+```
+
+---
+
+#### 3️⃣ ¿Qué pasa con los ítems antiguos (legacy)?
+
+Los ítems creados antes de esta funcionalidad NO tienen `preparation_area`. El sistema usa una **regla de compatibilidad**:
+
+```
+Si preparation_area está vacío → usa el fallback antiguo:
+  - Si item_type = \"beverage\" → se OCULTA de cocina
+  - Si item_type ≠ \"beverage\" → se MUESTRA en cocina
+```
+
+| Escenario | item_type | preparation_area | ¿Visible? |
+|-----------|:---------:|:----------------:|:---------:|
+| Plato legacy (no se tocó) | food | *(vacío)* | ✅ Sí (fallback) |
+| Bebida legacy (no se tocó) | beverage | *(vacío)* | ❌ No (fallback) |
+| Plato nuevo configurado | food | cocina | ✅ Sí |
+| Bebida reconfigurada | beverage | cocina | ✅ Sí (¡forzado!) |
+
+---
+
+#### 4️⃣ Verificar en el Kanban de Cocina
+
+**Escenario:** Un cliente pide:
+- 1x Ceviche Clásico (🍳 cocina)
+- 1x Lomo Saltado (🍳 cocina)
+- 2x Coca Cola (🍸 barra)
+- 1x Galleta (📦 ninguno)
+
+**Lo que ve el cocinero:**
+```
+┌──────────────────────────────────────┐
+│  ⏳ Pendientes (2)                    │
+├──────────────────────────────────────┤
+│  Mesa #5 · 4 comensales               │
+│  🧑 Mesero 1                          │
+│                                      │
+│  1x Ceviche Clásico                  │  ← ✅ SE MUESTRA (cocina)
+│  1x Lomo Saltado                     │  ← ✅ SE MUESTRA (cocina)
+└──────────────────────────────────────┘
+
+# Las Coca Cola y Galleta NO aparecen
+# El cocinero solo ve lo que debe cocinar
+```
+
+**Lo que NO ve el cocinero** (se sirven directo):
+```
+❌ 2x Coca Cola  → preparation_area = barra  (va a barra)
+❌ 1x Galleta    → preparation_area = none   (se entrega directo)
+```
+
+---
+
+#### 🔄 Flujo completo de ejemplo
+
+```
+1. Crear \"Ceviche Clásico\" → área: 🍳 Cocina     ✅
+2. Crear \"Lomo Saltado\"   → área: 🍳 Cocina     ✅
+3. Crear \"Coca Cola\"      → área: 🍸 Barra      ✅
+4. Crear \"Galleta\"        → área: 📦 Ninguno    ✅
+5. Crear pedido con los 4 items                  ✅
+6. Enviar a cocina                                ✅
+7. Cocina muestra: Ceviche + Lomo (2 items)       ✅
+8. Cocina NO muestra: Coca Cola + Galleta (0)     ✅
+```
+
+![Placeholder: Captura del kanban de cocina filtrando solo área \"Cocina\"]
+
+
 
 ## 10. Settings — Personalización
 
@@ -722,5 +1170,5 @@ Filtros disponibles: por rol, por estado (activo/inactivo), búsqueda por texto.
 
 ---
 
-> IaaS-RonSys · El Segoviano · v0.1.0  
+> IaaS-RonSys · El Segoviano · v0.3.0 🐟  
 > *"Simula. Analiza. Decide. — Todo en un solo lugar"*

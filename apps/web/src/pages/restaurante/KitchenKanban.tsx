@@ -31,6 +31,8 @@ interface KitchenOrderItem {
   menu_item_id: number;
   name: string;
   quantity: number;
+  item_type?: string;
+  preparation_area?: string;
   modifiers_applied?: string[];
   modifiers?: Array<{ id?: number; name?: string; price_adjustment?: number }>;
   notes?: string;
@@ -50,6 +52,8 @@ interface TakeawayKitchenOrder {
 interface TakeawayKitchenItem {
   name: string;
   quantity: number;
+  item_type?: string;
+  preparation_area?: string;
   modifiers?: Array<{ id?: number; name?: string; price_adjustment?: number }>;
 }
 
@@ -251,14 +255,14 @@ export function KitchenKanban() {
                       } ${timerClass}`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold">
-                          {order.table_number ?? `Mesa ${order.table_id}`}
+                        <span className="text-sm font-extrabold text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded-lg">
+                          Mesa {order.table_number ?? order.table_id}
                         </span>
                         <span className="text-xs text-brand-text-secondary">
                           {minutes} min
                         </span>
                       </div>
-                      {order.items.map((item, i) => (
+                      {order.items.filter((i: KitchenOrderItem) => i.preparation_area === "cocina" || (!i.preparation_area && i.item_type !== "beverage")).map((item, i) => (
                         <div key={i} className="text-sm">
                           <span className="font-medium">{item.quantity}x</span>{" "}
                           {item.name}
@@ -368,7 +372,7 @@ export function KitchenKanban() {
                               </span>
                             )}
                           </div>
-                          {order.items.map((item, i) => (
+                          {order.items.filter((i: any) => i.preparation_area === "cocina" || (!i.preparation_area && i.item_type !== "beverage")).map((item, i) => (
                             <div key={i} className="text-sm">
                               <span className="font-medium">{item.quantity}x</span>{" "}
                               {item.name}
@@ -437,7 +441,7 @@ export function KitchenKanban() {
             </h3>
             <p className="text-sm text-brand-text-secondary mb-3">
               ¿Por qué se cancela la comanda de la{" "}
-              {cancelOrder.table_number ?? `Mesa ${cancelOrder.table_id}`}?
+              Mesa {cancelOrder.table_number ?? cancelOrder.table_id}?
             </p>
             <textarea
               value={cancelReason}

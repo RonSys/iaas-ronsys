@@ -126,14 +126,18 @@ async def login(
     user.last_login_at = datetime.now(UTC)
 
     # Crear tokens
-    access_token = create_access_token(
-        {
-            "sub": str(user.id),
-            "company_id": user.company_id,
-            "role": user.role,
-            "email": user.email,
-        }
-    )
+    token_payload = {
+        "sub": str(user.id),
+        "company_id": user.company_id,
+        "role": user.role,
+        "email": user.email,
+        "name": user.full_name,
+    }
+    # Superadmin no tiene tenant fijo — el JWT lo refleja
+    if user.role == "superadmin":
+        token_payload["company_id"] = None
+
+    access_token = create_access_token(token_payload)
 
     refresh_value = generate_refresh_token_value()
     refresh_hash = hash_refresh_token(refresh_value)
@@ -141,7 +145,7 @@ async def login(
 
     refresh_record = RefreshToken(
         user_id=user.id,
-        tenant_id=user.company_id,
+        tenant_id=user.company_id,  # Puede ser None para superadmin
         token_hash=refresh_hash,
         expires_at=expires_at,
         created_by_ip=request.client.host if request.client else None,
@@ -243,14 +247,17 @@ async def refresh(
     result = await db.execute(select(User).where(User.id == rt.user_id))
     user = result.scalar_one()
 
-    access_token = create_access_token(
-        {
-            "sub": str(user.id),
-            "company_id": user.company_id,
-            "role": user.role,
-            "email": user.email,
-        }
-    )
+    rt_payload = {
+        "sub": str(user.id),
+        "company_id": user.company_id,
+        "role": user.role,
+        "email": user.email,
+        "name": user.full_name,
+    }
+    if user.role == "superadmin":
+        rt_payload["company_id"] = None
+
+    access_token = create_access_token(rt_payload)
 
     return TokenResponse(
         access_token=access_token,

@@ -92,6 +92,9 @@ class Account(Base):
     """
 
     __tablename__ = "accounts"
+    __table_args__ = (
+        UniqueConstraint('code', name='uq_accounts_code'),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False, index=True)
