@@ -142,9 +142,8 @@ describe("PosSessionStatus", () => {
       />,
     );
     expect(screen.getByText("Caja Abierta")).toBeInTheDocument();
-    expect(screen.getByText("S/ 500")).toBeInTheDocument();
-    // fmtCurrency rounds 1250.5 → S/ 1,251 (maxFractionDigits: 0)
-    expect(screen.getByText("S/ 1,251")).toBeInTheDocument();
+    expect(screen.getByText("S/ 500.00")).toBeInTheDocument();
+    expect(screen.getByText("S/ 1,250.50")).toBeInTheDocument();
     expect(screen.getByText("5")).toBeInTheDocument();
     expect(screen.getByText("🔒 Cerrar Caja")).toBeInTheDocument();
   });
@@ -163,9 +162,9 @@ describe("PosSessionClose", () => {
       />,
     );
     expect(screen.getByText("Arqueo de Caja")).toBeInTheDocument();
-    // fmtCurrency rounds 1250.5 → S/ 1,251
-    expect(screen.getByText("S/ 1,251")).toBeInTheDocument();
-    expect(screen.getByText("S/ 1,300")).toBeInTheDocument();
+    // fmtCurrency formats 1250.5 → S/ 1,250.50
+    expect(screen.getByText("S/ 1,250.50")).toBeInTheDocument();
+    expect(screen.getByText("S/ 1,300.00")).toBeInTheDocument();
     expect(screen.getByText("Confirmar Cierre")).toBeInTheDocument();
   });
 

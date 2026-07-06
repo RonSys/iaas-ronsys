@@ -95,8 +95,8 @@ class Sale(Base):
     tenant_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("companies.id"), nullable=False, index=True
     )
-    session_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("pos_sessions.id"), nullable=False, index=True
+    session_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("pos_sessions.id"), nullable=True, index=True
     )
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=False

@@ -16,6 +16,7 @@ import { SaleItemsList } from "./SaleItemsList";
 import { PaymentSection } from "./PaymentSection";
 import { RestaurantSaleFields } from "./RestaurantSaleFields";
 import { HardwareSaleFields } from "./HardwareSaleFields";
+import { SerialSelectorModal } from "./SerialSelectorModal";
 import type {
   SaleItem,
   SalePayment,
@@ -64,12 +65,29 @@ export function SaleForm({
   });
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Serial selection state (DT-F0-009)
+  const [serialModalOpen, setSerialModalOpen] = useState(false);
+  const [serialModalProductId, setSerialModalProductId] = useState<number>(0);
+  const [serialModalProductName, setSerialModalProductName] = useState("");
+  const [serialModalQuantity, setSerialModalQuantity] = useState(1);
+  const [pendingProduct, setPendingProduct] = useState<KardexProduct | null>(null);
+
+  // Track all serials already selected in current ticket
+  const alreadySelectedSerials = useMemo(
+    () => items.flatMap((item) => item.serials ?? []),
+    [items],
+  );
+
   const subtotal = useMemo(
     () => items.reduce((sum, it) => sum + it.unit_price * it.quantity, 0),
     [items],
   );
 
-  const total = useMemo(() => subtotal - discountTotal, [subtotal, discountTotal]);
+  const total = useMemo(() => {
+    const neto = subtotal - discountTotal;
+    if (taxConfig.igv_included_in_price) return neto;
+    return neto * (1 + taxConfig.igv_rate / 100);
+  }, [subtotal, discountTotal, taxConfig.igv_rate, taxConfig.igv_included_in_price]);
 
   const paid = useMemo(
     () => payments.reduce((sum, p) => sum + p.amount, 0),
@@ -78,23 +96,85 @@ export function SaleForm({
 
   const handleAddProduct = useCallback(
     (product: KardexProduct) => {
+      // If product has serials, open serial selector modal
+      if (product.has_serial && product.id) {
+        setPendingProduct(product);
+        setSerialModalProductId(product.id);
+        setSerialModalProductName(product.name);
+        setSerialModalQuantity(1);
+        setSerialModalOpen(true);
+        return;
+      }
+
+      // Determine price — check wholesale threshold
+      const retailPrice = product.unit_price ?? product.average_cost;
+      let unitPrice = retailPrice;
+      if (product.wholesale_price && product.wholesale_min_qty && 1 >= product.wholesale_min_qty) {
+        unitPrice = product.wholesale_price;
+      }
+
       const newItem: SaleItem = {
-        product_id: product.code,
+        product_id: String(product.id ?? product.code),
+        product_numeric_id: product.id,
         item_name: product.name,
         item_type: "product",
         quantity: 1,
         unit_of_measure: product.unit,
-        unit_price: product.average_cost,
+        unit_price: unitPrice,
+        retail_price: retailPrice,
+        wholesale_price: product.wholesale_price,
+        wholesale_min_qty: product.wholesale_min_qty,
         discount_pct: 0,
         discount_amount: 0,
         tax_pct: taxConfig.igv_rate,
         tax_amount: 0,
-        total: product.average_cost,
+        total: unitPrice,
       };
       setItems((prev) => [...prev, newItem]);
     },
     [taxConfig.igv_rate],
   );
+
+  /** Called when serials are confirmed in the SerialSelectorModal */
+  const handleSerialConfirm = useCallback(
+    (serials: string[]) => {
+      if (!pendingProduct) return;
+      const retailPrice = pendingProduct.unit_price ?? pendingProduct.average_cost;
+      let unitPrice = retailPrice;
+      if (pendingProduct.wholesale_price && pendingProduct.wholesale_min_qty && serials.length >= pendingProduct.wholesale_min_qty) {
+        unitPrice = pendingProduct.wholesale_price;
+      }
+
+      const newItem: SaleItem = {
+        product_id: String(pendingProduct.id ?? pendingProduct.code),
+        product_numeric_id: pendingProduct.id,
+        item_name: pendingProduct.name,
+        item_type: "product",
+        quantity: serials.length,
+        unit_of_measure: pendingProduct.unit,
+        unit_price: unitPrice,
+        retail_price: retailPrice,
+        wholesale_price: pendingProduct.wholesale_price,
+        wholesale_min_qty: pendingProduct.wholesale_min_qty,
+        discount_pct: 0,
+        discount_amount: 0,
+        tax_pct: taxConfig.igv_rate,
+        tax_amount: 0,
+        total: unitPrice * serials.length,
+        serials,
+      };
+      setItems((prev) => [...prev, newItem]);
+      setSerialModalOpen(false);
+      setPendingProduct(null);
+    },
+    [pendingProduct, taxConfig.igv_rate],
+  );
+
+  /** Cancel serial selection */
+  const handleSerialCancel = useCallback(() => {
+    setSerialModalOpen(false);
+    setPendingProduct(null);
+  }, []);
 
   const handleUpdateItem = useCallback(
     (index: number, updates: Partial<SaleItem>) => {
@@ -102,8 +182,17 @@ export function SaleForm({
         prev.map((item, i) => {
           if (i !== index) return item;
           const updated = { ...item, ...updates };
-          updated.total = updated.unit_price * updated.quantity;
-          updated.tax_amount = updated.total * taxConfig.igv_rate;
+          // Recalculate unit_price based on wholesale threshold when quantity changes
+          if (updates.quantity !== undefined) {
+            const newQty = updates.quantity;
+            if (item.wholesale_price && item.wholesale_min_qty && newQty >= item.wholesale_min_qty) {
+              updated.unit_price = item.wholesale_price;
+            } else {
+              updated.unit_price = item.retail_price ?? item.unit_price;
+            }
+          }
+          updated.total = updated.unit_price * (updates.quantity ?? item.quantity);
+          updated.tax_amount = updated.total * (taxConfig.igv_rate / 100);
           return updated;
         }),
       );
@@ -254,6 +343,17 @@ export function SaleForm({
           )}
         </button>
       </div>
+
+      {/* Serial Selector Modal (DT-F0-009) */}
+      <SerialSelectorModal
+        isOpen={serialModalOpen}
+        productId={serialModalProductId}
+        productName={serialModalProductName}
+        quantity={serialModalQuantity}
+        alreadySelectedSerials={alreadySelectedSerials}
+        onConfirm={handleSerialConfirm}
+        onCancel={handleSerialCancel}
+      />
     </div>
   );
 }

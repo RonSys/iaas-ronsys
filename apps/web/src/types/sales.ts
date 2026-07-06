@@ -56,6 +56,8 @@ export type InvoiceType = "boleta" | "factura";
 export interface SaleItem {
   id?: number;
   product_id: string | null;
+  /** Numeric product ID for serial operations */
+  product_numeric_id?: number;
   item_name: string;
   item_type: "product" | "service" | "combo";
   quantity: number;
@@ -68,6 +70,14 @@ export interface SaleItem {
   total: number;
   kitchen_notes?: string;
   kardex_movement_id?: number;
+  /** Seriales seleccionados para este item (DT-F0-009) */
+  serials?: string[];
+  /** Precio retail original (para restaurar al bajar cantidad) */
+  retail_price?: number;
+  /** Precio mayorista (si aplica) */
+  wholesale_price?: number;
+  /** Cantidad mínima para precio mayorista */
+  wholesale_min_qty?: number;
 }
 
 export interface SalePayment {

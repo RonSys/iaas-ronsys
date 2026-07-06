@@ -80,7 +80,7 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
           />
           <SidebarItem
             icon="🛒"
-            label="Facturación"
+            label="Nueva Venta"
             path="/ventas/nueva"
             onClick={onMobileClose}
           />
@@ -144,6 +144,12 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
             icon="📊"
             label="Kárdex"
             path="/inventario/kardex"
+            onClick={onMobileClose}
+          />
+          <SidebarItem
+            icon="📦"
+            label="Productos"
+            path="/inventario/productos"
             onClick={onMobileClose}
           />
           <SidebarItem

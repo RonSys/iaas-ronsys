@@ -9,5 +9,6 @@ from app.adapters.db.models.accounting import (  # noqa: F401
     KardexMovement,
     Product,
     ProductCategory,
+    ProductUnit,
 )
 from app.adapters.db.models.simulator import Scenario  # noqa: F401

@@ -100,6 +100,7 @@ export interface FinancialReportResponse {
 // ─── Kárdex ──────────────────────────────────────────────
 
 export interface KardexProduct {
+  id?: number;
   code: string;
   name: string;
   unit: string;
@@ -118,6 +119,12 @@ export interface KardexProduct {
   category_id?: number | null;
   /** Nombre de categoría (join) */
   category_name?: string | null;
+  /** Flag de control por seriales */
+  has_serial?: boolean;
+  /** Seriales disponibles (para POS) */
+  serial_available_count?: number;
+  /** Seriales totales */
+  serial_total_count?: number;
 }
 
 export interface KardexRecord {

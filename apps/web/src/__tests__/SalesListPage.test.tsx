@@ -114,8 +114,8 @@ describe("SalesListPage", () => {
   it("shows total amounts", async () => {
     render(<BrowserRouter><SalesListPage /></BrowserRouter>);
     await waitFor(() => {
-      expect(screen.getByText("S/ 118")).toBeInTheDocument();
-      expect(screen.getByText("S/ 236")).toBeInTheDocument();
+      expect(screen.getByText("S/ 118.00")).toBeInTheDocument();
+      expect(screen.getByText("S/ 236.00")).toBeInTheDocument();
     });
   });
 });

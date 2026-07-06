@@ -79,6 +79,9 @@ const KardexPage = lazy(() =>
 const CategoriesPage = lazy(() =>
   import("@/pages/ferreteria/CategoriesPage").then((m) => ({ default: m.CategoriesPage })),
 );
+const ProductsPage = lazy(() =>
+  import("@/pages/inventario/ProductsPage").then((m) => ({ default: m.ProductsPage })),
+);
 
 // Finanzas
 const CashflowPage = lazy(() =>
@@ -296,6 +299,16 @@ function AppRoutes() {
             <PrivateRoute>
               <SuspendedPage title="Kárdex">
                 <KardexPage />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/inventario/productos"
+          element={
+            <PrivateRoute>
+              <SuspendedPage title="Productos">
+                <ProductsPage />
               </SuspendedPage>
             </PrivateRoute>
           }

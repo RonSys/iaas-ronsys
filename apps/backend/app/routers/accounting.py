@@ -21,6 +21,7 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_, select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.db.database import get_db
@@ -471,35 +472,104 @@ async def kardex_exit(tenant_id: Annotated[int, Depends(get_tenant_id)], current
 
 
 @kardex_router.get("/{product_code}", response_model=list[KardexRecordResponse])
-async def get_kardex(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)], product_code: str):
-    """Kárdex completo de un producto (historial de movimientos)."""
+async def get_kardex(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    product_code: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Kárdex completo de un producto (historial de movimientos).
+
+    Busca primero en el motor in-memory (restaurant). Si no existe,
+    consulta la tabla products + kardex_movements en BD (ferretería).
+    """
+    from app.adapters.db.models.accounting import Product as ProductModel, KardexMovement
+
     try:
         _kardex_engine.get_product(product_code)
+        # Existe en simulador → usar motor in-memory (restaurant)
+        records = _kardex_engine.get_kardex(product_code)
+        return [
+            KardexRecordResponse(
+                product_code=r.product_code,
+                movement_type=r.movement_type.value,
+                concept=r.concept,
+                quantity=r.quantity,
+                unit_cost=r.unit_cost,
+                total=r.total,
+                balance_quantity=r.balance_quantity,
+                balance_avg_cost=r.balance_avg_cost,
+                balance_total=r.balance_total,
+                date=r.date_,
+            )
+            for r in records
+        ]
     except KeyError:
+        pass  # No encontrado en simulador, buscar en DB
+
+    # Buscar en BD (ferretería u otros business_type con productos reales)
+    conditions = [
+        ProductModel.tenant_id == tenant_id,
+        ProductModel.active == True,
+    ]
+    if product_code.isdigit():
+        conditions.append(
+            or_(ProductModel.code == product_code, ProductModel.id == int(product_code))
+        )
+    else:
+        conditions.append(ProductModel.code == product_code)
+
+    result = await db.execute(sa_select(ProductModel).where(*conditions))
+    product_db = result.scalar_one_or_none()
+
+    if not product_db:
         raise HTTPException(404, f"Producto {product_code} no encontrado")
 
-    records = _kardex_engine.get_kardex(product_code)
+    # Obtener movimientos ordenados cronológicamente
+    move_result = await db.execute(
+        sa_select(KardexMovement)
+        .where(KardexMovement.product_id == product_db.id)
+        .order_by(KardexMovement.date.asc(), KardexMovement.id.asc())
+    )
+    movements = move_result.scalars().all()
+
     return [
         KardexRecordResponse(
-            product_code=r.product_code,
-            movement_type=r.movement_type.value,
-            concept=r.concept,
-            quantity=r.quantity,
-            unit_cost=r.unit_cost,
-            total=r.total,
-            balance_quantity=r.balance_quantity,
-            balance_avg_cost=r.balance_avg_cost,
-            balance_total=r.balance_total,
-            date=r.date_,
+            product_code=product_code,
+            movement_type=m.movement_type,
+            concept=m.concept,
+            quantity=float(m.quantity),
+            unit_cost=float(m.unit_cost),
+            total=float(m.total),
+            balance_quantity=float(m.balance_quantity),
+            balance_avg_cost=float(m.balance_avg_cost),
+            balance_total=float(m.balance_total),
+            date=m.date,
         )
-        for r in records
+        for m in movements
     ]
 
 
 @kardex_router.get("/inventory/summary", response_model=list[KardexProductResponse])
-async def get_inventory_summary(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)]):
-    """Resumen del inventario actual (todos los productos activos)."""
-    return [
+async def get_inventory_summary(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Resumen del inventario actual (todos los productos activos).
+
+    Combina productos del motor in-memory (restaurant) con productos de
+    la tabla products en BD (ferretería). Los productos del simulador
+    tienen prioridad para evitar duplicados.
+    """
+    from app.adapters.db.models.accounting import Product as ProductModel
+
+    # Productos del simulador (restaurant) — tienen prioridad sobre DB
+    simulator_codes: set[str] = {
+        p.code for p in _kardex_engine.products.values() if p.active
+    }
+
+    result: list[KardexProductResponse] = [
         KardexProductResponse(
             code=p.code,
             name=p.name,
@@ -511,6 +581,33 @@ async def get_inventory_summary(tenant_id: Annotated[int, Depends(get_tenant_id)
         for p in _kardex_engine.products.values()
         if p.active
     ]
+
+    # Agregar productos DB que NO estén duplicados en el simulador
+    db_result = await db.execute(
+        sa_select(ProductModel).where(
+            ProductModel.tenant_id == tenant_id,
+            ProductModel.active == True,
+        )
+    )
+    db_products = db_result.scalars().all()
+
+    for p_db in db_products:
+        code = p_db.code or str(p_db.id)
+        if code not in simulator_codes:
+            result.append(
+                KardexProductResponse(
+                    code=code,
+                    name=p_db.name,
+                    unit=p_db.unit_of_measure,
+                    current_stock=float(p_db.current_stock),
+                    average_cost=float(p_db.average_cost),
+                    total_value=round(
+                        float(p_db.current_stock) * float(p_db.average_cost), 2
+                    ),
+                )
+            )
+
+    return result
 
 
 @kardex_router.post("/warehouse-close", response_model=WarehouseCloseResponse)

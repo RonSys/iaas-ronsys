@@ -1,5 +1,11 @@
 """
-📦 Inventory Router — Categorías de productos (F0-009) + Productos con categorías.
+📦 Inventory Router — Categorías, Productos y Seriales (F0-009).
+
+Endpoints:
+  - HU-F0-009-01: Categorías con CRUD extendido + árbol jerárquico
+  - HU-F0-009-02: Productos CRUD con búsqueda, sort, barcode
+  - HU-F0-009-04: Seriales individual y batch + listado con filtros
+  - HU-F0-009-07: Valor de inventario mixto
 """
 
 from typing import Annotated
@@ -11,26 +17,37 @@ from app.adapters.db.database import get_db
 from app.core.dependencies import get_current_active_user, require_role
 from app.core.tenant import get_tenant_id
 from app.models.user import User
-from app.services.inventory_service import InventoryCategoriesService
+from app.schemas.inventory import (
+    ProductCategoryCreate,
+    ProductCategoryUpdate,
+    ProductCreate,
+    ProductUpdate,
+    SerialBatchCreate,
+    SerialCreate,
+)
+from app.services.inventory_service import (
+    InventoryCategoriesService,
+    InventoryProductsService,
+    SerialService,
+)
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["Inventario"])
 
 
 # ═══════════════════════════════════════════════════════════════
-# CATEGORIES (F0-009)
+# CATEGORIES (HU-F0-009-01)
 # ═══════════════════════════════════════════════════════════════
 
-@router.post("/categories")
+
+@router.post("/categories", status_code=status.HTTP_201_CREATED)
 async def create_category(
     tenant_id: Annotated[int, Depends(get_tenant_id)],
     current_user: Annotated[User, Depends(require_role("admin", "manager"))],
     db: Annotated[AsyncSession, Depends(get_db)],
-    body: dict,
+    body: ProductCategoryCreate,
 ):
-    name = body.get("name", "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="'name' es requerido")
-    return await InventoryCategoriesService.create_category(db, tenant_id, name)
+    """Crear categoría con description, parent_id, sort_order, active."""
+    return await InventoryCategoriesService.create_category(db, tenant_id, body)
 
 
 @router.get("/categories")
@@ -38,8 +55,13 @@ async def list_categories(
     tenant_id: Annotated[int, Depends(get_tenant_id)],
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    tree: bool = Query(False, description="Retornar estructura jerárquica anidada"),
 ):
-    return await InventoryCategoriesService.list_categories(db, tenant_id)
+    """
+    Listar categorías con product_count.
+    Si tree=true, devuelve estructura jerárquica con children anidados.
+    """
+    return await InventoryCategoriesService.list_categories(db, tenant_id, tree=tree)
 
 
 @router.patch("/categories/{category_id}")
@@ -48,12 +70,16 @@ async def update_category(
     tenant_id: Annotated[int, Depends(get_tenant_id)],
     current_user: Annotated[User, Depends(require_role("admin", "manager"))],
     db: Annotated[AsyncSession, Depends(get_db)],
-    body: dict,
+    body: ProductCategoryUpdate,
 ):
-    name = body.get("name", "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="'name' es requerido")
-    return await InventoryCategoriesService.update_category(db, category_id, tenant_id, name)
+    """
+    Actualizar categoría.
+    Soporta: name, description, parent_id, sort_order, active.
+    Valida anti-ciclos en parent_id.
+    """
+    return await InventoryCategoriesService.update_category(
+        db, category_id, tenant_id, body
+    )
 
 
 @router.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -63,13 +89,29 @@ async def delete_category(
     current_user: Annotated[User, Depends(require_role("admin"))],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    """
+    Eliminar categoría (soft-delete).
+    Rechaza con 409 si tiene productos activos asignados.
+    """
     await InventoryCategoriesService.delete_category(db, category_id, tenant_id)
     return None
 
 
 # ═══════════════════════════════════════════════════════════════
-# PRODUCTS (extended with categories & wholesale)
+# PRODUCTS (HU-F0-009-02)
 # ═══════════════════════════════════════════════════════════════
+
+
+@router.post("/products", status_code=status.HTTP_201_CREATED)
+async def create_product(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(require_role("admin", "manager"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: ProductCreate,
+):
+    """Crear producto con precios, seriales, garantía."""
+    return await InventoryProductsService.create_product(db, tenant_id, body)
+
 
 @router.get("/products")
 async def list_products(
@@ -79,58 +121,220 @@ async def list_products(
     category: str | None = Query(None, description="Filtrar por nombre de categoría"),
     category_id: int | None = Query(None, description="Filtrar por ID de categoría"),
     search: str | None = Query(None, description="Búsqueda por nombre o código"),
+    barcode: str | None = Query(None, description="Búsqueda exacta por código de barras"),
     active: bool | None = Query(None),
+    has_serial: bool | None = Query(None, description="Filtrar por control de seriales"),
+    sort_by: str = Query("name", description="Campo de ordenación: name, retail_price, current_stock, code"),
+    order: str = Query("asc", description="Dirección: asc o desc"),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
-    from sqlalchemy import text as sa_text
-
-    where_clauses = ["p.tenant_id = :tenant_id"]
-    params: dict = {"tenant_id": tenant_id, "limit": limit, "offset": offset}
-
-    if category:
-        where_clauses.append("pc.name = :category")
-        params["category"] = category
-    if category_id is not None:
-        where_clauses.append("p.category_id = :category_id")
-        params["category_id"] = category_id
-    if active is not None:
-        where_clauses.append("p.active = :active")
-        params["active"] = active
-    if search:
-        where_clauses.append("(p.name ILIKE :search OR p.code ILIKE :search)")
-        params["search"] = f"%{search}%"
-
-    where_sql = " AND ".join(where_clauses)
-
-    stmt = sa_text(
-        f"SELECT p.id, p.tenant_id, p.code, p.name, p.description, "
-        f"p.unit_of_measure, p.current_stock, p.average_cost, "
-        f"p.category_id, pc.name as category_name, "
-        f"p.retail_price, p.wholesale_price, p.wholesale_min_qty, p.barcode, p.active "
-        f"FROM products p "
-        f"LEFT JOIN product_categories pc ON pc.id = p.category_id "
-        f"WHERE {where_sql} "
-        f"ORDER BY p.name "
-        f"LIMIT :limit OFFSET :offset"
+    """
+    Listar productos con filtros avanzados y ordenación server-side.
+    Soporta búsqueda por barcode exacto.
+    """
+    return await InventoryProductsService.list_products(
+        db, tenant_id,
+        category=category,
+        category_id=category_id,
+        search=search,
+        barcode=barcode,
+        active=active,
+        has_serial=has_serial,
+        sort_by=sort_by,
+        order=order,
+        limit=limit,
+        offset=offset,
     )
-    result = await db.execute(stmt, params)
-    rows = result.fetchall()
 
-    from app.schemas.inventory import ProductResponse
 
-    return [
-        ProductResponse(
-            id=row[0], tenant_id=row[1],
-            code=row[2], name=row[3], description=row[4],
-            unit_of_measure=row[5],
-            current_stock=float(row[6]) if row[6] else 0,
-            average_cost=float(row[7]) if row[7] else 0,
-            category_id=row[8], category_name=row[9],
-            retail_price=float(row[10]) if row[10] else None,
-            wholesale_price=float(row[11]) if row[11] else None,
-            wholesale_min_qty=float(row[12]) if row[12] else None,
-            barcode=row[13], active=row[14],
+@router.get("/products/value")
+async def get_inventory_value(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Valor total del inventario mixto (serial + no serial).
+    - Productos con serial: cost_price de seriales disponibles
+    - Productos sin serial: current_stock * average_cost
+    """
+    from sqlalchemy import func, select, and_
+    from app.adapters.db.models.accounting import Product, ProductUnit
+
+    # Productos sin serial
+    non_serial_result = await db.execute(
+        select(
+            func.count(Product.id),
+            func.coalesce(func.sum(Product.current_stock * Product.average_cost), 0),
+        ).where(
+            Product.tenant_id == tenant_id,
+            Product.has_serial == False,  # noqa: E712
+            Product.active == True,  # noqa: E712
         )
-        for row in rows
-    ]
+    )
+    row = non_serial_result.one()
+    non_serial_count = int(row[0]) if row[0] else 0
+    non_serial_value = float(row[1]) if row[1] else 0.0
+
+    # Productos con serial: valor de seriales disponibles
+    serial_result = await db.execute(
+        select(
+            func.count(func.distinct(ProductUnit.product_id)),
+            func.coalesce(func.sum(ProductUnit.cost_price), 0),
+            func.count(ProductUnit.id),
+        ).select_from(ProductUnit).join(
+            Product, Product.id == ProductUnit.product_id
+        ).where(
+            Product.tenant_id == tenant_id,
+            Product.active == True,  # noqa: E712
+            ProductUnit.status == "available",
+        )
+    )
+    row2 = serial_result.one()
+    serial_product_count = int(row2[0]) if row2[0] else 0
+    serial_value = float(row2[1]) if row2[1] else 0.0
+    serial_units_available = int(row2[2]) if row2[2] else 0
+
+    return {
+        "serialized_products_value": round(serial_value, 2),
+        "non_serialized_products_value": round(non_serial_value, 2),
+        "total_value": round(serial_value + non_serial_value, 2),
+        "serialized_product_count": serial_product_count,
+        "non_serialized_product_count": non_serial_count,
+        "total_serial_units_available": serial_units_available,
+    }
+
+
+@router.get("/products/{product_id}")
+async def get_product(
+    product_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Obtener detalle de un producto con conteos de seriales."""
+    return await InventoryProductsService.get_product(db, product_id, tenant_id)
+
+
+@router.patch("/products/{product_id}")
+async def update_product(
+    product_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(require_role("admin", "manager"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: ProductUpdate,
+):
+    """
+    Actualizar producto.
+    Incluye validación de transiciones has_serial (HU-F0-009-07).
+    """
+    return await InventoryProductsService.update_product(
+        db, product_id, tenant_id, body
+    )
+
+
+@router.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product(
+    product_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(require_role("admin"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Soft-delete de producto."""
+    result = await InventoryProductsService.delete_product(db, product_id, tenant_id)
+    if result.get("warnings"):
+        # Devolver 200 con warnings en lugar de 204
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=200, content=result)
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════
+# SERIALS (HU-F0-009-04)
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.post("/products/{product_id}/serials", status_code=status.HTTP_201_CREATED)
+async def register_serial(
+    product_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(require_role("admin", "manager"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: SerialCreate,
+):
+    """Registrar un serial individual para un producto con has_serial=true."""
+    return await SerialService.register_serial(db, product_id, tenant_id, body)
+
+
+@router.post(
+    "/products/{product_id}/serials/batch",
+    status_code=status.HTTP_201_CREATED,
+)
+async def register_serial_batch(
+    product_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(require_role("admin", "manager"))],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: SerialBatchCreate,
+):
+    """Registro masivo de seriales (transaccional: rollback si alguno falla)."""
+    return await SerialService.register_serial_batch(db, product_id, tenant_id, body)
+
+
+@router.get("/products/{product_id}/serials")
+async def list_product_serials(
+    product_id: int,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    status_filter: str | None = Query(None, alias="status", description="Filtrar por status: available, sold, damaged"),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
+    """Listar seriales de un producto con conteo available/sold."""
+    return await SerialService.list_serials(
+        db, product_id, tenant_id,
+        status=status_filter,
+        limit=limit,
+        offset=offset,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════
+# TRACEABILITY & WARRANTY (HU-F0-009-06)
+# ═══════════════════════════════════════════════════════════════
+
+
+@router.get("/serials/warranties/expiring")
+async def get_expiring_warranties(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    days: int = Query(30, ge=1, le=365, description="Dias para alerta de vencimiento"),
+):
+    """
+    Alertas de garantia por vencer (HU-F0-009-06).
+    Seriales vendidos con warranty_expiry en los proximos N dias.
+    """
+    return await SerialService.get_expiring_warranties(db, tenant_id, days)
+
+
+@router.get("/serials/{serial_number}/traceability")
+async def get_serial_traceability(
+    serial_number: str,
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """
+    Trazabilidad completa de un serial (HU-F0-009-06).
+    Timeline de eventos: registered -> sold -> voided.
+    Incluye estado de garantia.
+    """
+    return await SerialService.get_traceability(db, serial_number, tenant_id)
+
+
+# ═══════════════════════════════════════════════════════════════
+# INVENTORY VALUE (moved before /products/{product_id} — Bug #1 fix)
+# ═══════════════════════════════════════════════════════════════

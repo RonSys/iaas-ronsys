@@ -9,6 +9,7 @@
  * @module pages/SalesNew
  */
 import { useCallback } from "react";
+import { authFetch } from "@/services/authFetch";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { SaleForm } from "@/components/sales/SaleForm";
 import { Skeleton } from "@/components/dashboard/KPICard";
@@ -34,7 +35,7 @@ export function SalesNewPage({
         await onCreateSale(sale);
       } else {
         // Default: post to API
-        const response = await fetch("/api/sales/sale", {
+        const response = await authFetch("/api/sales/sale", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(sale),
@@ -110,7 +111,7 @@ export function SalesNewPage({
                 <div className="flex justify-between">
                   <span className="text-brand-text-secondary">IGV:</span>
                   <span className="font-medium">
-                    {Math.round(taxConfig.igv_rate * 100)}%
+                    {Math.round(taxConfig.igv_rate)}%
                     {taxConfig.igv_included_in_price ? " (incl.)" : ""}
                   </span>
                 </div>

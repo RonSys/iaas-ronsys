@@ -349,7 +349,14 @@ export async function getSales(
   if (filters.page) sp.set("page", String(filters.page));
   if (filters.limit) sp.set("limit", String(filters.limit));
   const qs = sp.toString();
-  return request(`/sales/sales${qs ? `?${qs}` : ""}`);
+  const raw: any = await request(`/sales/sales${qs ? `?${qs}` : ""}`);
+  // Backend devuelve "items" pero frontend espera "sales" — normalizar
+  return {
+    sales: raw.items ?? raw.sales ?? [],
+    total: raw.total ?? 0,
+    page: raw.page ?? 1,
+    limit: raw.limit ?? 20,
+  };
 }
 
 export async function getSaleDetail(saleId: number): Promise<SaleDetail> {

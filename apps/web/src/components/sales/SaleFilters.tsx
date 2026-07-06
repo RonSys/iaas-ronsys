@@ -41,6 +41,12 @@ export function SaleFilters({ filters, onChange, loading }: SaleFiltersProps) {
     payment_method: filters.payment_method ?? "",
   });
 
+  const applyBusinessType = (bt: string) => {
+    const applied: SaleFiltersType = { page: 1, limit: filters.limit ?? 20 };
+    if (bt) applied.business_type = bt as BusinessType;
+    onChange(applied);
+  };
+
   const handleApply = (e: FormEvent) => {
     e.preventDefault();
     const applied: SaleFiltersType = { page: 1, limit: filters.limit ?? 20 };
@@ -93,7 +99,11 @@ export function SaleFilters({ filters, onChange, loading }: SaleFiltersProps) {
         </label>
         <select
           value={local.business_type}
-          onChange={(e) => setLocal((p) => ({ ...p, business_type: e.target.value }))}
+          onChange={(e) => {
+            const val = e.target.value;
+            setLocal((p) => ({ ...p, business_type: val }));
+            applyBusinessType(val);
+          }}
           disabled={loading}
           className="px-2 py-1.5 text-sm rounded-lg border border-gray-300
             focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
