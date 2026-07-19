@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: [main, fase0-real, ron/*]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r apps/backend/requirements.txt
+      - run: pip install flake8
+      - run: flake8 apps/backend/app/ --max-line-length=120
