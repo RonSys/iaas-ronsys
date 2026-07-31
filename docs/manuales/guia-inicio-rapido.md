@@ -209,6 +209,7 @@ Actualmente el sistema cuenta con un usuario **admin** con acceso total:
 
 - **Manual completo**: `manual-usuario.md` para guía detallada de cada módulo
 - **Manual de administrador**: `manual-admin.md` para gestión de usuarios y troubleshooting
+- **Recetas y Kárdex por consumo**: `guia-recetas-kardex.md` — gestión de recetas, explosión al vender y kárdex tipo `receta` (spec 01 v0.2)
 - **API Reference**: `http://localhost:8000/docs` — todos los endpoints documentados
 
 ---

@@ -63,6 +63,14 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
             path="/inversiones/reportes"
             onClick={onMobileClose}
           />
+          {user?.role === "admin" && (
+            <SidebarItem
+              icon="🏗️"
+              label="Puesta en Marcha"
+              path="/restaurante/inversion"
+              onClick={onMobileClose}
+            />
+          )}
         </SidebarSection>
 
         {/* ─── VENTAS / POS ─── */}
@@ -136,14 +144,6 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
               path="/restaurante/promociones"
               onClick={onMobileClose}
             />
-            {user?.role === "admin" && (
-              <SidebarItem
-                icon="📊"
-                label="Inversión"
-                path="/restaurante/inversion"
-                onClick={onMobileClose}
-              />
-            )}
           </SidebarSection>
         )}
 

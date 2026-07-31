@@ -185,6 +185,10 @@ class SaleItem(Base):
     product_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("products.id"), nullable=True
     )
+    # Spec 01: plato de menú vendido (para explosión de receta)
+    menu_item_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("menu_items.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     item_name: Mapped[str] = mapped_column(String(200), nullable=False)
     item_type: Mapped[str] = mapped_column(
         String(20), nullable=False, default="product"

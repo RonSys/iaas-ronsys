@@ -1495,39 +1495,61 @@ class RecipesService:
             db.add(recipe)
             await db.flush()
 
-        # Eliminar ingredientes existentes (cascade)
-        existing_ingredients = await db.execute(
-            select(RecipeIngredient).where(RecipeIngredient.recipe_id == recipe.id)
-        )
-        for ing in existing_ingredients.scalars().all():
-            await db.delete(ing)
+        # ─── F1 (QA 2026-07-31): validar TODO ANTES de sobrescribir ──
+        # 1) productos existen + pertenecen al tenant; 2) unidades coinciden (D4,
+        #    normalizando abreviaturas). Si algo falla → 400/404 sin tocar la receta.
+        from app.services.recipe_explosion import normalize_unit
 
-        # Validar productos y crear nuevos ingredientes
+        validated: list[dict] = []
         for i, ing_data in enumerate(ingredients_data):
             product_id = ing_data["product_id"]
             quantity = ing_data["quantity"]
             unit_of_measure = ing_data.get("unit_of_measure", "unidad")
             sort_order = ing_data.get("sort_order", i)
 
-            # Validar que el producto exista y pertenezca al tenant
-            product_stmt = select(Product).where(
-                Product.id == product_id,
-                Product.tenant_id == tenant_id,
+            product_result = await db.execute(
+                select(Product).where(
+                    Product.id == product_id,
+                    Product.tenant_id == tenant_id,
+                )
             )
-            product_result = await db.execute(product_stmt)
             product = product_result.scalar_one_or_none()
             if not product:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Producto #{product_id} no encontrado",
                 )
+            if normalize_unit(product.unit_of_measure) != normalize_unit(unit_of_measure):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"La unidad '{unit_of_measure}' no coincide con la unidad del "
+                        f"producto '{product.name}' ('{product.unit_of_measure}')"
+                    ),
+                )
+            validated.append({
+                "product_id": product_id,
+                "product_unit": product.unit_of_measure,
+                "quantity": quantity,
+                "unit_of_measure": product.unit_of_measure,  # canonical del producto
+                "sort_order": sort_order,
+            })
 
+        # Eliminar ingredientes existentes (cascade) — solo tras validar todo
+        existing_ingredients = await db.execute(
+            select(RecipeIngredient).where(RecipeIngredient.recipe_id == recipe.id)
+        )
+        for ing in existing_ingredients.scalars().all():
+            await db.delete(ing)
+
+        # Crear nuevos ingredientes (unidades canónicas validadas)
+        for v in validated:
             db.add(RecipeIngredient(
                 recipe_id=recipe.id,
-                product_id=product_id,
-                quantity=quantity,
-                unit_of_measure=unit_of_measure,
-                sort_order=sort_order,
+                product_id=v["product_id"],
+                quantity=v["quantity"],
+                unit_of_measure=v["unit_of_measure"],
+                sort_order=v["sort_order"],
             ))
 
         await db.flush()

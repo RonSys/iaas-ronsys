@@ -127,6 +127,16 @@ IaaS-RonSys/
 
 ---
 
+## 🧩 Funcionalidades
+
+| Funcionalidad | Descripción | Documentación |
+|---|---|---|
+| **POS + Kárdex + Contabilidad** | Venta con descuento de stock, kárdex por promedio ponderado y asiento contable automático | `docs/manuales/manual-usuario.md` |
+| **Recetas por plato (explosión)** | Recetas por plato, descuento automático de ingredientes al vender (kárdex `receta`) y costeo/margen del plato | [`docs/manuales/guia-recetas-kardex.md`](docs/manuales/guia-recetas-kardex.md) · Spec [`docs/specs/01-spec-recetas-productos-v0.2.md`](docs/specs/01-spec-recetas-productos-v0.2.md) |
+| **Multi-tenant** | Aislamiento por `X-Tenant-ID` (fallback JWT) en todos los módulos | `docs/architecture/` |
+
+---
+
 ## 🏭 Entornos
 
 IaaS-RonSys tiene **2 entornos** separados, gestionados con `deploy.sh`:

@@ -239,13 +239,18 @@ class SQLAlchemyInventoryRepository(InventoryRepository):
         return _to_product_record(p)
 
     async def get_product(self, product_code: str) -> Optional[ProductRecord]:
-        stmt = select(Product).where(Product.code == product_code)
+        stmt = select(Product).where(
+            Product.code == product_code,
+            Product.tenant_id == self.tenant_id,
+        )
         result = await self.session.execute(stmt)
         p = result.scalar_one_or_none()
         return _to_product_record(p) if p else None
 
     async def get_products(self) -> list[ProductRecord]:
-        stmt = select(Product).order_by(Product.name)
+        stmt = select(Product).where(
+            Product.tenant_id == self.tenant_id,
+        ).order_by(Product.name)
         result = await self.session.execute(stmt)
         return [_to_product_record(p) for p in result.scalars()]
 

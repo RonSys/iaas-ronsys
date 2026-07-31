@@ -54,6 +54,8 @@ class PosSessionResponse(BaseModel):
 class SaleItemCreate(BaseModel):
     """Ítem de venta a crear."""
     product_id: int | None = None
+    # Spec 01: plato de menú (para explosión de receta)
+    menu_item_id: int | None = None
     item_name: str = Field(..., min_length=1, max_length=200)
     item_type: str = Field("product", description="product | service | combo")
     quantity: float = Field(..., gt=0)
@@ -126,6 +128,8 @@ class SaleItemResponse(BaseModel):
     """Ítem de venta en respuesta."""
     id: int
     product_id: int | None = None
+    # Spec 01: plato de menú vendido
+    menu_item_id: int | None = None
     item_name: str
     item_type: str
     quantity: float

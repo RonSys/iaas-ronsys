@@ -64,6 +64,8 @@ export function RecipeModal({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // UX: feedback de éxito al guardar (se cierra solo tras confirmar)
+  const [success, setSuccess] = useState<string | null>(null);
 
   // ─── Recipe state ─────────────────────────────────────────
   const [ingredients, setIngredients] = useState<IngredientEntry[]>([]);
@@ -187,6 +189,7 @@ export function RecipeModal({
     }
     setSaving(true);
     setError(null);
+    setSuccess(null);
     try {
       await updateRecipe(menuItemId, {
         ingredients: ingredients.map((ing, idx) => ({
@@ -196,11 +199,15 @@ export function RecipeModal({
           sort_order: idx + 1,
         })),
       });
-      onSaved?.();
-      onClose();
+      // Feedback visual antes de cerrar: banner ✅ ~900ms
+      setSaving(false);
+      setSuccess("✅ Receta actualizada correctamente");
+      setTimeout(() => {
+        onSaved?.();
+        onClose();
+      }, 900);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error al guardar receta");
-    } finally {
       setSaving(false);
     }
   };
@@ -243,6 +250,11 @@ export function RecipeModal({
         </div>
 
         {/* ── Error ── */}
+        {success && (
+          <div className="p-3 mb-4 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm flex items-center gap-2">
+            {success}
+          </div>
+        )}
         {error && (
           <div className="p-3 mb-4 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
             ⚠️ {error}

@@ -303,6 +303,16 @@ class SaleService:
         if not payments_data:
             raise HTTPException(status_code=400, detail="La venta debe tener al menos un pago")
 
+        # ─── Spec 01: explosión de recetas (pre-check atómico antes de mutar) ──
+        from app.services.recipe_explosion import RecipeExplosionService
+        explosion_enabled = await RecipeExplosionService.is_enabled(db, tenant_id)
+        ingredient_demands: list[dict] = []
+        if explosion_enabled:
+            ingredient_demands = await RecipeExplosionService.precheck_and_compute_demands(
+                db, tenant_id, items_data,
+            )
+        recipe_movements: list = []
+
         # 3. Calcular totales + validar stock (kárdex)
         subtotal = 0.0
         discount_total = 0.0
@@ -485,6 +495,12 @@ class SaleService:
                 product_id = int(product_id_raw) if product_id_raw is not None else None
             except (ValueError, TypeError):
                 product_id = None
+            # Spec 01: plato de menú (para explosión de receta)
+            menu_item_id_raw = item_data.get("menu_item_id")
+            try:
+                menu_item_id = int(menu_item_id_raw) if menu_item_id_raw is not None else None
+            except (ValueError, TypeError):
+                menu_item_id = None
             item_qty = float(item_data.get("quantity", 0))
             item_price = float(item_data.get("unit_price", 0))
             item_total = float(item_data.get("total", 0))
@@ -591,6 +607,7 @@ class SaleService:
             sale_item = SaleItem(
                 sale_id=sale.id,
                 product_id=product_id,
+                menu_item_id=menu_item_id,
                 item_name=item_data.get("item_name", ""),
                 item_type=item_data.get("item_type", "product"),
                 quantity=item_qty,
@@ -607,6 +624,12 @@ class SaleService:
             sale_items_list.append(sale_item)
 
         await db.flush()
+
+        # ─── Spec 01: ejecutar explosión de recetas (misma transacción) ──
+        if explosion_enabled:
+            recipe_movements = await RecipeExplosionService.explode(
+                db, tenant_id, sale.id, sale_number, items_data, today,
+            )
 
         # 7b. HU-F0-009-05: Asignar seriales a sale_items
         for item_data in items_data:
@@ -678,7 +701,7 @@ class SaleService:
 
         # 10. HU-F2-006: Generar asiento contable automático
         entry = await SaleService._generate_journal_entry(
-            db, sale, sale_items_list, sale_payments_list, business_type
+            db, sale, sale_items_list, sale_payments_list, business_type, recipe_movements
         )
 
         if entry:
@@ -702,6 +725,7 @@ class SaleService:
         items: list[SaleItem],
         payments: list[SalePayment],
         business_type: str,
+        recipe_movements: list | None = None,
     ) -> JournalEntry | None:
         """
         HU-F2-006: Genera asiento contable automático por venta.
@@ -768,18 +792,22 @@ class SaleService:
                 "desc": f"Propinas por pagar — {sale.sale_number}"
             })
 
-        # ─── Costo de Ventas (hardware) ───
-        if business_type == "hardware":
+        # ─── Costo de Ventas (hardware + restaurant con explosión de recetas) ───
+        if business_type == "hardware" or recipe_movements:
+            total_cost = 0.0
             items_with_kardex = [i for i in items if i.kardex_movement_id]
-            if items_with_kardex:
+            for item in items_with_kardex:
                 # Sumar costos de las salidas de kárdex
-                total_cost = 0.0
-                for item in items_with_kardex:
-                    move = (await db.execute(
-                        select(KardexMovement).where(KardexMovement.id == item.kardex_movement_id)
-                    )).scalar_one_or_none()
-                    if move:
-                        total_cost += float(move.total)
+                move = (await db.execute(
+                    select(KardexMovement).where(KardexMovement.id == item.kardex_movement_id)
+                )).scalar_one_or_none()
+                if move:
+                    total_cost += float(move.total)
+
+            # ─── Spec 01 (D9): restaurant con explosión → sumar ingredientes ──
+            if recipe_movements:
+                for m in recipe_movements:
+                    total_cost += float(m.total)
 
                 if total_cost > 0:
                     lines.append({

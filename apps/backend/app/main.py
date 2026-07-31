@@ -4,6 +4,7 @@ Monolito Modular + Hexagonal (Ports & Adapters).
 """
 
 from contextlib import asynccontextmanager
+import asyncio
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,8 +34,14 @@ async def lifespan(app: FastAPI):
     """Lifespan: inicialización, migraciones DB, y apagado limpio."""
     # ─── QA-05/DEV-02: Ejecutar migraciones al arrancar ──────
     try:
-        from app.adapters.alembic.env import run_async_migrations
-        await run_async_migrations()
+        # Spec 01 (fix B1): usar alembic.command (establece el EnvironmentContext).
+        # La ruta directa a env.run_async_migrations() fallaba con
+        # "proxy object has not yet been established".
+        from alembic import command
+        from alembic.config import Config
+        cfg = Config("/app/alembic.ini")
+        cfg.set_main_option("script_location", "app/adapters/alembic")
+        await asyncio.to_thread(command.upgrade, cfg, "head")
         print("[startup] Alembic upgrade head — OK")
     except Exception as e:
         print(f"[startup] ⚠️ Alembic migration failed (non-fatal): {e}")

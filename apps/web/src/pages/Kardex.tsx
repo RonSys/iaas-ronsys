@@ -12,7 +12,7 @@
  *
  * @page Kárdex
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useKardexInventory, useKardex } from "@/hooks/useAccounting";
 import { registerKardexEntry, registerKardexExit, registerProduct } from "@/services";
 import { fmtCurrency, Skeleton } from "@/components/dashboard/KPICard";
@@ -22,6 +22,11 @@ export function KardexPage() {
   const inventory = useKardexInventory();
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const kardex = useKardex(selectedCode ?? "");
+  // Producto seleccionado — contexto de costos para el modal de Entrada
+  const selectedProduct = useMemo(
+    () => (inventory.data ?? []).find((p) => p.code === selectedCode) ?? null,
+    [inventory.data, selectedCode],
+  );
   const [showNewProduct, setShowNewProduct] = useState(false);
   const [showEntry, setShowEntry] = useState(false);
   const [showExit, setShowExit] = useState(false);
@@ -151,6 +156,7 @@ export function KardexPage() {
       {showEntry && selectedCode && (
         <KardexEntryModal
           productCode={selectedCode}
+          product={selectedProduct}
           onClose={() => setShowEntry(false)}
           onDone={() => { setShowEntry(false); kardex.refetch(); inventory.refetch(); setMessage("Entrada registrada ✅"); }}
         />
@@ -288,10 +294,12 @@ function NewProductModal({
 
 function KardexEntryModal({
   productCode,
+  product,
   onClose,
   onDone,
 }: {
   productCode: string;
+  product?: KardexProduct | null;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -299,6 +307,17 @@ function KardexEntryModal({
   const [unitCost, setUnitCost] = useState(0);
   const [concept, setConcept] = useState("Compra de insumos");
   const [loading, setLoading] = useState(false);
+
+  // Preview del nuevo promedio ponderado (misma fórmula que el backend):
+  // (stock_actual * costo_promedio + qty * costo_unitario) / (stock_actual + qty)
+  const currentStock = product?.current_stock ?? 0;
+  const currentAvg = product?.average_cost ?? 0;
+  const previewValid = qty > 0 && unitCost >= 0;
+  const estimatedNewAvg = previewValid
+    ? currentStock + qty > 0
+      ? (currentStock * currentAvg + qty * unitCost) / (currentStock + qty)
+      : unitCost
+    : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -322,6 +341,28 @@ function KardexEntryModal({
       <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
         <h3 className="font-bold text-lg mb-4">➕ Registrar Entrada — {productCode}</h3>
         <form onSubmit={handleSubmit} className="space-y-3">
+          {(product || estimatedNewAvg !== null) && (
+            <div className="rounded-lg bg-brand-primary/5 border border-brand-primary/20 p-3 text-xs space-y-1">
+              {product && (
+                <div className="flex justify-between">
+                  <span className="text-brand-text-secondary">Stock actual</span>
+                  <span className="font-semibold font-mono">{currentStock.toLocaleString()} {product.unit}</span>
+                </div>
+              )}
+              {product && (
+                <div className="flex justify-between">
+                  <span className="text-brand-text-secondary">Costo promedio actual</span>
+                  <span className="font-semibold font-mono">{fmtCurrency(currentAvg)}</span>
+                </div>
+              )}
+              {estimatedNewAvg !== null && (
+                <div className="flex justify-between border-t border-brand-primary/10 pt-1 mt-1">
+                  <span className="text-brand-text-secondary font-medium">Nuevo promedio estimado</span>
+                  <span className="font-bold font-mono text-brand-primary">{fmtCurrency(estimatedNewAvg)}</span>
+                </div>
+              )}
+            </div>
+          )}
           <div>
             <label className="text-xs font-medium text-brand-text-secondary">Cantidad</label>
             <input type="number" className="input-field" value={qty} onChange={(e) => setQty(Number(e.target.value))} min={0.01} step="0.01" required />

@@ -175,13 +175,14 @@ export async function getRatios(): Promise<RatioItem[]> {
 // ═══════════════════════════════════════════════════════════
 
 export async function getKardexInventory(): Promise<KardexProduct[]> {
-  return request("/accounting/kardex/inventory/summary");
+  // HU-F2-012: resumen desde BD (persistente, tenant-scoped)
+  return request("/accounting/kardex/db/inventory");
 }
 
 export async function getKardex(
   productCode: string,
 ): Promise<KardexRecord[]> {
-  return request(`/accounting/kardex/${encodeURIComponent(productCode)}`);
+  return request(`/accounting/kardex/db/${encodeURIComponent(productCode)}`);
 }
 
 export async function registerKardexEntry(data: {
@@ -192,7 +193,8 @@ export async function registerKardexEntry(data: {
   date: string;
   reference_type?: string;
 }): Promise<KardexRecord> {
-  return request("/accounting/kardex/entry", {
+  // HU-F2-012: entrada persistente en BD (DB-aware)
+  return request("/accounting/kardex/db/entry", {
     method: "POST",
     body: JSON.stringify(data),
   });
@@ -205,7 +207,7 @@ export async function registerKardexExit(data: {
   date: string;
   reference_type?: string;
 }): Promise<KardexRecord> {
-  return request("/accounting/kardex/exit", {
+  return request("/accounting/kardex/db/exit", {
     method: "POST",
     body: JSON.stringify(data),
   });
@@ -218,7 +220,7 @@ export async function registerProduct(data: {
   initial_stock?: number;
   initial_cost?: number;
 }): Promise<KardexProduct> {
-  return request("/accounting/kardex/products", {
+  return request("/accounting/kardex/db/products", {
     method: "POST",
     body: JSON.stringify(data),
   });
@@ -228,7 +230,7 @@ export async function warehouseClose(
   accountingBalance: number,
 ): Promise<WarehouseCloseResponse> {
   return request(
-    `/accounting/kardex/warehouse-close?accounting_balance=${accountingBalance}`,
+    `/accounting/kardex/db/warehouse-close?accounting_balance=${accountingBalance}`,
     { method: "POST" },
   );
 }

@@ -471,6 +471,55 @@ async def kardex_exit(tenant_id: Annotated[int, Depends(get_tenant_id)], current
     )
 
 
+@kardex_router.get("/products", response_model=list[KardexProductResponse])
+async def search_kardex_products(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    search: str | None = Query(None, description="Búsqueda por nombre, código o barcode"),
+    active: bool | None = Query(True, description="Solo productos activos"),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Búsqueda DB-aware de productos (tenant-scoped) para el POS.
+
+    Declarada ANTES de GET /{product_code} para que no la capture la ruta
+    dinámica (la búsqueda 'products' era absorbida por esa ruta → 404).
+    """
+    from app.adapters.db.models.accounting import Product as ProductModel
+
+    conditions = [
+        ProductModel.tenant_id == tenant_id,
+        ProductModel.active == (active if active is not None else True),
+    ]
+    if search:
+        like = f"%{search.strip()}%"
+        conditions.append(
+            or_(
+                ProductModel.name.ilike(like),
+                ProductModel.code.ilike(like),
+                ProductModel.barcode.ilike(like),
+            )
+        )
+    result = await db.execute(
+        sa_select(ProductModel)
+        .where(*conditions)
+        .order_by(ProductModel.name)
+        .limit(limit)
+    )
+    products = result.scalars().all()
+    return [
+        KardexProductResponse(
+            code=p.code,
+            name=p.name,
+            unit=p.unit_of_measure,
+            current_stock=p.current_stock,
+            average_cost=p.average_cost,
+            total_value=round(float(p.current_stock or 0) * float(p.average_cost or 0), 2),
+        )
+        for p in products
+    ]
+
+
 @kardex_router.get("/{product_code}", response_model=list[KardexRecordResponse])
 async def get_kardex(
     tenant_id: Annotated[int, Depends(get_tenant_id)],
