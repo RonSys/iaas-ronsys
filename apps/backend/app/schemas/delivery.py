@@ -148,6 +148,17 @@ class ZoneIn(BaseModel):
     active: bool = True
 
 
+class ZoneUpdate(BaseModel):
+    """PATCH parcial de zona (todos los campos opcionales)."""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    districts: Optional[list] = None
+    fee: Optional[float] = None
+    min_order: Optional[float] = None
+    eta_min: Optional[int] = None
+    active: Optional[bool] = None
+
+
 class ZoneOut(ZoneIn):
     id: int
     created_at: Optional[datetime] = None
@@ -160,6 +171,16 @@ class CourierIn(BaseModel):
     user_id: Optional[int] = None
     status: str = "available"  # available | on_delivery | offline
     active: bool = True
+
+
+class CourierUpdate(BaseModel):
+    """PATCH parcial de repartidor (todos los campos opcionales)."""
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    vehicle: Optional[str] = None
+    user_id: Optional[int] = None
+    status: Optional[str] = None
+    active: Optional[bool] = None
 
 
 class CourierOut(CourierIn):
@@ -178,6 +199,21 @@ class CampaignIn(BaseModel):
     starts_on: Optional[str] = None
     ends_on: Optional[str] = None
     active: bool = True
+    notes: Optional[str] = None
+
+
+class CampaignUpdate(BaseModel):
+    """PATCH parcial de campaña (todos los campos opcionales)."""
+    name: Optional[str] = None
+    channel: Optional[str] = None
+    utm_source: Optional[str] = None
+    utm_medium: Optional[str] = None
+    utm_campaign: Optional[str] = None
+    budget: Optional[float] = None
+    spend: Optional[float] = None
+    starts_on: Optional[str] = None
+    ends_on: Optional[str] = None
+    active: Optional[bool] = None
     notes: Optional[str] = None
 
 

@@ -368,6 +368,24 @@ GET   /api/v1/delivery/metrics/overview?from=&to=   pedidos, GMV, fee total, tie
     FAQ) y `docs/manuales/manual-admin.md` §5.3/§5.4/§10.5 (config Yape/horarios/zonas/campañas,
     endpoints).
   - **Pendiente Fase 6**: QA + deploy (`./deploy.sh --env prod`, backup `.bak-<fecha>`).
+- **2026-08-03 (Camino C — E2E Playwright + Trace Viewer)**: commit `← este`.
+  - `e2e/playwright.config.prod.ts`: config PROD (baseURL https://www.ronsyserp.com, sin
+    webServer, workers=1, trace/video/screenshot ON, `executablePath` al Chrome for Testing
+    151 del .35, `chromiumSandbox:false` por AppArmor userns=1).
+  - `e2e/delivery-landing.spec.ts` (6 tests): menú/horario, Yape 912057784, carrito+zona+fee,
+    min_order, checkout real con UTM → DLV- (se CANCELA en afterAll vía API), tracking.
+  - `e2e/delivery-staff.spec.ts` (5 tests): panel, kanban, CRUD zona, CRUD campaña con link
+    UTM, métricas. Fixture con login API 1 vez + reinyección del refresh token ROTADO
+    (single-use + family revocation) — el storageState no sirve (sessionStorage).
+  - Hallazgos corregidos en el camino: (1) Playwright no instala chromium/ffmpeg en
+    ubuntu26.04 → CfT 151 por executablePath + ffmpeg bajado del CDN de Playwright a
+    `~/.cache/ms-playwright/ffmpeg-1011`; (2) **bug backend real**: PATCH parcial de
+    zonas/repartidores/campañas daba 422 (schemas full con `name` requerido) → nuevos
+    `ZoneUpdate/CourierUpdate/CampaignUpdate` (todo opcional) — afectaba el toggle
+    Pausar/Activar del panel en prod; (3) selector `font-mono.font-bold` sin punto =
+    type-selector CSS (0 matches) → `getByText(/^DLV-/)`.
+  - Scripts: `test:e2e:prod`, `test:e2e:prod:report` (sirve en 0.0.0.0:9323 para la .39).
+  - **Resultado: 11/11 PASS contra prod** (41.6s); limpieza verificada (0 E2E en prod).
 - **2026-08-03 (Fase 6 — deploy prod + fix yape_phone)**: commit `← este`.
   - Deploy prod: backup imágenes `bak-2026-08-03` + `pg_dump` previo; `./deploy.sh --env prod`;
     alembic prod → `0016_delivery`; QA suite 10/10 PASS pre y post deploy; smoke en

@@ -74,3 +74,7 @@ prometheus-data/
 
 # Playwright
 apps/web/playwright/.auth/
+
+# Playwright E2E — sesiones y artefactos
+apps/web/e2e/.auth/
+apps/web/e2e/playwright-report-prod/

@@ -4,6 +4,46 @@
 
 ---
 
+## 🧪 Camino C — Delivery E2E contra PRODUCCIÓN (Trace Viewer)
+
+Suite de **delivery real** (sin mocks) que corre contra **https://www.ronsyserp.com**
+usando el Chrome for Testing 151 del servidor `.35` (Playwright npm no soporta
+ubuntu26.04-x64, por eso se apunta el binario directo en
+`e2e/playwright.config.prod.ts` → `use.launchOptions.executablePath`).
+
+### Ejecución
+
+```bash
+# Todos los delivery specs (landing + staff) contra prod
+npm run test:e2e:prod
+
+# Solo landing / solo staff / un test específico
+npx playwright test --config=e2e/playwright.config.prod.ts -g "menú nocturno"
+npx playwright test --config=e2e/playwright.config.prod.ts delivery-staff.spec.ts
+
+# Reporte HTML con traces + videos (sirve en 0.0.0.0:9323 para verlo desde la .39)
+npm run test:e2e:prod:report
+# → en la laptop .39 abrir: http://<IP-DEL-.35>:9323   (IP: hostname -I en el .35)
+```
+
+### Qué cubre
+
+| Spec | Qué valida | Notas |
+|---|---|---|
+| `delivery-landing.spec.ts` | Menú nocturno carga, Yape 912057784 visible, carrito + zona + fee, aviso de min_order, checkout con UTM → código DLV-, tracking por código | ⚠️ El checkout crea un pedido REAL y se **cancela vía API en afterAll** (idempotente) |
+| `delivery-staff.setup.ts` | Login real admin una sola vez → `storageState` en `e2e/.auth/staff.json` | Evita el rate limit de login (5/min) |
+| `delivery-staff.spec.ts` | Panel accesible, kanban (6 columnas), CRUD zona de prueba, CRUD campaña con link UTM, métricas ROAS | Datos `E2E-<ts>` eliminados al final |
+
+### Config prod (`e2e/playwright.config.prod.ts`)
+
+- `baseURL: https://www.ronsyserp.com` · sin `webServer` (va contra prod real)
+- `workers: 1` + `fullyParallel: false` → evita rate limits y pedidos de prueba en paralelo
+- `trace: "on"`, `video: "on"`, `screenshot: "on"` → Trace Viewer completo para Ron
+- `chromiumSandbox: false` → requerido por AppArmor (`userns=1`) en Ubuntu 26.04
+- `executablePath: /home/ron/.local/share/chrome-linux64/chrome` (CfT 151)
+
+---
+
 ## 📋 Requisitos
 
 - Node.js ≥ 18

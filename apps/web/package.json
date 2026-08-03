@@ -11,7 +11,10 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "test:e2e": "npx playwright test",
     "test:e2e:ui": "npx playwright test --ui",
-    "test:e2e:report": "npx playwright show-report"
+    "test:e2e:report": "npx playwright show-report",
+    "test:e2e:prod": "npx playwright test --config=e2e/playwright.config.prod.ts",
+    "test:e2e:prod:report": "npx playwright show-report e2e/playwright-report-prod --host 0.0.0.0",
+    "test:e2e:report:host": "npx playwright show-report --host 0.0.0.0"
   },
   "dependencies": {
     "react": "^19.0.0",

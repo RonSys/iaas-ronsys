@@ -18,11 +18,14 @@ from app.schemas.delivery import (
     CampaignIn,
     CampaignMetricsOut,
     CampaignOut,
+    CampaignUpdate,
     CourierIn,
     CourierOut,
+    CourierUpdate,
     DeliveryOverviewOut,
     ZoneIn,
     ZoneOut,
+    ZoneUpdate,
 )
 from app.services import delivery_service
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,7 +61,7 @@ async def create_zone(
 @router.patch("/zones/{zone_id}", response_model=ZoneOut)
 async def update_zone(
     zone_id: int,
-    body: ZoneIn,
+    body: ZoneUpdate,
     tenant_id: Annotated[int, Depends(get_tenant_id)],
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -106,7 +109,7 @@ async def create_courier(
 @router.patch("/couriers/{courier_id}", response_model=CourierOut)
 async def update_courier(
     courier_id: int,
-    body: CourierIn,
+    body: CourierUpdate,
     tenant_id: Annotated[int, Depends(get_tenant_id)],
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -154,7 +157,7 @@ async def create_campaign(
 @router.patch("/campaigns/{campaign_id}", response_model=CampaignOut)
 async def update_campaign(
     campaign_id: int,
-    body: CampaignIn,
+    body: CampaignUpdate,
     tenant_id: Annotated[int, Depends(get_tenant_id)],
     current_user: Annotated[User, Depends(get_current_active_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
