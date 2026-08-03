@@ -185,11 +185,12 @@ El cliente aplicará **mkt digital dirigido** sobre el canal público del MVP. R
 ## 10. Próximos Pasos
 
 1. ✅ Ron revisa y aprueba este plan (alcance Fase A como primer entregable).
-2. Generar migración `0016_delivery` (modelos SQLAlchemy + alembic) — Jarvis puede preparar el borrador.
-3. Sprint A (8–10 dd): canal público + checkout delivery + cocina + panel staff + campañas/UTM.
-4. En paralelo: trámite WhatsApp Business API + definición de zonas/ETAs con Nilton + presupuesto de campañas de lanzamiento.
-5. Deploy del MVP con `./deploy.sh --env prod` + QA suite extendida (script `scripts/qa/`).
-6. Lanzamiento de campañas digitales (calendario Semana 1–6) con tracking UTM desde el día 1.
+2. ✅ Migración `0016_delivery` + backend + frontend + manuales (4 commits en main).
+3. ✅ Sprint A completado (8-10 dd): canal público + checkout delivery + cocina + panel staff + campañas/UTM.
+4. ✅ Deploy del MVP en prod (`./deploy.sh --env prod`) + QA 10/10 + smoke E2E CA1-CA16.
+5. ✅ **Verificación visual en vivo** (2026-08-03): browser controlado por el agente en el monitor físico del .35 — login → Dashboard → panel Delivery Nocturno operativo.
+6. ⏳ En paralelo: trámite WhatsApp Business API (Fase B) + definición de zonas/ETAs con Nilton + presupuesto de campañas de lanzamiento.
+7. ⏳ Lanzamiento de campañas digitales (calendario Semana 1–6) con tracking UTM desde el día 1.
 
 ---
 

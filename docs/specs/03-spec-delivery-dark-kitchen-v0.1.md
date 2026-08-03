@@ -1,10 +1,10 @@
 # SPEC 03 — Módulo Delivery / Dark Kitchen (MVP Fase A)
 
-- **Estado**: 🟡 BORRADOR v0.1 (pendiente revisión de Ron + equipo — NO implementar hasta aprobación)
+- **Estado**: 🟢 **APROBADA E IMPLEMENTADA (2026-08-03)** — Fase A completa en producción (commits `0f13728`, `7f93642`, `6a4e210`, `7787a70`)
 - **Proyecto**: IaaS-RonSys — Cliente "El Segoviano"
 - **Alcance**: tenant 1 (El Segoviano); diseño multi-tenant por construcción
 - **Fecha**: 2026-08-03
-- **Framework**: SDD / Spec Anchor — esta spec debe mantenerse sincronizada con el código (specs 01/02 como referencia de formato)
+- **Framework**: SDD / Spec Anchor — esta spec está sincronizada con el código (specs 01/02 como referencia de formato)
 
 ---
 
@@ -379,6 +379,15 @@ GET   /api/v1/delivery/metrics/overview?from=&to=   pedidos, GMV, fee total, tie
     campo `delivery` en `CompanySettings`; `setup.py` persiste `settings.delivery` FUERA de
     `settings.branding` (merge + update_palette también corregidos). Tests: 2 nuevos
     (schema + persistencia). Verificado en prod: menú público devuelve `yape_phone` configurado.
+- **2026-08-03 (verificación E2E visual + cierre Fase A)**: estado de la spec → 🟢 APROBADA E
+  IMPLEMENTADA (header actualizado). Verificación en vivo con browser controlado por el agente en
+  el monitor físico del servidor (.35): login admin@elsegoviano.pe → Dashboard → panel Delivery
+  Nocturno (`/restaurante/delivery`, kanban Recibido/En cocina/Listo/En ruta/Entregado/Cancelado,
+  pestañas Pedidos/Zonas/Repartidores/Campañas/Métricas) — todo operativo en
+  https://www.ronsyserp.com. Infraestructura de prueba documentada en
+  `docs/reports/guia-pruebas-e2e-browser-2026-08-03.md` (monitor físico + CfT 151 + plugin browser
+  + Gateway con DISPLAY=:0). Fase A CERRADA; siguientes fases (B: WhatsApp/métricas avanzadas;
+  C: PSP/Rappi) quedan como trabajo futuro fuera del alcance de esta spec.
 
 ---
 
