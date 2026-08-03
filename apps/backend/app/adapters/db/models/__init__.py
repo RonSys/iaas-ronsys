@@ -36,4 +36,10 @@ from app.adapters.db.models.restaurant import (  # noqa: F401
     Promotion,
     InvestmentItem,
 )
+from app.adapters.db.models.delivery import (  # noqa: F401
+    Courier,
+    DeliveryOrder,
+    DeliveryZone,
+    MarketingCampaign,
+)
 from app.adapters.db.models.simulator import Scenario  # noqa: F401

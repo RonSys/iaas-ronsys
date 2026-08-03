@@ -61,6 +61,9 @@ class Company(Base):
     )  # restaurant | hardware | retail | service
     setup_complete: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Spec 02 (Fase A): slug público para la landing/catálogo de delivery
+    # (ej: "el-segoviano" → https://www.ronsyserp.com/menu/el-segoviano)
+    slug: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

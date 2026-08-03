@@ -10,7 +10,7 @@ Tablas:
   - promotions:      Promociones (combos, descuentos, BOGOF)
 """
 
-from datetime import datetime
+from datetime import datetime, time
 
 from sqlalchemy import (
     Boolean,
@@ -22,6 +22,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    Time,
     UniqueConstraint,
     func,
 )
@@ -128,6 +129,20 @@ class MenuItem(Base):
     modifiers: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     image_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # ── Delivery nocturno (Spec 02, Fase A) ──────────────────────
+    # Disponibilidad en el canal público de delivery:
+    #   delivery_enabled  → visible en la landing/checkout
+    #   available_from/to → ventana horaria (ej: 19:00–23:59). Si ambos son
+    #                       NULL, se rige solo por delivery_enabled.
+    delivery_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    available_from: Mapped[time | None] = mapped_column(Time, nullable=True)
+    available_to: Mapped[time | None] = mapped_column(Time, nullable=True)
+    delivery_surcharge: Mapped[float] = mapped_column(
+        Numeric(10, 2), nullable=False, default=0, server_default="0"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
