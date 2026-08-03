@@ -27,6 +27,8 @@ from app.routers.restaurant import router as restaurant_router
 from app.routers.inventory import router as inventory_router
 from app.routers.investment import router as investment_router
 from app.routers.superadmin import router as superadmin_router
+from app.routers.public import router as public_router
+from app.routers.delivery import router as delivery_router
 
 
 @asynccontextmanager
@@ -91,6 +93,8 @@ app.include_router(restaurant_router)
 app.include_router(inventory_router)
 app.include_router(investment_router)
 app.include_router(superadmin_router)
+app.include_router(public_router)
+app.include_router(delivery_router)
 
 
 @app.get("/")

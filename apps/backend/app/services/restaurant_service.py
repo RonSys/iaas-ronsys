@@ -1305,32 +1305,15 @@ class PromotionsService:
         return {"id": promo.id, "name": promo.name, "active": promo.active}
 
     @staticmethod
-    async def apply_promotion(
-        db: AsyncSession, order_id: int, promo_id: int, tenant_id: int,
-    ) -> dict:
-        # Validar promoción
-        promo = (await db.execute(
-            select(Promotion).where(
-                Promotion.id == promo_id, Promotion.tenant_id == tenant_id,
-            )
-        )).scalar_one_or_none()
-        if not promo:
-            raise HTTPException(status_code=404, detail="Promoción no encontrada")
-        if not promo.active:
-            raise HTTPException(status_code=400, detail="Promoción inactiva")
+    async def compute_discount(promo, items: list[dict]) -> float:
+        """Calcula el descuento de una promoción sobre un carrito (Spec 03).
 
-        now = datetime.now(UTC)
-        if promo.valid_to and now > promo.valid_to:
-            raise HTTPException(status_code=410, detail="Promoción expirada")
-        if now < promo.valid_from:
-            raise HTTPException(status_code=400, detail="Promoción aún no vigente")
-
-        # Obtener orden
-        order = await KitchenOrdersService.get_order(db, order_id, tenant_id)
-        items = list(order.items or [])
+        Reutilizado por el checkout de delivery (cart-level) y por
+        apply_promotion (order-level). `items` usa la misma forma que
+        KitchenOrder.items / TakeawayOrder.items:
+        [{menu_item_id, quantity, unit_price, total, ...}]
+        """
         subtotal = sum(float(i.get("total", 0)) for i in items)
-
-        # Validar condiciones
         rules = promo.rules or {}
 
         discount = 0.0
@@ -1357,7 +1340,35 @@ class PromotionsService:
                     if i.get("menu_item_id") == buy_id:
                         discount = free_units * float(i.get("unit_price", 0))
 
-        discount = min(discount, subtotal)
+        return min(discount, subtotal)
+
+    @staticmethod
+    async def apply_promotion(
+        db: AsyncSession, order_id: int, promo_id: int, tenant_id: int,
+    ) -> dict:
+        # Validar promoción
+        promo = (await db.execute(
+            select(Promotion).where(
+                Promotion.id == promo_id, Promotion.tenant_id == tenant_id,
+            )
+        )).scalar_one_or_none()
+        if not promo:
+            raise HTTPException(status_code=404, detail="Promoción no encontrada")
+        if not promo.active:
+            raise HTTPException(status_code=400, detail="Promoción inactiva")
+
+        now = datetime.now(UTC)
+        if promo.valid_to and now > promo.valid_to:
+            raise HTTPException(status_code=410, detail="Promoción expirada")
+        if now < promo.valid_from:
+            raise HTTPException(status_code=400, detail="Promoción aún no vigente")
+
+        # Obtener orden
+        order = await KitchenOrdersService.get_order(db, order_id, tenant_id)
+        items = list(order.items or [])
+
+        discount = await PromotionsService.compute_discount(promo, items)
+        subtotal = sum(float(i.get("total", 0)) for i in items)
         new_total = round(subtotal - discount, 2)
 
         return {

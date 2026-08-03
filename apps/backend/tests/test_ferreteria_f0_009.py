@@ -339,7 +339,7 @@ class TestMigration0009:
         assert os.path.exists(os.path.abspath(path))
 
     def test_migration_is_head(self):
-        """Verificar que 0009 es la cabeza actual."""
+        """Verificar que la cadena de migraciones está viva y 0016_delivery es head."""
         import subprocess
         import os
         import sys
@@ -357,7 +357,8 @@ class TestMigration0009:
         assert ("0009_product_units_and_serials" in result.stdout
                 or "0010_product_categories_missing_columns" in result.stdout
                 or "4bc771f43a4e" in result.stdout
-                or "0013_investment_items" in result.stdout)
+                or "0013_investment_items" in result.stdout
+                or "0016_delivery" in result.stdout)  # Spec 03: nueva head de Fase A
 
 
 # ═══════════════════════════════════════════════════════════════

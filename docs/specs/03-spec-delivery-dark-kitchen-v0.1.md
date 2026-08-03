@@ -320,6 +320,35 @@ GET   /api/v1/delivery/metrics/overview?from=&to=   pedidos, GMV, fee total, tie
   D2 zona 1 (Montenegro/Motupe/Canto Grande, fee 5, min 35, ETA 35) como seed inicial; D3
   repartidores internos; D4 Yape configurable en `companies.settings`; D5 horario 19:00–24:00
   default configurable; D6 `campaign_id` solo en `delivery_orders`. **Spec lista para implementar.**
+- **2026-08-03 (Fase 1 — migración implementada y validada)**: commit `0f13728`. Migración
+  `0016_delivery` + modelos `delivery.py` + columnas (menu_items/companies) + **seed Zona 1
+  (tenant 1)** + slug `el-segoviano`. Validado en Postgres 16 desechable: upgrade/downgrade/upgrade,
+  seed idempotente (no se duplica).
+- **2026-08-03 (Fases 2-4 — backend público + staff + D-03 implementado)**: commit `← este`.
+  - `schemas/delivery.py`, `services/delivery_service.py`, `routers/public.py`, `routers/delivery.py`;
+    routers registrados en `main.py`; `PromotionsService.compute_discount` extraído (reutilizable
+    cart-level, refactor sin cambio de contrato); `setup.py` persistente en `companies.settings` (D-03).
+  - **Decisiones de implementación (Spec Anchor — sync con §3)**:
+    - El fee se registra como **ítem de servicio "Delivery fee"** en el Sale (no solo en
+      `delivery_orders.fee`) para que pagos/totales/asiento cuadren en el motor (D1: ingresa en
+      cuenta 40 dentro de "Ingresos por ventas", sin kárdex).
+    - `SaleService.create_sale` retorna `{sale: {...}}` (no plano) — el servicio lee `sale.id`.
+    - Horario evaluado en **America/Lima** (el servidor corre en UTC; usar hora local habría
+      desplazado la ventana 19:00–24:00).
+    - `companies.settings` (JSON): al persistir se asigna **copia nueva del dict** — asignar el
+      mismo objeto no marca la columna como dirty en SQLAlchemy (bug real detectado y corregido).
+    - Promo en checkout: se aplica la **mejor promoción simple** (no stacking) descontando del
+      primer ítem vía `discount_amount` del motor (R3).
+    - `tracking_code` = `DLV-` + timestamp hex (10 chars), UNIQUE.
+    - Endpoints públicos: rate-limit Redis (fallback in-memory), 10 req/min checkout.
+  - **Smoke test end-to-end (Postgres 16 desechable, prod-equivalente)**: menú público (200, excluye
+    no-delivery, respeta ventana), checkout yape 201 (sale + fee item + asiento balanceado
+    Caja10/Ventas40/IGV201 + kitchen_orders + delivery_orders con UTM), plin 201, 422 fuera de
+    horario, 422 min_order, 400 transición inválida, tracking con timestamps, CRUD couriers/campañas,
+    assign-courier → on_delivery, métricas (ROAS 0.8 = 40/50, AOV, GMV, fee_total, avg_delivery),
+    atribución UTM → campaign_id, 404 slug inexistente, 401 staff sin token, D-03 PATCH → BD → GET.
+  - Suite: **300 passed** (2 fallos preexistentes en `test_caso6_recipes`, ajenos a esta spec).
+  - **Pendiente Fase 5 (frontend)**: panel delivery + landing pública `/menu/{slug}`; Fase 6 (QA+deploy).
 
 ---
 
