@@ -31,7 +31,7 @@ En un solo día se completó el **pipeline completo de la Fase A**: especificaci
 | 8 | **Config prod** | Yape **912057784** configurado (settings.delivery.yape_phone) → visible en landing | Verificado en menú público |
 | 9 | **Fixes post-deploy** | (a) yape_phone no persistía (schema sin campo delivery) · (b) PATCH parcial 422 en panel (toggle Pausar roto) · (c) timezone America/Lima | Desplegados y verificados |
 | 10 | **E2E Camino C** | Playwright contra prod con Chrome for Testing 151: 6 tests landing + 5 staff | **11/11 PASS** (41.6s) |
-| 11 | **Monitor físico (.35)** | Plan completo entregado (Xorg+openbox+lightdm, CfT listo, config OpenClaw) | ⏳ Pendiente de Ron (paso 0 y 1) |
+| 11 | **Monitor físico (.35)** | Xorg + openbox + lightdm (autologin ron) instalados; monitor conectado por **DP-2** (1366x768); Chrome for Testing 151 en `/home/ron/.local/share/chrome-linux64/chrome`; plugin browser OpenClaw habilitado (headless:false, noSandbox:true); Gateway con `DISPLAY=:0` (env en `gateway.systemd.env`) | ✅ **Verificado en vivo**: login → dashboard → panel Delivery Nocturno visible en el monitor (guía: `docs/reports/guia-pruebas-e2e-browser-2026-08-03.md`) |
 
 ---
 
@@ -47,11 +47,11 @@ En un solo día se completó el **pipeline completo de la Fase A**: especificaci
 
 ## 4. Pendiente / sugerencias para mañana (2026-08-04)
 
-**Bloqueante para el demo visual en el monitor:**
-1. 🖥️ Ron conecta el monitor al **HDMI-A-1** del .35 y lo enciende → verificar `cat /sys/class/drm/card0-HDMI-A-1/status` = `connected`.
-2. Ron corre el apt del plan (xserver-xorg, xinit, openbox, lightdm + deps + autologin) y reinicia.
-3. Configurar OpenClaw (plugins.allow + bloque `browser`: headless:false, noSandbox:true, executablePath `/home/ron/.local/share/chrome-linux64/chrome`) y **relanzar el gateway con `DISPLAY=:0`** (⚠️ reiniciar el gateway mata las sesiones activas — coordinar horario).
-4. **Demo en vivo con Ron**: navegador visible en el monitor abriendo la landing y el panel.
+**Demo visual en el monitor — ✅ RESUELTO hoy (no es bloqueante):**
+1. ✅ Monitor conectado por DP-2 (1366x768) + Xorg/openbox/lightdm con autologin — el escritorio aparece solo al bootear.
+2. ✅ Chrome for Testing 151 instalado; plugin browser de OpenClaw habilitado; Gateway relanzado con `DISPLAY=:0` (env persistente en `gateway.systemd.env`).
+3. ✅ **Verificación en vivo hecha**: navegador controlado por el agente, visible en el monitor — login → Dashboard → panel Delivery Nocturno.
+4. 💡 Si el .35 se reinicia, lightdm autologin + env del gateway persisten; solo re-abrir el browser con `openclaw browser --browser-profile openclaw open <url>`.
 
 **Cierre operativo del negocio:**
 5. 🛵 Registrar a **Nilton y repartidores reales** en el panel (Delivery Nocturno → Repartidores).
@@ -66,9 +66,13 @@ En un solo día se completó el **pipeline completo de la Fase A**: especificaci
 ## 5. Commits del día
 
 ```
+ba7e0bd  docs: avance diario 2026-08-03 — pipeline Fase A delivery completo
 5490174  feat(e2e): Camino C — Playwright E2E delivery contra prod (11/11) + fix PATCH parcial
-6a4e210  feat(delivery): Spec 03 Fase 5 — frontend (panel staff + landing pública) + manuales
+72010cf  docs(delivery): Spec Anchor — Spec 03 APROBADA/IMPLEMENTADA + cierre Fase A + guía E2E monitor
+6a72a0d  docs(manuales): credenciales por tenant (verificadas en BD prod 2026-08-03)
+1f63603  docs(manuales): puntero a credenciales por tenant en manual delivery
 7787a70  fix(delivery): yape_phone configurable vía PATCH /api/settings (Spec 03 D4)
+6a4e210  feat(delivery): Spec 03 Fase 5 — frontend (panel staff + landing pública) + manuales
 7f93642  feat(delivery): Spec 03 Fase A — backend público + staff + fix D-03
 0f13728  feat(delivery): Spec 03 Fase A — migración 0016 delivery + seed Zona 1
 ```
