@@ -58,12 +58,19 @@ async def _load_company(db: AsyncSession, tenant_id: int) -> Company:
 
 
 def _merge_settings(company: Company) -> CompanySettings:
-    """Defaults + settings persistidos del tenant (los persistidos ganan)."""
-    stored = company.settings or {}
-    stored = stored.get("branding", {}) if isinstance(stored, dict) else {}
+    """Defaults + settings persistidos del tenant (los persistidos ganan).
+
+    Estructura de companies.settings:
+      {branding: {palette, logo_url, ...}, delivery: {yape_phone, ...}}
+    """
+    raw = company.settings or {}
+    raw = raw if isinstance(raw, dict) else {}
+    branding = raw.get("branding", {}) if isinstance(raw.get("branding"), dict) else {}
+    delivery = raw.get("delivery", {}) if isinstance(raw.get("delivery"), dict) else {}
     merged = _default_settings.model_dump()
-    if isinstance(stored, dict):
-        merged.update({k: v for k, v in stored.items() if v is not None})
+    merged.update({k: v for k, v in branding.items() if v is not None})
+    if delivery:
+        merged["delivery"] = delivery
     return CompanySettings(**merged)
 
 
@@ -96,7 +103,8 @@ async def update_settings(
 
     # Copia nueva del dict (SQLAlchemy JSON: asignar el mismo objeto no marca dirty)
     stored = dict(company.settings or {})
-    stored["branding"] = current
+    stored["branding"] = {k: v for k, v in current.items() if k != "delivery"}
+    stored["delivery"] = current.get("delivery") or {}
     company.settings = stored
     await db.commit()
 
@@ -127,7 +135,8 @@ async def update_palette(
     stored = dict(company.settings or {})
     current = _merge_settings(company).model_dump()
     current["palette"] = palette.model_dump()
-    stored["branding"] = current
+    stored["branding"] = {k: v for k, v in current.items() if k != "delivery"}
+    stored["delivery"] = current.get("delivery") or {}
     company.settings = stored
     await db.commit()
     return palette

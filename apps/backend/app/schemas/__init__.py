@@ -242,14 +242,21 @@ class ColorPalette(BaseModel):
     error: str = Field("#e53e3e", description="Error / rojo")
 
 
+class DeliverySettings(BaseModel):
+    """Configuración del módulo Delivery (Spec 03 — D4)."""
+    yape_phone: str | None = Field(None, description="Número Yape del negocio (se muestra en la landing)")
+
+
 class CompanySettings(BaseModel):
-    """Configuración de empresa (branding, preferencias)."""
+    """Configuración de empresa (branding, preferencias, delivery)."""
     palette: ColorPalette = Field(default_factory=ColorPalette)
     logo_url: str | None = None
     favicon_url: str | None = None
     date_format: str = Field("DD/MM/YYYY", description="Formato de fecha")
     currency: str = Field("PEN", description="Moneda (PEN, USD)")
     timezone: str = Field("America/Lima", description="Zona horaria IANA")
+    # Spec 03 (D4): config de delivery persistida en companies.settings.delivery
+    delivery: DeliverySettings = Field(default_factory=DeliverySettings)
 
 
 # ═══════════════════════════════════════════════════════════════

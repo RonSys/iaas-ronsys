@@ -368,6 +368,17 @@ GET   /api/v1/delivery/metrics/overview?from=&to=   pedidos, GMV, fee total, tie
     FAQ) y `docs/manuales/manual-admin.md` §5.3/§5.4/§10.5 (config Yape/horarios/zonas/campañas,
     endpoints).
   - **Pendiente Fase 6**: QA + deploy (`./deploy.sh --env prod`, backup `.bak-<fecha>`).
+- **2026-08-03 (Fase 6 — deploy prod + fix yape_phone)**: commit `← este`.
+  - Deploy prod: backup imágenes `bak-2026-08-03` + `pg_dump` previo; `./deploy.sh --env prod`;
+    alembic prod → `0016_delivery`; QA suite 10/10 PASS pre y post deploy; smoke en
+    https://www.ronsyserp.com OK (landing, zonas, checkout DLV-9fc6268b79 con UTM, min-order 422,
+    tracking, cancelación staff). Nota: deploy.sh resetea passwords demo (admin→admin123).
+  - **Fix (gap detectado en smoke)**: `CompanySettings` no tenía campo `delivery` →
+    `PATCH /api/settings {"delivery":{"yape_phone":...}}` devolvía 200 pero Pydantic descartaba
+    el campo y el menú público seguía con `yape_phone: null`. Fix: `DeliverySettings` +
+    campo `delivery` en `CompanySettings`; `setup.py` persiste `settings.delivery` FUERA de
+    `settings.branding` (merge + update_palette también corregidos). Tests: 2 nuevos
+    (schema + persistencia). Verificado en prod: menú público devuelve `yape_phone` configurado.
 
 ---
 

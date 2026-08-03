@@ -366,3 +366,37 @@ class TestComputeDiscount:
             self._promo("discount_fixed", 50.0, {"min_amount": 10}), items
         )
         assert d == 25.0
+
+
+# ═══════════════════════════════════════════════════════════════
+# Settings delivery (D-03 / D4 — fix yape_phone configurable)
+# ═══════════════════════════════════════════════════════════════
+
+class TestSettingsDelivery:
+    def test_company_settings_acepta_delivery_yape_phone(self):
+        from app.schemas import CompanySettings
+        s = CompanySettings(delivery={"yape_phone": "912057784"})
+        assert s.delivery.yape_phone == "912057784"
+
+    @pytest.mark.asyncio
+    async def test_update_settings_persiste_delivery_fuera_de_branding(self):
+        from app.routers.setup import update_settings
+        from app.schemas import CompanySettings
+
+        company = MagicMock()
+        company.settings = {"branding": {"currency": "PEN"}}
+        company.id = 1
+
+        db = AsyncMock()
+        db.execute.return_value = MagicMock(
+            scalar_one_or_none=MagicMock(return_value=company),
+        )
+
+        data = CompanySettings(delivery={"yape_phone": "912057784"})
+        await update_settings(tenant_id=1, current_user=None, db=db, data=data)
+
+        # Persistido en companies.settings: delivery FUERA de branding
+        saved = company.settings
+        assert saved["delivery"]["yape_phone"] == "912057784"
+        assert "delivery" not in saved["branding"]
+        assert saved["branding"]["currency"] == "PEN"  # branding intacto
