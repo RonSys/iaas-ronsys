@@ -20,6 +20,8 @@ El local **no opera de noche**; con este módulo aprovechamos esa capacidad inst
 
 > 🎯 **¿Para quién es este manual?**  
 > Para el **cliente** que pide (sección 2) y para el **equipo del local** que atiende (sección 3): cocina, cajeros y administradores.
+>
+> 🔑 **Credenciales de acceso por tenant** (usuarios demo del sistema): ver `docs/manuales/credenciales-por-tenant.md` (usuario principal del panel: `admin@elsegoviano.pe` / `admin123`).
 
 ---
 
