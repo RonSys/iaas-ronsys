@@ -68,6 +68,9 @@ const KitchenKanban = lazy(() =>
 const TakeawayPage = lazy(() =>
   import("@/pages/restaurante/TakeawayPage").then((m) => ({ default: m.TakeawayPage })),
 );
+const DeliveryPage = lazy(() =>
+  import("@/pages/restaurante/DeliveryPage").then((m) => ({ default: m.DeliveryPage })),
+);
 const PromotionsPage = lazy(() =>
   import("@/pages/restaurante/PromotionsPage").then((m) => ({ default: m.PromotionsPage })),
 );
@@ -108,6 +111,11 @@ const SuperAdminUsers = lazy(() =>
 );
 const SuperAdminCompanies = lazy(() =>
   import("@/pages/superadmin/Companies").then((m) => ({ default: m.SuperAdminCompanies })),
+);
+
+// Delivery público (landing — sin auth)
+const PublicMenuPage = lazy(() =>
+  import("@/pages/public/PublicMenuPage").then((m) => ({ default: m.PublicMenuPage })),
 );
 
 function PageLoader() {
@@ -161,6 +169,16 @@ function AppRoutes() {
           element={
             <Suspense fallback={<PageLoader />}>
               <LoginPage />
+            </Suspense>
+          }
+        />
+
+        {/* 🌙 LANDING PÚBLICA DE DELIVERY — /menu/:slug (Spec 03) */}
+        <Route
+          path="/menu/:slug"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <PublicMenuPage />
             </Suspense>
           }
         />
@@ -292,6 +310,16 @@ function AppRoutes() {
             <PrivateRoute>
               <SuspendedPage title="Take Away">
                 <TakeawayPage />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/restaurante/delivery"
+          element={
+            <PrivateRoute>
+              <SuspendedPage title="Delivery Nocturno">
+                <DeliveryPage />
               </SuspendedPage>
             </PrivateRoute>
           }

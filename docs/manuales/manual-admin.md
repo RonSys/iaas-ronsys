@@ -270,6 +270,37 @@ Cuando se ejecuta el Setup Wizard (`POST /api/accounting/setup`), el sistema:
 
 ### 5.2 Variables Clave y su Impacto
 
+### 5.3 Configuración del Módulo Delivery (Dark Kitchen) 🛵
+
+> **Spec 03 — Fase A.** Desde 2026-08-03 el ERP incluye **delivery nocturno**: la landing
+> pública (`/menu/el-segoviano`) permite pedir con Yape/Plin/contraentrega y el pedido entra
+> al motor de ventas (kárdex + contabilidad) automáticamente.
+
+| Qué configurar | Dónde | Detalle |
+|---|---|---|
+| **Número Yape del negocio** | `companies.settings.delivery.yape_phone` (API `PATCH /api/settings` con campo `delivery`) | Se muestra en la landing para que el cliente yapee y copie el código de referencia. Se puede dejar en `branding.yape_phone` (compatibilidad). |
+| **Horario de delivery** | `menu_items.available_from` / `available_to` por plato (panel Restaurante → Maestro de Platos) | Default 19:00–24:00. Fuera de la ventana, el plato no aparece en la landing. `delivery_enabled=false` lo oculta del delivery (sigue en salón/takeaway). |
+| **Zonas de reparto** | Panel **Delivery Nocturno → Zonas** | Nombre, distritos, fee, pedido mínimo y ETA. La Zona 1 (Montenegro/Motupe/Canto Grande, S/5, mín. S/35, 35 min) viene sembrada. |
+| **Repartidores** | Panel **Delivery Nocturno → Repartidores** | Repartidores internos con teléfono y vehículo; estados disponible/en entrega/offline. |
+| **Campañas digitales** | Panel **Delivery Nocturno → Campañas** | Nombre, canal (Meta/Google), UTMs y gasto. El link para anuncios se genera solo. |
+| **Métricas ROAS** | Panel **Delivery Nocturno → Métricas** | Pedidos, GMV, ticket promedio y **ROAS** por campaña (requiere registrar el gasto real en la campaña). |
+
+> 💡 **Clave para medir campañas:** al crear una campaña en el panel, copia el **link para
+> anuncios** que se genera (ej. `/menu/el-segoviano?utm_source=meta&utm_campaign=lanzamiento`)
+> y úsalo en Meta Ads/Google. El sistema captura los UTMs del primer clic y atribuye el pedido
+> a la campaña automáticamente (sin configuración adicional).
+
+### 5.4 Configuración Técnica de Delivery (para administradores)
+
+- El **fee de delivery** se registra como ítem de servicio "Delivery fee" en la venta → ingresa en
+  la cuenta contable **40 (Ventas)** con trazabilidad por descripción (la cuenta 705 específica
+  está diferida; reclasificar por descripción si se requiere).
+- El pedido crea un **comprobante de venta real** (order_type=delivery): descuenta kárdex
+  (explosión de recetas), genera asiento contable y comanda a cocina (kanban) automáticamente.
+- La **sesión POS no es necesaria** para pedidos online (el sistema usa el usuario del tenant).
+- Los pedidos públicos pasan por **rate limiting** (10 checkout/min por IP) y el tenant se
+  resuelve por slug (`companies.slug`): la landing del local es `/menu/el-segoviano`.
+
 | Variable | Impacto principal | Rango típico para cevichería |
 |----------|-------------------|------------------------------|
 | Capital propio | Determina cuánto necesitas de préstamo | S/ 30,000 – S/ 80,000 |
@@ -555,6 +586,30 @@ WHERE email = 'usuario@email.com';
 | `PATCH` | `/api/settings` | admin, manager | Modificar configuración |
 | `GET` | `/api/settings/palette` | Todos | Obtener paleta de colores |
 | `PATCH` | `/api/settings/palette` | admin, manager | Cambiar paleta |
+
+### 10.5 Delivery Endpoints (Spec 03 — Fase A)
+
+**Públicos (sin auth, rate-limited, tenant por slug):**
+
+| Método | Endpoint | Propósito |
+|--------|----------|-----------|
+| `GET` | `/api/public/{slug}/menu` | Catálogo nocturno + promos + branding |
+| `GET` | `/api/public/{slug}/zones` | Zonas activas (fee/mínimo/ETA) |
+| `POST` | `/api/public/{slug}/orders` | Checkout (crea venta + kárdex + asiento) |
+| `GET` | `/api/public/orders/{tracking_code}/status` | Seguimiento del cliente |
+
+**Staff (auth + tenant):**
+
+| Método | Endpoint | Propósito |
+|--------|----------|-----------|
+| `GET/POST/PATCH/DELETE` | `/api/v1/delivery/zones[/{id}]` | CRUD zonas |
+| `GET/POST/PATCH/DELETE` | `/api/v1/delivery/couriers[/{id}]` | CRUD repartidores |
+| `GET/POST/PATCH/DELETE` | `/api/v1/delivery/campaigns[/{id}]` | CRUD campañas |
+| `GET` | `/api/v1/delivery/orders` | Kanban de pedidos |
+| `PATCH` | `/api/v1/delivery/orders/{id}/status` | Máquina de estados |
+| `POST` | `/api/v1/delivery/orders/{id}/assign-courier` | Asignar repartidor |
+| `GET` | `/api/v1/delivery/metrics/campaigns` | ROAS/AOV por campaña |
+| `GET` | `/api/v1/delivery/metrics/overview` | Métricas generales |
 
 ---
 

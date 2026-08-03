@@ -139,6 +139,12 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
               onClick={onMobileClose}
             />
             <SidebarItem
+              icon="🛵"
+              label="Delivery Nocturno"
+              path="/restaurante/delivery"
+              onClick={onMobileClose}
+            />
+            <SidebarItem
               icon="🏷️"
               label="Promociones"
               path="/restaurante/promociones"

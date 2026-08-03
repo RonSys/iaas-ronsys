@@ -349,6 +349,25 @@ GET   /api/v1/delivery/metrics/overview?from=&to=   pedidos, GMV, fee total, tie
     atribución UTM → campaign_id, 404 slug inexistente, 401 staff sin token, D-03 PATCH → BD → GET.
   - Suite: **300 passed** (2 fallos preexistentes en `test_caso6_recipes`, ajenos a esta spec).
   - **Pendiente Fase 5 (frontend)**: panel delivery + landing pública `/menu/{slug}`; Fase 6 (QA+deploy).
+- **2026-08-03 (Fase 5 — frontend + manuales implementados)**: commit `← este`.
+  - `services/deliveryApi.ts` (staff) + `services/publicMenuApi.ts` (público sin auth).
+  - `pages/restaurante/DeliveryPage.tsx`: 5 pestañas — Pedidos (kanban por estado con
+    transiciones + asignación de repartidor), Zonas (CRUD), Repartidores (CRUD + estados),
+    Campañas (CRUD + link UTM autogenerado), Métricas (ROAS/AOV/GMV/tarjetas).
+  - `pages/public/PublicMenuPage.tsx`: landing `/menu/:slug` sin auth — catálogo nocturno,
+    carrito con modificadores (ModifierBottomSheet reutilizado), checkout (zona/pago
+    Yape-Plin-contraentrega/referencia), UTM del primer clic desde la URL, pantalla de éxito
+    con tracking_code, seguimiento con timeline; branding del tenant aplicado (paleta/logo
+    desde `companies.settings` — D-03) sin auth.
+  - `App.tsx`: ruta pública `/menu/:slug` (fuera de AppShell/PrivateRoute, como `/login`) +
+    ruta staff `/restaurante/delivery`; `Sidebar.tsx`: ítem "Delivery Nocturno" en Restaurante.
+  - Backend (sync): `PublicMenuResponse` + menú público ahora incluyen `branding`
+    `{palette, logo_url}` (D-03) y `yape_phone` leído de `settings.delivery.yape_phone`.
+  - Build: `tsc -b` 0 errores + `vite build` OK (chunks DeliveryPage 23.9 kB, PublicMenuPage 17.2 kB).
+  - Manuales: nuevo `docs/manuales/manual-delivery-dark-kitchen.md` (flujo cliente + staff +
+    FAQ) y `docs/manuales/manual-admin.md` §5.3/§5.4/§10.5 (config Yape/horarios/zonas/campañas,
+    endpoints).
+  - **Pendiente Fase 6**: QA + deploy (`./deploy.sh --env prod`, backup `.bak-<fecha>`).
 
 ---
 

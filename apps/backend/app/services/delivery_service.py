@@ -169,15 +169,22 @@ async def get_public_menu(db: AsyncSession, tenant_id: int) -> dict:
         select(Company).where(Company.id == tenant_id)
     )).scalar_one_or_none()
     settings = (company.settings or {}) if company else {}
-    yape_phone = None
-    if isinstance(settings, dict):
-        yape_phone = settings.get("delivery", {}).get("yape_phone")
+    if not isinstance(settings, dict):
+        settings = {}
+    branding = settings.get("branding", {}) if isinstance(settings.get("branding"), dict) else {}
+    delivery_cfg = settings.get("delivery", {}) if isinstance(settings.get("delivery"), dict) else {}
+    yape_phone = delivery_cfg.get("yape_phone") or branding.get("yape_phone")
 
     return {
         "tenant_name": company.name if company else "",
         "delivery_window": {"from": str(DEFAULT_FROM), "to": str(DEFAULT_TO)},
         "currency": "PEN",
         "yape_phone": yape_phone,
+        # D-03: branding por tenant para la landing pública (paleta + logo)
+        "branding": {
+            "palette": branding.get("palette"),
+            "logo_url": branding.get("logo_url"),
+        },
         "sections": sections_out,
         "promotions": promotions_out,
     }

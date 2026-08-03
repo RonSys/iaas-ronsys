@@ -5,6 +5,10 @@
 > **Producto:** IaaS-RonSys ERP by **El Segoviano** 🐟  
 > **URL:** http://localhost:80
 
+> 🛵 **¿Delivery nocturno?** Desde 2026-08-03 el sistema incluye el módulo **Delivery / Dark Kitchen**
+> (pedidos online, repartidores, campañas y ROAS). Ver el manual específico:
+> [`docs/manuales/manual-delivery-dark-kitchen.md`](manual-delivery-dark-kitchen.md).
+
 ---
 
 ## 1. Introducción

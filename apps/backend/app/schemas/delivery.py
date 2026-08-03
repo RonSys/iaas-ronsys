@@ -54,6 +54,7 @@ class PublicMenuResponse(BaseModel):
     delivery_window: dict = Field(default_factory=dict)  # {from, to}
     currency: str = "PEN"
     yape_phone: Optional[str] = None  # D4: configurable en companies.settings
+    branding: dict = Field(default_factory=dict)  # D-03: {palette, logo_url} para la landing
     sections: list[PublicMenuSection] = Field(default_factory=list)
     promotions: list[PublicPromotion] = Field(default_factory=list)
 
