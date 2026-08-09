@@ -13,7 +13,6 @@ Estructura de endpoints:
   /api/superadmin/dashboard      → Estadísticas globales
 """
 
-from datetime import datetime
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status

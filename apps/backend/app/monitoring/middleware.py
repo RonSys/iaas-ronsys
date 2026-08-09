@@ -9,7 +9,7 @@ Responsabilidad:
 
 import logging
 import time
-from typing import Callable, Optional
+from typing import Callable
 
 from fastapi import FastAPI, Request, Response
 

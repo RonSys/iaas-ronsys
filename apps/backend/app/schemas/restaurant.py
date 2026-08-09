@@ -5,7 +5,6 @@ Validation layer para endpoints de mesas, secciones, menú, comandas, takeaway y
 """
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 

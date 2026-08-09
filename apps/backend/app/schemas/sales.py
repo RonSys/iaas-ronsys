@@ -5,7 +5,6 @@ Validation layer para los endpoints de ventas, sesiones y cashflow.
 """
 
 from datetime import date, datetime, time
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 

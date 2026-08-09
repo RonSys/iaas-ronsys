@@ -18,8 +18,6 @@ def _fmt_dt(dt: datetime | None) -> str | None:
         # SQLAlchemy puede devolver naive datetime a pesar de DateTime(timezone=True)
         dt = dt.replace(tzinfo=UTC)
     return dt.astimezone(LIMA_TZ).isoformat()
-from decimal import Decimal
-from typing import Any
 import logging
 
 logger = logging.getLogger(__name__)

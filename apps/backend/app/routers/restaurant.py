@@ -15,7 +15,6 @@ Endpoints:
   WebSocket: /ws/kitchen/{tenant_id}, /ws/waiter/{tenant_id}
 """
 
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect

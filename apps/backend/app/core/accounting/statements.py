@@ -9,7 +9,6 @@ Orquesta el motor contable y los ratios para producir reportes completos.
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Optional
 
 from app.core.accounting.engine import (
     BCSS,

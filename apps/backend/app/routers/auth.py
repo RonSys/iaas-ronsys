@@ -8,7 +8,7 @@ US-07: GET  /api/auth/me       — perfil del usuario autenticado
 """
 
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select, update

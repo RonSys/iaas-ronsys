@@ -14,7 +14,7 @@ Regla de oro (revisión técnica):
     sin columna duplicada de kitchen_order aquí.
 """
 
-from datetime import date, datetime, time
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,

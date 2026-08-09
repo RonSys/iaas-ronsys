@@ -10,9 +10,7 @@ Basado en:
 """
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
-from decimal import Decimal
-from typing import Optional
+from datetime import date
 
 from app.core.accounting.engine import InvestmentVariables
 

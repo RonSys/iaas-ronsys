@@ -18,9 +18,7 @@ Responsabilidad:
 from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
-from functools import total_ordering
 from typing import Optional
-import uuid
 
 
 # ═══════════════════════════════════════════════════════════════

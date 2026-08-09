@@ -13,8 +13,6 @@ Debe ser cambiada inmediatamente en producción.
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Sequence, Union
-import os
-import sys
 
 from alembic import op
 import sqlalchemy as sa

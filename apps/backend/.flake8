@@ -1,0 +1,25 @@
+[flake8]
+# Longitud máxima de línea
+max-line-length = 120
+
+# Excluir migraciones autogeneradas (Alembic) y directorios del sistema
+exclude =
+    app/adapters/alembic
+    .git,
+    __pycache__,
+    build,
+    dist,
+    .venv,
+    venv
+
+# Errores cosméticos/de estilo tolerados (no afectan lógica)
+extend-ignore =
+    E128,   # continuación de línea sub-indentada (estilo)
+    E131,   # continuación de línea desalineada (estilo)
+    E301,   # líneas en blanco entre métodos (estilo)
+    E303,   # demasiadas líneas en blanco (estilo)
+    E305,   # líneas en blanco después de clase/función (estilo)
+    E402,   # imports fuera del top (necesario en algunos módulos)
+    E501,   # línea muy larga (limitado por max-line-length para consultas SQL)
+    E741,   # nombre de variable ambiguo 'l' (común en loops de una línea)
+    W292    # falta nueva línea al final del archivo

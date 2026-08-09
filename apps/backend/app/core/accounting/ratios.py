@@ -11,8 +11,7 @@ Responsabilidad:
   - Proyecto: Payback, VAN, TIR, punto de equilibrio
 """
 
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 from app.core.accounting.engine import BalanceSheet, IncomeStatement
 

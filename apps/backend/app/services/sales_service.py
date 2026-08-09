@@ -10,9 +10,7 @@ HU-F2-007: Ticket formateado + payment methods
 Arquitectura: Puertos abstractos → Adaptadores concretos (DB).
 """
 
-from datetime import date, datetime, time, UTC
-from decimal import Decimal
-from typing import Optional
+from datetime import date, datetime, UTC
 
 from sqlalchemy import func, select, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession

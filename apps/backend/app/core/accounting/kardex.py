@@ -14,10 +14,8 @@ Responsabilidad:
   - Cierre de almacén: verificar Σ Kárdex = Cuenta 12
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
-from enum import Enum
-from typing import Optional
 
 from app.core.accounting.engine import (
     EntryType,

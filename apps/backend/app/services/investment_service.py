@@ -6,7 +6,6 @@ HU: Administrar bienes de inversión, registrar costos estimados vs reales,
 """
 
 from datetime import datetime, UTC
-from decimal import Decimal
 from typing import Any
 
 from fastapi import HTTPException, status

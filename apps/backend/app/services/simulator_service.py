@@ -4,7 +4,6 @@
 Límite: 4 escenarios por company_id.
 """
 
-from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession

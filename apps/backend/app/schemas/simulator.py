@@ -3,7 +3,6 @@ Schemas Pydantic — Simulador de Escenarios (HU-SIM-001).
 """
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 

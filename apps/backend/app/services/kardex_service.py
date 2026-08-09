@@ -9,7 +9,7 @@ inyectado vía FastAPI Depends.
 """
 
 from datetime import date
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
