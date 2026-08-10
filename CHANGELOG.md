@@ -14,6 +14,15 @@
 - Tests: backend `test_owner_dashboard.py` (11) + E2E `e2e/panel.spec.ts` (6)
 - Script demo: `apps/web/scripts/e2e-demo-panel.cjs`
 
+#### 📊 Panel del Dueño V2 (Analítica Avanzada — Requerimiento #1 V2, Spec 04 §3.1-V2)
+- **CA10** Heatmap hora×día por canal (Salón/Delivery, 24×7, CSS grid coloreado)
+- **CA11** Margen por canal con costeo (recetas/kárdex `average_cost`; nota de costeabilidad)
+- **CA12** Comparativa semana vs semana con % de cambio (ventas, pedidos, ticket, % delivery)
+- **CA13** Reporte descargable CSV (`GET /api/v1/dashboard/owner/export?format=csv`, 12 secciones; PDF → iteración 2)
+- **CA14** Alertas de desviación vs promedio 7 días (roja ≤ −20%, ámbar ≤ −10%)
+- Fix: sumar `Decimal` de asyncpg en acumuladores de heatmap/sales_by_hour (bug detectado en demo en vivo)
+- Tests: backend `test_owner_dashboard_v2.py` (24, cobertura 100% de bloques V2) + E2E `panel.spec.ts` ampliado (12: 6 V1 + 6 V2)
+
 ---
 
 ## [0.1.0] — 2026-05-10

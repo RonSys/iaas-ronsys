@@ -109,6 +109,11 @@ El sistema ya no es un proyecto: **es una herramienta de trabajo diario**. Está
 | **Delivery**: pedidos por zona, embudo (recibido → cocina → listo → en ruta → entregado) y **GMV solo de pedidos entregados** | 🟢 Operativo |
 | **ROAS por campaña publicitaria**: cuánto retorna cada campaña (Meta, Google, TikTok) frente a lo invertido | 🟢 Operativo |
 | **Selector de rango**: hoy / 7 días / 30 días, actualizable con un clic; acceso con rol admin/manager/viewer (solo lectura) | 🟢 Operativo |
+| **V2 — Heatmap de demanda** hora×día separado por canal (Salón / Delivery), intensidad de color relativa | 🟢 Operativo (V2, 2026-08-10) |
+| **V2 — Margen por canal con costeo**: ingresos vs costo de recetas/kárdex → margen real por canal (salón / para llevar / delivery), con nota de costeabilidad | 🟢 Operativo (V2, 2026-08-10) |
+| **V2 — Comparativa semana vs semana** con % de cambio en KPIs (ventas, pedidos, ticket, % delivery) | 🟢 Operativo (V2, 2026-08-10) |
+| **V2 — Reporte descargable CSV** del resumen del período (botón "Descargar"); PDF documentado como iteración 2 | 🟢 Operativo (V2, 2026-08-10) |
+| **V2 — Alertas de desviación** vs promedio de los últimos 7 días (umbrales: roja ≤ −20%, ámbar ≤ −10%) | 🟢 Operativo (V2, 2026-08-10) |
 
 ---
 
@@ -144,6 +149,7 @@ El sistema se construyó por etapas, y **cada etapa se probó con datos reales a
 - **No hay escáner de código de barras** en la caja (el código se puede ingresar manualmente).
 - Detalles finos por automatizar: factor de merma/desperdicio en recetas, venta visual de platos con receta desde el punto de venta, y la pantalla de cocina aún no se integra con el POS de platos en todas las variantes.
 - La funcionalidad de "asistentes inteligentes" dentro del sistema está diseñada pero **no operativa**.
+- **Panel del Dueño: reporte descargable en PDF** (iteración 2, documentado en spec 04 §3.1-V2 CA13) — hoy la descarga es CSV.
 
 ---
 
@@ -166,7 +172,7 @@ El sistema se construyó por etapas, y **cada etapa se probó con datos reales a
 | **02 — Recetas y Costos** | Recetas por plato con descuento automático y costeo (§2.6) | SPEC 01 — Recetas por Producto | `docs/specs/02-recetas-costos/01-spec-recetas-productos-v0.2.md` | 🟢 Implementada |
 | **02 — Recetas y Costos** | Costos variables: promedio ponderado en compras (§2.6) | SPEC 02 — Costos Variables | `docs/specs/02-recetas-costos/02-spec-costos-variables-v0.1.md` | 🟢 Implementada |
 | **03 — Delivery** | Delivery / Dark Kitchen: menú público, zonas, repartidores, campañas, seguimiento (§2.7) | SPEC 03 — Delivery Dark Kitchen | `docs/specs/03-delivery/03-spec-delivery-dark-kitchen-v0.1.md` | 🟢 Implementada |
-| **04 — Panel Dueño** | Panel de indicadores para el dueño: KPIs del día, canales, top platos, ROAS, zonas, embudo delivery (V1 completa; V2 pendiente) | SPEC — Panel del Dueño | `docs/specs/04-panel-indicadores/spec-panel-dueño.md` | 🟢 IMPLEMENTADA Y DESPLEGADA (V1, 2026-08-10) |
+| **04 — Panel Dueño** | Panel de indicadores para el dueño: KPIs del día, canales, top platos, ROAS, zonas, embudo delivery (V1 completa) + V2: heatmap hora×día por canal, márgenes por canal con costeo, comparativa semana vs semana, reporte descargable CSV, alertas de desviación vs 7 días (PDF: iteración 2) | SPEC — Panel del Dueño | `docs/specs/04-panel-indicadores/spec-panel-dueño.md` | 🟢 IMPLEMENTADA Y DESPLEGADA (V1 + V2, 2026-08-10) |
 | **99 — Infraestructura** | Servidor, despliegue, respaldos, monitoreo y pruebas (soporte de todo lo anterior) | SPEC — Infra y CI/CD | `docs/specs/99-infra-devops/spec-infra-cicd.md` | 🟢 Implementada |
 
 ### 5.2 Cómo se incorpora un requerimiento nuevo (proceso obligatorio)
@@ -199,7 +205,7 @@ Nuevo requerimiento del cliente
 
 | # | Requerimiento | Prioridad | Spec asociada | Estado | Fecha registro |
 |---|---|---|---|---|---|
-| 1 | **📊 Panel de indicadores para el dueño** — resumen ejecutivo (ventas del día, canal más rentable, platos más vendidos, ROAS campañas, pedidos por zona, embudo delivery) en una sola pantalla. Alcance: V1 (panel inicial) + V2 (analítica avanzada: heatmaps, márgenes por canal, comparativas semanales, reporte descargable). Enfoque inicial: restaurante + delivery/dark kitchen | 🔴 Alta | `docs/specs/04-panel-indicadores/spec-panel-dueño.md` | 🟢 **IMPLEMENTADO Y DESPLEGADO (2026-08-10)** — V1 completa: endpoint `/api/v1/dashboard/owner` + página `/panel` en producción (verificado: S/638, 11 pedidos, 90.9% delivery). Pendiente: V2 (analítica avanzada) | 2026-08-10 |
+| 1 | **📊 Panel de indicadores para el dueño** — resumen ejecutivo (ventas del día, canal más rentable, platos más vendidos, ROAS campañas, pedidos por zona, embudo delivery) en una sola pantalla. Alcance: V1 (panel inicial) + V2 (analítica avanzada: heatmaps, márgenes por canal, comparativas semanales, reporte descargable). Enfoque inicial: restaurante + delivery/dark kitchen | 🔴 Alta | `docs/specs/04-panel-indicadores/spec-panel-dueño.md` | 🟢 **IMPLEMENTADO Y DESPLEGADO (V1 + V2, 2026-08-10)** — V1: endpoint `/api/v1/dashboard/owner` + página `/panel` en producción (verificado: S/638, 11 pedidos, 90.9% delivery). V2 desplegada: heatmap hora×día por canal, márgenes por canal con costeo, comparativa semana vs semana, reporte descargable CSV, alertas vs promedio 7 días. PDF del reporte: iteración 2 (documentado en spec 04) | 2026-08-10 |
 
 ---
 
