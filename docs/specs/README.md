@@ -44,7 +44,7 @@
 
 | Spec | Estado | Migraciones | Routers |
 |---|---|---|---|
-| [spec-panel-dueño.md](04-panel-indicadores/spec-panel-dueño.md) — KPIs del día, canales, top platos, ROAS, zonas, embudo delivery (V1 + V2) | 🟡 EN DESARROLLO (spec creada 2026-08-10) | — (usa data existente) | `/api/v1/dashboard/owner` (nuevo) |
+| [spec-panel-dueño.md](04-panel-indicadores/spec-panel-dueño.md) — KPIs del día, canales, top platos, ROAS, zonas, embudo delivery (V1 completa; V2 pendiente) | 🟢 IMPLEMENTADA Y DESPLEGADA (V1, 2026-08-10) | — (usa data existente) | `/api/v1/dashboard/owner` |
 
 ### Fase 99 — Infraestructura / DevOps
 
@@ -71,7 +71,7 @@
 | Inversiones | 01-inversiones | `routers/investment.py`, `services/investment_service.py` | 0013 | InvestmentPage, Reports | — |
 | Recetas | 02-recetas | `services/recipe_explosion.py`, `restaurant_service.py:1377` | 0012, 0015 | RecipeModal (MenuPage) | — |
 | Delivery | 03-delivery | `routers/delivery.py`, `routers/public.py`, `services/delivery_service.py` | 0016 | DeliveryPage, PublicMenuPage | delivery-landing, delivery-staff |
-| Panel Dueño | 04-panel | `routers/dashboard.py` (nuevo), `services/owner_dashboard_service.py` (nuevo) | — | DashboardOwner (`/panel`) | panel (nuevo) |
+| Panel Dueño | 04-panel | `routers/dashboard.py`, `services/owner_dashboard_service.py` | — | DashboardOwner (`/panel`) | panel (6 tests, e2e) |
 | Infra/CI | 99-infra | compose, deploy.sh, `.github/workflows/`, `routers/health.py` | — | — | configs prod |
 
 ---

@@ -1,6 +1,6 @@
 # SPEC 04 — Panel de Indicadores para el Dueño (Dashboard Ejecutivo)
 
-- **Estado**: 🟡 EN DESARROLLO — spec creada 2026-08-10 (aprobada por Ron: V1 + V2)
+- **Estado**: 🟢 **IMPLEMENTADA Y DESPLEGADA (V1, 2026-08-10)** — endpoint `/api/v1/dashboard/owner` + página `/panel` en producción (verificado: S/638, 11 pedidos, 90.9% delivery). V2 pendiente.
 - **Proyecto**: IaaS-RonSys — ERP SaaS (cliente: El Segoviano)
 - **Alcance**: tenant restaurante + delivery/dark kitchen (fase inicial); multi-tenant por construcción
 - **Fecha**: 2026-08-10
