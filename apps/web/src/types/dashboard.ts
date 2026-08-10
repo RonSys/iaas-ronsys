@@ -81,6 +81,67 @@ export interface CampaignMetric {
   roas: number;
 }
 
+// ─── V2 (Spec 04 §3.1-V2: CA10-CA14) ──────────────────────────
+
+/** CA10 — Celda de heatmap: ventas (S/) en una hora × día de semana. */
+export interface HeatmapRow {
+  hour: number; // 0-23
+  weekday: number; // 1=Lun..7=Dom
+  total: number; // S/ (0 si no hubo ventas)
+}
+
+export interface HeatmapChannel {
+  rows: HeatmapRow[]; // hasta 24×7 = 168 rows, sin huecos
+}
+
+/** CA10 — Heatmap hora×día por canal (takeout ya sumado a dine_in por el backend). */
+export interface HeatmapData {
+  dine_in: HeatmapChannel;
+  delivery: HeatmapChannel;
+}
+
+/** CA11 — Margen de un canal (costeo vía recetas, decisión R2). */
+export interface MarginByChannel {
+  channel: "dine_in" | "takeout" | "delivery";
+  revenue: number;
+  cost: number;
+  margin_pct: number; // 0.0 si revenue == 0
+}
+
+export interface MarginsData {
+  by_channel: MarginByChannel[];
+  costable_note: string;
+}
+
+/** CA12 — Resumen de un período (actual o previo). */
+export interface ComparisonPeriod {
+  sales_total: number;
+  orders_count: number;
+  avg_ticket: number;
+  delivery_pct: number;
+}
+
+/** CA12 — Deltas relativos (*_pct null si previous == 0; delivery_pct_delta en puntos). */
+export interface ComparisonDeltas {
+  sales_total_pct: number | null;
+  orders_count_pct: number | null;
+  avg_ticket_pct: number | null;
+  delivery_pct_delta: number | null;
+}
+
+export interface ComparisonData {
+  current: ComparisonPeriod;
+  previous: ComparisonPeriod;
+  deltas: ComparisonDeltas;
+}
+
+/** CA14 — Alerta de desviación vs promedio de los 7 días previos. */
+export interface AlertItem {
+  severity: "red" | "yellow";
+  metric: string;
+  message: string;
+}
+
 export interface OwnerDashboardResponse {
   period: { date_from: string; date_to: string };
   kpis: OwnerKpis;
@@ -91,6 +152,11 @@ export interface OwnerDashboardResponse {
   payments: PaymentsData;
   delivery: DeliveryMetrics;
   campaigns: CampaignMetric[];
+  // V2 (CA10-CA14)
+  heatmap: HeatmapData;
+  margins: MarginsData;
+  comparison: ComparisonData;
+  alerts: AlertItem[];
 }
 
 export interface OwnerDashboardParams {
