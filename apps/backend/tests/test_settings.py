@@ -4,8 +4,7 @@ Tests para Configuración / Branding — sin dependencia de pydantic.
 Testean la estructura de datos y defaults.
 """
 
-from dataclasses import dataclass, field, asdict
-
+from dataclasses import asdict, dataclass, field
 
 # ═══════════════════════════════════════════════════════════════
 # Réplicas de schemas con dataclasses (stdlib, sin pydantic)

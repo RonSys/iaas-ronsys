@@ -11,19 +11,17 @@ Cubre:
   - Simulación completa
 """
 
-import pytest
 from datetime import date
+
+import pytest
 
 from app.core.accounting.engine import (
     AccountCategory,
-    AccountDef,
     AccountNature,
-    BCSSLine,
     EntryType,
     InvestmentVariables,
     JournalEntry,
     JournalLine,
-    MovementType,
     build_general_ledger,
     calculate_bcss,
     generate_balance_sheet,
@@ -31,19 +29,16 @@ from app.core.accounting.engine import (
     generate_income_statement,
     generate_monthly_entries,
     generate_opening_entries,
-    get_account_map,
     validate_double_entry,
 )
 from app.core.accounting.ratios import (
-    FinancialRatios,
+    _calculate_irr,
+    _calculate_npv,
+    _calculate_payback,
     calculate_ratios,
     evaluate_ratios,
-    _calculate_payback,
-    _calculate_npv,
-    _calculate_irr,
 )
 from app.core.accounting.statements import FinancialStatementService
-
 
 # ═══════════════════════════════════════════════════════════════
 # Fixtures

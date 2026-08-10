@@ -15,14 +15,14 @@ Estructura de endpoints:
 
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import func, select, update, delete
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.db.database import get_db
 from app.adapters.db.models.accounting import Company
-from app.core.dependencies import get_current_active_user, require_role
+from app.core.dependencies import require_role
 from app.core.security import hash_password
 from app.models.user import User
 
@@ -239,7 +239,7 @@ async def delete_company(
     # Verificar usuarios
     user_result = await db.execute(
         select(func.count()).select_from(
-            select(User).where(User.tenant_id == company_id, User.is_active == True).subquery()
+            select(User).where(User.tenant_id == company_id, User.is_active.is_(True)).subquery()
         )
     )
     active_users = user_result.scalar()
@@ -490,7 +490,7 @@ async def dashboard(
     # Empresas activas (con setup_complete)
     active_companies_result = await db.execute(
         select(func.count()).select_from(
-            select(Company).where(Company.setup_complete == True).subquery()
+            select(Company).where(Company.setup_complete.is_(True)).subquery()
         )
     )
     active_companies = active_companies_result.scalar()
@@ -498,7 +498,7 @@ async def dashboard(
     # Usuarios activos
     active_users_result = await db.execute(
         select(func.count()).select_from(
-            select(User).where(User.is_active == True).subquery()
+            select(User).where(User.is_active.is_(True)).subquery()
         )
     )
     active_users = active_users_result.scalar()

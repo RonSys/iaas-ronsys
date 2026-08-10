@@ -8,13 +8,12 @@ Cubre:
   - Require_role('admin') en todos los endpoints
 """
 
-from datetime import datetime, UTC
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.services.investment_service import InvestmentService, INVESTMENT_CATEGORIES
-
+from app.services.investment_service import INVESTMENT_CATEGORIES, InvestmentService
 
 # ═══════════════════════════════════════════════════════════════
 # Helpers
@@ -494,17 +493,6 @@ async def test_escenario_6_dashboard_multiple_items():
       - Adquiridos: 2 de 4
     """
     db = _make_mock_db()
-
-    items = [
-        _make_mock_item(id=1, name="Cocina Industrial", category="equipamiento_cocina",
-                        estimated_cost=3500.0, actual_cost=3200.0, receipt_code="FAC-001", status="acquired"),
-        _make_mock_item(id=2, name="Carpa Calle", category="infraestructura",
-                        estimated_cost=800.0, actual_cost=750.0, receipt_code=None, status="acquired"),
-        _make_mock_item(id=3, name="Mesas (x6)", category="mobiliario",
-                        estimated_cost=1200.0, actual_cost=None, receipt_code=None, status="pending"),
-        _make_mock_item(id=4, name="Letrero", category="dyl",
-                        estimated_cost=200.0, actual_cost=None, receipt_code=None, status="pending"),
-    ]
 
     db.execute.side_effect = [
         _make_result_for(5700.0),  # total_estimated

@@ -20,7 +20,6 @@ from datetime import date
 from enum import Enum
 from typing import Optional
 
-
 # ═══════════════════════════════════════════════════════════════
 # Enums
 # ═══════════════════════════════════════════════════════════════
@@ -330,35 +329,35 @@ DEFAULT_CHART_OF_ACCOUNTS: list[AccountDef] = [
     AccountDef("32", "Resultado del Ejercicio", nature=AccountNature.CREDIT, category=AccountCategory.EQUITY),
     # ─── INGRESOS ───────────────────────────────────────
     AccountDef("40", "Ventas", nature=AccountNature.CREDIT, category=AccountCategory.INCOME, is_balance_sheet=False),
-    AccountDef("401", "Venta de platos y bebidas", "40", AccountNature.CREDIT, AccountCategory.INCOME, is_balance_sheet=False),
-    AccountDef("41", "Otros Ingresos", nature=AccountNature.CREDIT, category=AccountCategory.INCOME, is_balance_sheet=False),
+    AccountDef("401", "Venta de platos y bebidas", "40", AccountNature.CREDIT, AccountCategory.INCOME, is_balance_sheet=False),  # noqa: E501
+    AccountDef("41", "Otros Ingresos", nature=AccountNature.CREDIT, category=AccountCategory.INCOME, is_balance_sheet=False),  # noqa: E501
     # ─── COSTOS ─────────────────────────────────────────
-    AccountDef("50", "Costo de Ventas", nature=AccountNature.DEBIT, category=AccountCategory.COST, is_balance_sheet=False),
-    AccountDef("501", "Materia prima e insumos", "50", AccountNature.DEBIT, AccountCategory.COST, is_balance_sheet=False),
+    AccountDef("50", "Costo de Ventas", nature=AccountNature.DEBIT, category=AccountCategory.COST, is_balance_sheet=False),  # noqa: E501
+    AccountDef("501", "Materia prima e insumos", "50", AccountNature.DEBIT, AccountCategory.COST, is_balance_sheet=False),  # noqa: E501
     AccountDef("502", "Mano de obra directa", "50", AccountNature.DEBIT, AccountCategory.COST, is_balance_sheet=False),
     AccountDef("503", "Costos indirectos", "50", AccountNature.DEBIT, AccountCategory.COST, is_balance_sheet=False),
     # ─── GASTOS ─────────────────────────────────────────
-    AccountDef("60", "Gastos de Personal", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),
+    AccountDef("60", "Gastos de Personal", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),  # noqa: E501
     AccountDef("601", "Sueldos y salarios", "60", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),
-    AccountDef("602", "Beneficios sociales", "60", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),
-    AccountDef("61", "Gastos de Operación", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),
+    AccountDef("602", "Beneficios sociales", "60", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),  # noqa: E501
+    AccountDef("61", "Gastos de Operación", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),  # noqa: E501
     AccountDef("611", "Alquiler del local", "61", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),
     AccountDef("612", "Servicios públicos", "61", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),
     AccountDef("613", "Mantenimiento", "61", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),
-    AccountDef("62", "Gastos de Ventas y Marketing", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),
+    AccountDef("62", "Gastos de Ventas y Marketing", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),  # noqa: E501
     AccountDef("621", "Publicidad y redes", "62", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),
     AccountDef("622", "Delivery", "62", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),
-    AccountDef("63", "Gastos Administrativos", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),
+    AccountDef("63", "Gastos Administrativos", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),  # noqa: E501
     AccountDef("631", "Útiles de oficina", "63", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),
-    AccountDef("632", "Suscripciones (software)", "63", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),
-    AccountDef("64", "Gastos Financieros", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),
-    AccountDef("641", "Intereses de préstamo", "64", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),
-    AccountDef("642", "Comisiones bancarias", "64", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),
-    AccountDef("65", "Depreciación", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),
-    AccountDef("66", "Otros Gastos", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),
+    AccountDef("632", "Suscripciones (software)", "63", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),  # noqa: E501
+    AccountDef("64", "Gastos Financieros", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),  # noqa: E501
+    AccountDef("641", "Intereses de préstamo", "64", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),  # noqa: E501
+    AccountDef("642", "Comisiones bancarias", "64", AccountNature.DEBIT, AccountCategory.EXPENSE, is_balance_sheet=False),  # noqa: E501
+    AccountDef("65", "Depreciación", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),  # noqa: E501
+    AccountDef("66", "Otros Gastos", nature=AccountNature.DEBIT, category=AccountCategory.EXPENSE, is_balance_sheet=False),  # noqa: E501
     # ─── CUENTAS DE CIERRE ──────────────────────────────
-    AccountDef("80", "Resumen de Resultados", nature=AccountNature.CREDIT, category=AccountCategory.CLOSING, is_balance_sheet=False),
-    AccountDef("81", "Pérdidas y Ganancias", nature=AccountNature.CREDIT, category=AccountCategory.CLOSING, is_balance_sheet=False),
+    AccountDef("80", "Resumen de Resultados", nature=AccountNature.CREDIT, category=AccountCategory.CLOSING, is_balance_sheet=False),  # noqa: E501
+    AccountDef("81", "Pérdidas y Ganancias", nature=AccountNature.CREDIT, category=AccountCategory.CLOSING, is_balance_sheet=False),  # noqa: E501
 ]
 
 
@@ -700,7 +699,7 @@ def _generate_depreciation_entry(
             JournalEntry(
                 entry_number=next_number_fn(),
                 date_=date_,
-                description=f"Depreciación mensual equipamiento cocina",
+                description="Depreciación mensual equipamiento cocina",
                 entry_type=EntryType.DEPRECIACION,
                 lines=[
                     JournalLine("65", debit=monthly, description="Gasto depreciación"),

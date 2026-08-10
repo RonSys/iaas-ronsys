@@ -11,22 +11,25 @@ Cubre:
   - HU-F0-009-07: Coexistencia
 """
 
-import pytest
-from datetime import date, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+import os
+from datetime import date
 
+import pytest
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from app.adapters.db.models.sales import PosSession
+from app.models.user import User
 from app.schemas.inventory import (
     ProductCategoryCreate,
+    ProductCategoryTreeResponse,
     ProductCategoryUpdate,
     ProductCreate,
     ProductUpdate,
-    SerialCreate,
     SerialBatchCreate,
-    ProductCategoryTreeResponse,
-    ProductResponse,
+    SerialCreate,
 )
 from app.schemas.sales import SaleItemCreate
-
 
 # ═══════════════════════════════════════════════════════════════
 # Schemas — Validación
@@ -189,8 +192,8 @@ class TestWholesalePricing:
 
     def test_resolve_retail_below_threshold(self):
         """Cantidad por debajo del mínimo → precio retail."""
-        from app.services.sales_service import SaleService
         from app.adapters.db.models.accounting import Product
+        from app.services.sales_service import SaleService
 
         product = Product(
             code="TEST", name="Test", retail_price=25.0,
@@ -201,8 +204,8 @@ class TestWholesalePricing:
 
     def test_resolve_wholesale_at_threshold(self):
         """Cantidad igual al mínimo → precio wholesale."""
-        from app.services.sales_service import SaleService
         from app.adapters.db.models.accounting import Product
+        from app.services.sales_service import SaleService
 
         product = Product(
             code="TEST", name="Test", retail_price=25.0,
@@ -213,8 +216,8 @@ class TestWholesalePricing:
 
     def test_resolve_wholesale_above_threshold(self):
         """Cantidad por encima del mínimo → precio wholesale."""
-        from app.services.sales_service import SaleService
         from app.adapters.db.models.accounting import Product
+        from app.services.sales_service import SaleService
 
         product = Product(
             code="TEST", name="Test", retail_price=25.0,
@@ -225,8 +228,8 @@ class TestWholesalePricing:
 
     def test_resolve_retail_no_wholesale_defined(self):
         """Sin wholesale_price → siempre retail."""
-        from app.services.sales_service import SaleService
         from app.adapters.db.models.accounting import Product
+        from app.services.sales_service import SaleService
 
         product = Product(
             code="TEST", name="Test", retail_price=25.0,
@@ -237,8 +240,8 @@ class TestWholesalePricing:
 
     def test_resolve_retail_no_min_qty(self):
         """Con wholesale_price pero sin min_qty → retail."""
-        from app.services.sales_service import SaleService
         from app.adapters.db.models.accounting import Product
+        from app.services.sales_service import SaleService
 
         product = Product(
             code="TEST", name="Test", retail_price=25.0,
@@ -249,8 +252,8 @@ class TestWholesalePricing:
 
     def test_resolve_retail_zero_wholesale(self):
         """wholesale_price = 0 → retail."""
-        from app.services.sales_service import SaleService
         from app.adapters.db.models.accounting import Product
+        from app.services.sales_service import SaleService
 
         product = Product(
             code="TEST", name="Test", retail_price=25.0,
@@ -330,7 +333,6 @@ class TestMigration0009:
     """PASO 0: Verificar que la migración 0009 existe."""
 
     def test_migration_file_exists(self):
-        import os
         path = os.path.join(
             os.path.dirname(__file__),
             "..", "app", "adapters", "alembic", "versions",
@@ -341,7 +343,6 @@ class TestMigration0009:
     def test_migration_is_head(self):
         """Verificar que la cadena de migraciones está viva y 0016_delivery es head."""
         import subprocess
-        import os
         import sys
 
         backend_dir = os.path.join(os.path.dirname(__file__), "..")
@@ -413,7 +414,6 @@ class TestCoexistence:
 
     def test_serial_product_stock_zero_on_create(self):
         """Producto con has_serial=true inicia con current_stock=0."""
-        from app.services.inventory_service import InventoryProductsService
         # Verificar que la lógica de create_product maneja esto
         # (test de integración, no unitario puro)
         pass
@@ -438,18 +438,6 @@ class TestCoexistence:
 # Fixtures de BD real (SQLite in-memory) para tests de integración
 # ═══════════════════════════════════════════════════════════════
 
-import asyncio
-import os
-from datetime import time
-
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from app.adapters.db.models.accounting import Base
-from app.adapters.db.models.sales import PosSession
-from app.models.user import User
-
-
 @pytest_asyncio.fixture(scope="function")
 async def db_session():
     """
@@ -457,7 +445,6 @@ async def db_session():
     Solo crea las tablas necesarias para el flujo de seriales.
     (Evita JSONB de PostgreSQL que SQLite no soporta).
     """
-    from sqlalchemy import MetaData
 
     engine = create_async_engine(
         "sqlite+aiosqlite://",
@@ -466,12 +453,21 @@ async def db_session():
 
     # Tablas necesarias para el flujo seriales + ventas
     from app.adapters.db.models.accounting import (
-        Company, Product, ProductUnit, KardexMovement,
-        JournalEntry, JournalEntryLine, ProductCategory,
+        Company,
+        JournalEntry,
+        JournalEntryLine,
+        KardexMovement,
+        Product,
+        ProductCategory,
+        ProductUnit,
     )
     from app.adapters.db.models.sales import (
-        Sale, SaleItem, SalePayment, PosSession,
-        HardwareSale, RestaurantSale,
+        HardwareSale,
+        PosSession,
+        RestaurantSale,
+        Sale,
+        SaleItem,
+        SalePayment,
     )
     from app.models.user import User
 
@@ -568,8 +564,8 @@ class TestSerialFullFlow:
 
     async def _create_product(self, db, tenant_id):
         """Helper: crea Taladro Bosch GSB 13."""
-        from app.services.inventory_service import InventoryProductsService
         from app.schemas.inventory import ProductCreate
+        from app.services.inventory_service import InventoryProductsService
 
         data = ProductCreate(
             code="TAL-BOSCH-GSB13",
@@ -586,8 +582,8 @@ class TestSerialFullFlow:
 
     async def _register_serials(self, db, product_id, tenant_id):
         """Helper: registra 3 seriales batch."""
-        from app.services.inventory_service import SerialService
         from app.schemas.inventory import SerialBatchCreate, SerialCreate
+        from app.services.inventory_service import SerialService
 
         data = SerialBatchCreate(serials=[
             SerialCreate(
@@ -699,8 +695,8 @@ class TestSerialFullFlow:
         product = await self._create_product(db_session, tenant_id)
         await self._register_serials(db_session, product["id"], tenant_id)
 
-        from app.services.inventory_service import SerialService
         from app.schemas.inventory import SerialCreate
+        from app.services.inventory_service import SerialService
 
         with pytest.raises(Exception) as exc_info:
             await SerialService.register_serial(
@@ -788,8 +784,8 @@ class TestSerialFullFlow:
         )
         sale_id = response["sale"]["id"]
 
-        from app.services.sales_service import SaleService
         from app.services.inventory_service import SerialService
+        from app.services.sales_service import SaleService
 
         await SaleService.void_sale(
             db_session, sale_id, tenant_id, "Cliente canceló"
@@ -813,8 +809,8 @@ class TestSerialFullFlow:
         )
         sale_id = response["sale"]["id"]
 
-        from app.services.sales_service import SaleService
         from app.services.inventory_service import SerialService
+        from app.services.sales_service import SaleService
 
         # Trazabilidad ANTES de anular
         trace_before = await SerialService.get_traceability(

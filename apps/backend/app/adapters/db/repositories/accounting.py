@@ -10,6 +10,14 @@ from typing import Optional
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.db.models.accounting import (
+    Account,
+    Company,
+    JournalEntry,
+    JournalEntryLine,
+    KardexMovement,
+    Product,
+)
 from app.core.accounting.ports import (
     AccountingRepository,
     AccountRecord,
@@ -20,15 +28,6 @@ from app.core.accounting.ports import (
     KardexMovementRecord,
     ProductRecord,
 )
-from app.adapters.db.models.accounting import (
-    Account,
-    Company,
-    JournalEntry,
-    JournalEntryLine,
-    KardexMovement,
-    Product,
-)
-
 
 # ═══════════════════════════════════════════════════════════════
 # Helpers

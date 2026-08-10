@@ -26,11 +26,15 @@ dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
+    "ruff>=0.9",
 ]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py312"
+
+# Migraciones autogeneradas (Alembic): excluidas del lint (mismo criterio que el .flake8 legacy)
+exclude = ["app/adapters/alembic"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]

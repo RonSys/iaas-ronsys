@@ -8,11 +8,12 @@ Rate limiting Redis con fallback in-memory (patrón de auth).
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.db.database import get_db
 from app.config import settings
 from app.core.rate_limit import get_rate_limiter
-from app.adapters.db.database import get_db
 from app.schemas.delivery import (
     CheckoutRequest,
     CheckoutResponse,
@@ -21,7 +22,6 @@ from app.schemas.delivery import (
     TrackingStatusOut,
 )
 from app.services import delivery_service
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/api/public", tags=["Delivery Público"])
 

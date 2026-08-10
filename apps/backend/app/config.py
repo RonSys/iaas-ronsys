@@ -3,8 +3,9 @@ Configuración centralizada del backend.
 Todas las variables de entorno se cargan y validan aquí.
 """
 
-from pydantic_settings import BaseSettings
 from typing import Optional
+
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):

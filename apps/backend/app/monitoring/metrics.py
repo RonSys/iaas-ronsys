@@ -9,13 +9,12 @@ from typing import Callable
 
 from fastapi import FastAPI, Request, Response
 from prometheus_client import (
+    CONTENT_TYPE_LATEST,
     Counter,
     Gauge,
     Histogram,
     generate_latest,
-    CONTENT_TYPE_LATEST,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # Métricas

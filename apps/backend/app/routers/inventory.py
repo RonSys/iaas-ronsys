@@ -10,7 +10,7 @@ Endpoints:
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.db.database import get_db
@@ -159,7 +159,8 @@ async def get_inventory_value(
     - Productos con serial: cost_price de seriales disponibles
     - Productos sin serial: current_stock * average_cost
     """
-    from sqlalchemy import func, select, and_
+    from sqlalchemy import func, select
+
     from app.adapters.db.models.accounting import Product, ProductUnit
 
     # Productos sin serial

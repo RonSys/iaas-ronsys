@@ -10,8 +10,8 @@ Cubre:
   - MenuService.update_item() sin changes en modifiers los preserva
 """
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, UTC
 
 import pytest
 

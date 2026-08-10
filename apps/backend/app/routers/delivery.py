@@ -9,6 +9,7 @@ Todos los endpoints exigen auth + tenant (X-Tenant-ID o JWT).
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.db.database import get_db
 from app.core.dependencies import get_current_active_user
@@ -28,7 +29,6 @@ from app.schemas.delivery import (
     ZoneUpdate,
 )
 from app.services import delivery_service
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/api/v1/delivery", tags=["Delivery Staff"])
 

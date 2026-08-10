@@ -10,19 +10,11 @@ HU-F2-007: Ticket formateado + payment methods
 Arquitectura: Puertos abstractos → Adaptadores concretos (DB).
 """
 
-from datetime import date, datetime, UTC
+from datetime import UTC, date, datetime
 
-from sqlalchemy import func, select, or_, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.db.models.sales import (
-    HardwareSale,
-    PosSession,
-    RestaurantSale,
-    Sale,
-    SaleItem,
-    SalePayment,
-)
 from app.adapters.db.models.accounting import (
     Company,
     JournalEntry,
@@ -31,8 +23,14 @@ from app.adapters.db.models.accounting import (
     Product,
     ProductUnit,
 )
-from app.core.accounting.kardex import KardexEngine
-
+from app.adapters.db.models.sales import (
+    HardwareSale,
+    PosSession,
+    RestaurantSale,
+    Sale,
+    SaleItem,
+    SalePayment,
+)
 
 # ═══════════════════════════════════════════════════════════════
 # Sesiones POS
@@ -304,9 +302,8 @@ class SaleService:
         # ─── Spec 01: explosión de recetas (pre-check atómico antes de mutar) ──
         from app.services.recipe_explosion import RecipeExplosionService
         explosion_enabled = await RecipeExplosionService.is_enabled(db, tenant_id)
-        ingredient_demands: list[dict] = []
         if explosion_enabled:
-            ingredient_demands = await RecipeExplosionService.precheck_and_compute_demands(
+            await RecipeExplosionService.precheck_and_compute_demands(
                 db, tenant_id, items_data,
             )
         recipe_movements: list = []
@@ -338,11 +335,9 @@ class SaleService:
                 tax_pct = float(item_data.get("tax_pct", 18))
                 tax_rate = tax_pct / 100
                 base_price = round(item_price / (1 + tax_rate), 4)
-                tax_amt_per_unit = round(item_price - base_price, 4)
             else:
                 tax_pct = float(item_data.get("tax_pct", 18))
                 base_price = item_price
-                tax_amt_per_unit = 0
 
             # Calcular si no viene total
             if item_price > 0 and item_qty > 0 and item_total == 0:
@@ -759,13 +754,25 @@ class SaleService:
             amt = float(p.amount)
 
             if method == "cash":
-                lines.append({"account": "10", "debit": amt, "credit": 0, "desc": f"Caja — {method}"})
+                lines.append({
+                    "account": "10", "debit": amt, "credit": 0,
+                    "desc": f"Caja — {method}",
+                })
             elif method == "card":
-                lines.append({"account": "121", "debit": amt, "credit": 0, "desc": f"Cuentas por cobrar tarjeta — {method}"})
+                lines.append({
+                    "account": "121", "debit": amt, "credit": 0,
+                    "desc": f"Cuentas por cobrar tarjeta — {method}",
+                })
             elif method == "yape" or method == "plin":
-                lines.append({"account": "10", "debit": amt, "credit": 0, "desc": f"Caja — {method}"})
+                lines.append({
+                    "account": "10", "debit": amt, "credit": 0,
+                    "desc": f"Caja — {method}",
+                })
             elif method == "transfer":
-                lines.append({"account": "104", "debit": amt, "credit": 0, "desc": f"Transferencia bancaria — {method}"})
+                lines.append({
+                    "account": "104", "debit": amt, "credit": 0,
+                    "desc": f"Transferencia bancaria — {method}",
+                })
 
         # ─── Ingresos → Haber ───
         # Ventas (neto de impuestos)
@@ -818,8 +825,8 @@ class SaleService:
                     })
 
         # Validar partida doble
-        total_debit = sum(l["debit"] for l in lines)
-        total_credit = sum(l["credit"] for l in lines)
+        total_debit = sum(entry["debit"] for entry in lines)
+        total_credit = sum(entry["credit"] for entry in lines)
 
         # Ajustar diferencia si hay redondeo
         diff = round(total_debit - total_credit, 2)
@@ -1022,9 +1029,8 @@ class SaleService:
         # Especialización
         # QA-F2-02b: fallback si selectinload no carga la relación
         if sale.business_type == "restaurant" and not sale.restaurant_sale:
-            from app.adapters.db.models.sales import RestaurantSale as RS
             rs_result = await db.execute(
-                select(RS).where(RS.sale_id == sale_id)
+                select(RestaurantSale).where(RestaurantSale.sale_id == sale_id)
             )
             sale.restaurant_sale = rs_result.scalar_one_or_none()
 
@@ -1041,9 +1047,8 @@ class SaleService:
             }
 
         if sale.business_type == "hardware" and not sale.hardware_sale:
-            from app.adapters.db.models.sales import HardwareSale as HS
             hs_result = await db.execute(
-                select(HS).where(HS.sale_id == sale_id)
+                select(HardwareSale).where(HardwareSale.sale_id == sale_id)
             )
             sale.hardware_sale = hs_result.scalar_one_or_none()
 
@@ -1072,8 +1077,8 @@ class SaleService:
         - Reversa movimientos kárdex (entrada de devolución)
         - 409 si ya anulada
         """
-        from sqlalchemy.orm import selectinload
         from fastapi import HTTPException
+        from sqlalchemy.orm import selectinload
 
         result = await db.execute(
             select(Sale)
@@ -1226,10 +1231,22 @@ class SaleService:
             "tip_amount": sale_detail["tip_amount"],
             "total": sale_detail["total"],
             # Especialización
-            "table_number": sale_detail.get("restaurant_data", {}).get("table_number") if sale_detail.get("restaurant_data") else None,
-            "waiter_name": sale_detail.get("restaurant_data", {}).get("waiter_name") if sale_detail.get("restaurant_data") else None,
-            "order_type": sale_detail.get("restaurant_data", {}).get("order_type") if sale_detail.get("restaurant_data") else None,
-            "invoice_type": sale_detail.get("hardware_data", {}).get("invoice_type") if sale_detail.get("hardware_data") else None,
+            "table_number": (
+                sale_detail.get("restaurant_data", {}).get("table_number")
+                if sale_detail.get("restaurant_data") else None
+            ),
+            "waiter_name": (
+                sale_detail.get("restaurant_data", {}).get("waiter_name")
+                if sale_detail.get("restaurant_data") else None
+            ),
+            "order_type": (
+                sale_detail.get("restaurant_data", {}).get("order_type")
+                if sale_detail.get("restaurant_data") else None
+            ),
+            "invoice_type": (
+                sale_detail.get("hardware_data", {}).get("invoice_type")
+                if sale_detail.get("hardware_data") else None
+            ),
         }
 
         if format_type == "text":

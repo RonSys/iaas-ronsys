@@ -10,7 +10,7 @@ Cubre:
 from datetime import date
 
 from fastapi import HTTPException
-from sqlalchemy import func, select, text, update, delete, and_, or_
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.db.models.accounting import (
@@ -23,10 +23,9 @@ from app.schemas.inventory import (
     ProductCategoryUpdate,
     ProductCreate,
     ProductUpdate,
-    SerialCreate,
     SerialBatchCreate,
+    SerialCreate,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # Categorías (HU-F0-009-01)
@@ -498,7 +497,10 @@ class InventoryProductsService:
                 if serial_count > 0:
                     raise HTTPException(
                         status_code=422,
-                        detail=f"No puede desactivar seriales. Elimine primero los {serial_count} seriales registrados.",
+                        detail=(
+                            "No puede desactivar seriales. Elimine primero los "
+                            f"{serial_count} seriales registrados."
+                        ),
                     )
                 product.has_serial = False
             elif data.has_serial is True and not product.has_serial:
@@ -608,7 +610,6 @@ class InventoryProductsService:
 
         if category:
             # Join implícito: filtrar por nombre de categoría
-            cat_condition = ProductCategory.name == category
             conditions.append(Product.category.has(
                 ProductCategory.name == category
             ))

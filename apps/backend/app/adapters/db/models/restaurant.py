@@ -31,7 +31,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.adapters.db.models.accounting import Base
 
-
 # ═══════════════════════════════════════════════════════════════
 # Sección del salón
 # ═══════════════════════════════════════════════════════════════
@@ -378,7 +377,7 @@ class InvestmentItem(Base):
             name="ck_investment_status",
         ),
         CheckConstraint(
-            "category IN ('infraestructura', 'mobiliario', 'equipamiento_cocina', 'instalaciones', 'vestimenta', 'dyl', 'tecnologia', 'marketing', 'gastos_operativos')",
+            "category IN ('infraestructura', 'mobiliario', 'equipamiento_cocina', 'instalaciones', 'vestimenta', 'dyl', 'tecnologia', 'marketing', 'gastos_operativos')",  # noqa: E501
             name="ck_investment_category",
         ),
     )

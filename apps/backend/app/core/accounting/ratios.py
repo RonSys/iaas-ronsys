@@ -15,7 +15,6 @@ from dataclasses import dataclass
 
 from app.core.accounting.engine import BalanceSheet, IncomeStatement
 
-
 # ═══════════════════════════════════════════════════════════════
 # Semáforo
 # ═══════════════════════════════════════════════════════════════

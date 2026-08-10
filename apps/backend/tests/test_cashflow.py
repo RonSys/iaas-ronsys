@@ -14,12 +14,8 @@ from datetime import date
 import pytest
 
 from app.core.accounting.cashflow import (
-    CashflowAlert,
-    CashflowLine,
-    CashflowReport,
-    CashflowService,
-    EXPENSE_CONCEPTS,
     INCOME_CONCEPTS,
+    CashflowService,
 )
 from app.core.accounting.engine import (
     InvestmentVariables,
@@ -64,14 +60,14 @@ class TestCashflowProjection:
     def test_generates_12_months(self, sample_vars):
         """Genera líneas para 12 meses."""
         report = CashflowService.generate_projection(sample_vars, 2026)
-        months = {l.month for l in report.lines}
+        months = {line.month for line in report.lines}
         assert months == set(range(1, 13))
 
     def test_concepts_present(self, sample_vars):
         """Cada mes contiene todos los conceptos de ingresos y gastos."""
         report = CashflowService.generate_projection(sample_vars, 2026)
-        jan_lines = [l for l in report.lines if l.month == 1]
-        concepts = {l.concept for l in jan_lines}
+        jan_lines = [line for line in report.lines if line.month == 1]
+        concepts = {line.concept for line in jan_lines}
 
         assert "Ventas" in concepts
         assert "Costo de Ventas" in concepts
@@ -87,8 +83,8 @@ class TestCashflowProjection:
         report = CashflowService.generate_projection(sample_vars, 2026)
         for m in range(1, 13):
             ventas_line = [
-                l for l in report.lines
-                if l.month == m and l.concept == "Ventas"
+                line for line in report.lines
+                if line.month == m and line.concept == "Ventas"
             ][0]
             assert ventas_line.projected == 25000.0
 
@@ -97,8 +93,8 @@ class TestCashflowProjection:
         report = CashflowService.generate_projection(sample_vars, 2026)
         for m in range(1, 13):
             costo_line = [
-                l for l in report.lines
-                if l.month == m and l.concept == "Costo de Ventas"
+                line for line in report.lines
+                if line.month == m and line.concept == "Costo de Ventas"
             ][0]
             assert costo_line.projected == 25000.0 * 0.40
 
@@ -147,7 +143,7 @@ class TestCashflowProjection:
     def test_income_categories_match(self, sample_vars):
         """Las líneas income solo tienen conceptos de INCOME_CONCEPTS."""
         report = CashflowService.generate_projection(sample_vars, 2026)
-        income_lines = [l for l in report.lines if l.category == "income"]
+        income_lines = [line for line in report.lines if line.category == "income"]
         for line in income_lines:
             assert line.concept in INCOME_CONCEPTS
 
@@ -177,7 +173,7 @@ class TestCashflowReal:
             from_date=date(2026, 1, 1),
             to_date=date(2026, 6, 30),
         )
-        months = {l.month for l in report.lines}
+        months = {line.month for line in report.lines}
         assert months == set(range(1, 7))
 
     def test_view_is_actual(self):
@@ -208,7 +204,7 @@ class TestCashflowReal:
             from_date=date(2026, 3, 1),
             to_date=date(2026, 3, 31),
         )
-        ventas = [l for l in report.lines if l.month == 3 and l.concept == "Ventas"]
+        ventas = [line for line in report.lines if line.month == 3 and line.concept == "Ventas"]
         assert len(ventas) == 1
         assert ventas[0].actual == 5000.0
 
@@ -231,7 +227,7 @@ class TestCashflowReal:
             from_date=date(2026, 2, 1),
             to_date=date(2026, 2, 28),
         )
-        alquiler = [l for l in report.lines if l.month == 2 and l.concept == "Alquiler"]
+        alquiler = [line for line in report.lines if line.month == 2 and line.concept == "Alquiler"]
         assert alquiler[0].actual == 1500.0
 
     def test_outside_period_ignored(self):

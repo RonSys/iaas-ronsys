@@ -9,25 +9,22 @@ Solo accesible por rol 'admin'. Scoping automático por tenant.
 
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.db.database import get_db
-from app.core.dependencies import get_current_active_user, require_role
-from app.core.tenant import get_tenant_id
-from app.core.security import hash_password
-from app.models.user import User
+from app.adapters.db.models.accounting import Company
 from app.adapters.db.repositories.user import UserRepository
+from app.core.dependencies import get_current_active_user, require_role
+from app.core.security import hash_password
+from app.core.tenant import get_tenant_id
+from app.models.user import User
 from app.schemas.auth import AdminUserResponse, CreateUserRequest, UserResponse
 from app.schemas.sales import (
-    CompanyFeaturesSettings,
-    CompanySettingsUpdateRequest,
-    FeatureFlags,
-    TaxConfig,
     BUSINESS_TYPE_DEFAULTS,
+    CompanySettingsUpdateRequest,
 )
-from app.adapters.db.models.accounting import Company
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 

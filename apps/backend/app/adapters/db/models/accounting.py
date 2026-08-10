@@ -22,7 +22,6 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
-    Enum,
     ForeignKey,
     Index,
     Integer,

@@ -1,12 +1,9 @@
 # Modelos ORM — SQLAlchemy
-from app.adapters.db.models.accounting import Base  # noqa: F401
-
 # Registrar modelos de autenticación en metadata
 import app.models.user  # noqa: F401
-
 from app.adapters.db.models.accounting import (  # noqa: F401
     Account,
-    Base,
+    Base,  # noqa: F401
     CashflowProjection,
     Company,
     JournalEntry,
@@ -16,30 +13,30 @@ from app.adapters.db.models.accounting import (  # noqa: F401
     ProductCategory,
     ProductUnit,
 )
-from app.adapters.db.models.sales import (  # noqa: F401
-    PosSession,
-    Sale,
-    SaleItem,
-    SalePayment,
-    RestaurantSale,
-    HardwareSale,
-)
-from app.adapters.db.models.restaurant import (  # noqa: F401
-    RestaurantSection,
-    Table,
-    MenuItem,
-    MenuModifier,
-    Recipe,
-    RecipeIngredient,
-    KitchenOrder,
-    TakeawayOrder,
-    Promotion,
-    InvestmentItem,
-)
 from app.adapters.db.models.delivery import (  # noqa: F401
     Courier,
     DeliveryOrder,
     DeliveryZone,
     MarketingCampaign,
+)
+from app.adapters.db.models.restaurant import (  # noqa: F401
+    InvestmentItem,
+    KitchenOrder,
+    MenuItem,
+    MenuModifier,
+    Promotion,
+    Recipe,
+    RecipeIngredient,
+    RestaurantSection,
+    Table,
+    TakeawayOrder,
+)
+from app.adapters.db.models.sales import (  # noqa: F401
+    HardwareSale,
+    PosSession,
+    RestaurantSale,
+    Sale,
+    SaleItem,
+    SalePayment,
 )
 from app.adapters.db.models.simulator import Scenario  # noqa: F401

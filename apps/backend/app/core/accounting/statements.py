@@ -24,8 +24,7 @@ from app.core.accounting.engine import (
     generate_opening_entries,
     validate_double_entry,
 )
-from app.core.accounting.ratios import FinancialRatios, calculate_ratios, evaluate_ratios
-
+from app.core.accounting.ratios import FinancialRatios, calculate_ratios
 
 # ═══════════════════════════════════════════════════════════════
 # Resultado de la Simulación Financiera

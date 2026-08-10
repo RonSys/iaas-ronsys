@@ -24,7 +24,6 @@ from app.core.accounting.engine import (
     MovementType,
 )
 
-
 # ═══════════════════════════════════════════════════════════════
 # Entidades del Dominio
 # ═══════════════════════════════════════════════════════════════
@@ -221,7 +220,6 @@ class KardexEngine:
             )
 
         # Valorizar al costo promedio actual
-        exit_cost = round(quantity * product.average_cost, 4)
         exit_total = round(quantity * product.average_cost, 2)
 
         new_quantity = round(product.current_stock - quantity, 2)

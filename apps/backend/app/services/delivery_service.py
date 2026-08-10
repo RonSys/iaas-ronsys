@@ -11,10 +11,12 @@ Reglas de oro (Spec 03 §2.3):
 """
 
 import time as _time
-from datetime import datetime, time as dtime, UTC
+from datetime import UTC, datetime
+from datetime import time as dtime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,8 +38,6 @@ from app.adapters.db.models.sales import Sale
 from app.core.ws_manager import manager
 from app.models.user import User
 from app.services.sales_service import SaleService
-from zoneinfo import ZoneInfo
-
 
 LIMA_TZ = "America/Lima"
 # Default de ventana nocturna (D5 aprobada): 19:00–24:00 (hora de Lima)
@@ -242,14 +242,15 @@ async def resolve_campaign(
     campaign = utm.get("campaign")
     if not (source and campaign):
         return None
-    result = (await db.execute(
-        select(MarketingCampaign).where(
-            MarketingCampaign.tenant_id == tenant_id,
-            MarketingCampaign.active.is_(True),
-            MarketingCampaign.utm_source == source,
-            MarketingCampaign.utm_campaign == campaign,
-        )
-    )).scalars().first()
+    stmt = select(MarketingCampaign).where(
+        MarketingCampaign.tenant_id == tenant_id,
+        MarketingCampaign.active.is_(True),
+        MarketingCampaign.utm_source == source,
+        MarketingCampaign.utm_campaign == campaign,
+    )
+    if medium:
+        stmt = stmt.where(MarketingCampaign.utm_medium == medium)
+    result = (await db.execute(stmt)).scalars().first()
     return result.id if result else None
 
 

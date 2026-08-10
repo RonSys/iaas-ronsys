@@ -6,7 +6,8 @@ promo, min_order, yape), máquina de estados, atribución de campaña y el
 refactor de PromotionsService.compute_discount.
 """
 
-from datetime import datetime, time as dtime, UTC
+from datetime import UTC, datetime
+from datetime import time as dtime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,13 +15,11 @@ from fastapi import HTTPException
 
 from app.services.delivery_service import (
     _item_available,
-    assign_courier,
     create_order,
     resolve_campaign,
     update_status,
 )
 from app.services.restaurant_service import PromotionsService
-
 
 # ═══════════════════════════════════════════════════════════════
 # Helpers

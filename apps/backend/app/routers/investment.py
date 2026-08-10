@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.db.database import get_db
-from app.core.dependencies import get_current_active_user, require_role
+from app.core.dependencies import require_role
 from app.core.tenant import get_tenant_id
 from app.models.user import User
 from app.schemas.restaurant import InvestmentCreate, InvestmentUpdate
