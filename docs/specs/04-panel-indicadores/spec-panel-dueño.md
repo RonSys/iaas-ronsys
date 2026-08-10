@@ -19,6 +19,7 @@
 | D4 | V2 agrega: heatmaps, márgenes por canal (costeo vía recetas), comparativas semana vs semana, reporte descargable |
 | D5 | El panel es de **solo lectura** (vista ejecutiva); el dueño NO edita data desde aquí |
 | D6 | Acceso: rol `admin`/`manager` (dueño); los `viewer` (inversionista/auditor) también pueden verlo (solo lectura) |
+| D7 | GMV del panel = pedidos delivery **entregados** (consistente con `metrics_overview`); no incluye no-entregados |
 
 ---
 
@@ -41,11 +42,11 @@ cliente opera hoy).
 | `sales` (models/sales.py) | `sale_date`, `sale_time`, `total`, `subtotal`, `tax_total`, `discount_total`, `business_type`, `is_voided` | KPIs de ventas, series por hora/día |
 | `restaurant_sales` (models/sales.py) | `order_type` (dine_in/takeout/delivery), `table_number`, `guests`, `waiter_name`, `tip_amount` | Canal más rentable, top meseros, ticket por canal |
 | `sale_items` (models/sales.py) | `item_name`, `menu_item_id`, `quantity`, `unit_price`, `total`, `item_type` | Top 10 platos (cantidad y soles) |
-| `sale_payments` (models/sales.py) | `method` (yape/plin/cash/card/transfer), `amount` | Ingresos por método de pago |
-| `delivery_orders` (models/delivery.py) | `status`, `zone_id`, `courier_id`, `campaign_id`, `received_at`, `delivered_at`, `created_at`, `fee` | Embudo, zonas, SLA, GMV delivery |
+| `sale_payments` (models/sales.py) | `payment_method` (yape/plin/cash/card/transfer), `amount` | Ingresos por método de pago |
+| `delivery_orders` (models/delivery.py) | `status` (CHECK: received/preparing/ready/out_for_delivery/delivered/cancelled), `zone_id`, `courier_id`, `campaign_id`, `received_at`, `delivered_at`, `created_at`, `fee` | Embudo, zonas, SLA, GMV delivery |
 | `delivery_zones` (models/delivery.py) | `name`, `districts`, `fee`, `min_order` | Pedidos por zona |
 | `marketing_campaigns` (models/delivery.py) | `channel` (meta/google/tiktok), `spend`, `utm_*` | ROAS por campaña |
-| `kitchen_orders` (models/restaurant.py) | `status` | Pedidos en cocina ahora (KPI en vivo) |
+| `kitchen_orders` (models/restaurant.py) | `status` (CHECK: pending/preparing/ready/delivered/cancelled) | Pedidos en cocina ahora (KPI en vivo) |
 | `couriers` (models/delivery.py) | `status`, `vehicle` | Órdenes en ruta (KPI en vivo) |
 
 ### 2.2 Métricas YA implementadas (reutilizar, no duplicar)
@@ -89,8 +90,8 @@ Response (JSON) agrupado:
     "orders_dine_in": 20,
     "orders_takeout": 4,
     "delivery_pct": 42.9,
-    "kitchen_open": 3,             // en vivo: kitchen_orders activas
-    "delivery_in_route": 2         // en vivo: delivery_orders en ruta
+    "kitchen_open": 3,             // en vivo: kitchen_orders status IN ('pending','preparing')
+    "delivery_in_route": 2         // en vivo: delivery_orders status='out_for_delivery'
   },
   "sales_by_hour": [ {"hour": 12, "dine_in": 320.0, "delivery": 0}, ... ],   // 0-23
   "sales_by_weekday": [ {"weekday": 1, "total": 850.0}, ... ],               // 1=Mon..7=Sun
@@ -99,7 +100,7 @@ Response (JSON) agrupado:
   "payments": { "yape": 500.0, "plin": 200.0, "cash": 400.0, "card": 120.0, "transfer": 30.5 },
   "delivery": {
     "orders_by_zone": [ {"zone": "Zona 1", "orders": 12}, ... ],
-    "funnel": { "received": 18, "in_kitchen": 3, "ready": 2, "in_route": 2, "delivered": 9, "cancelled": 2 },
+    "funnel": { "received": 18, "preparing": 3, "ready": 2, "out_for_delivery": 2, "delivered": 9, "cancelled": 2 },
     "avg_delivery_min": 32.4,
     "gmv": 450.5,
     "fee_total": 90.0
@@ -107,6 +108,8 @@ Response (JSON) agrupado:
   "campaigns": [ {"name": "Meta Jul", "channel": "meta", "spend": 100, "orders": 8, "gmv": 240, "aov": 30, "roas": 2.4}, ... ]
 }
 ```
+
+**Nota GMV (D7)**: el GMV del panel = pedidos delivery **entregados** (consistente con `metrics_overview` existente, que solo cuenta `status='delivered'`); no incluye no-entregados.
 
 **Frontend** — nueva página `/panel` (o `/dashboard/dueño`):
 - Fila 1: tarjetas KPI (ventas del día, pedidos, ticket promedio, % delivery, cocina en vivo, en ruta).
@@ -162,8 +165,9 @@ Response (JSON) agrupado:
 
 | Artefacto | Ubicación en código (propuesta) | Spec |
 |---|---|---|
-| Endpoint dueño | `app/routers/dashboard.py` (nuevo) o `app/routers/admin.py` | §3.1 |
+| Endpoint dueño | `app/routers/dashboard.py` (nuevo, prefix `/api/v1/dashboard`) | §3.1 |
 | Service de métricas | `app/services/owner_dashboard_service.py` (nuevo) | §3.1 |
+| Pool solo-lectura | `dashboard_ro` (panel es solo lectura — no usa pool de escritura) | §3.1 |
 | Reuso delivery metrics | `app/services/delivery_service.py` (`metrics_overview`, `metrics_campaigns`) | §2.2 |
 | Página panel | `apps/web/src/pages/DashboardOwner.tsx` + ruta `/panel` en `App.tsx` | §3.1 |
 | Charts | `apps/web/src/components/dashboard/*` (recharts) | §3.1 |
