@@ -101,7 +101,7 @@ make migrate  # o alembic upgrade head
 |---|---|---|
 | Compose | `docker-compose*.yml` (raíz) | §2.1 |
 | Deploy | `deploy.sh`, `Makefile` | §2.1, §3.1 |
-| Dockerfiles | `infra/docker/*` | §2.1 |
+| Dockerfiles | `apps/backend/Dockerfile`, `apps/web/Dockerfile` | §2.1 |
 | CI/CD | `.github/workflows/*` | §2.2 |
 | Monitoreo | `infra/docker/monitoring`, `app/monitoring/`, `app/routers/health.py` | §2.3 |
 | E2E | `apps/web/e2e/*` | §2.4 |

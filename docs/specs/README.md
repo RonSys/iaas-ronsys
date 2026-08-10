@@ -59,7 +59,7 @@
 | Contabilidad | 00-contable | `routers/accounting.py`, `core/accounting/*` | 0001, 0004 | Cashflow, Reports | reportes |
 | Kárdex | 00-kardex | `routers/accounting.py:386`, `services/kardex_service.py`, `core/accounting/kardex.py` | 0001, 0008-0010 | Kardex, ProductsPage | kardex |
 | Simulador | 00-simulador | `routers/simulator.py`, `services/simulator_service.py` | 0006 | Simulator | simulador |
-| Restaurante/POS | 01-restaurante | `routers/restaurant.py`, `routers/sales.py`, `services/restaurant_service.py`, `services/sales_service.py` | 0005, 0007, 0011, 0015 | TablesMap, MenuPage, KitchenKanban, Takeaway, Pos, SalesNew/List | dashboard ⚠️ sin e2e POS/mesas |
+| Restaurante/POS | 01-restaurante | `routers/restaurant.py`, `routers/sales.py`, `services/restaurant_service.py`, `services/sales_service.py` + WS `/ws/kitchen`, `/ws/waiter` | 0005, 0007, 0011, 0015 | TablesMap, MenuPage, KitchenKanban, Takeaway, Pos, SalesNew/List | dashboard ⚠️ sin e2e POS/mesas |
 | Inventario ferretería | 01-inventario | `routers/inventory.py`, `services/inventory_service.py` | 0008-0010 | ProductsPage, CategoriesPage | ⚠️ sin e2e inventario |
 | Superadmin | 01-superadmin | `routers/superadmin.py` | 0014 | superadmin/* | ⚠️ sin e2e |
 | Inversiones | 01-inversiones | `routers/investment.py`, `services/investment_service.py` | 0013 | InvestmentPage, Reports | — |
