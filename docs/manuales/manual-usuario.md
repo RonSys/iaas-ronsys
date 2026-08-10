@@ -12,6 +12,7 @@
 1. [Introducción](#1-introducción)
 2. [Acceso al Sistema](#2-acceso-al-sistema)
 3. [Dashboard — Panel de Control](#3-dashboard--panel-de-control)
+3bis. [Panel del Dueño — Dashboard Ejecutivo](#3bis-panel-del-dueño--dashboard-ejecutivo)
 4. [Setup Wizard — Configuración Inicial](#4-setup-wizard--configuración-inicial)
 5. [Simulador Financiero](#5-simulador-financiero)
 6. [Reportes Financieros](#6-reportes-financieros)
@@ -179,6 +180,35 @@ El Dashboard incluye dos gráficos generados automáticamente:
 - **📈 Flujo de Caja Acumulado**: línea de tendencia del efectivo acumulado
 
 > 💡 Para la vista completa con proyección, datos reales y comparativa con alertas, ve a **💰 Flujo de Caja** en la navegación (ver [Sección 8](#8-flujo-de-caja)).
+
+## 3bis. Panel del Dueño — Dashboard Ejecutivo 📊
+
+El **Panel del Dueño** (menú: 📈 Panel del Dueño, ruta `/panel`) es la vista ejecutiva de solo lectura con **datos reales del negocio** (no de la simulación). Responde en una sola pantalla: *"¿cómo va el negocio hoy?"*.
+
+### Qué muestra
+
+| Bloque | Contenido |
+|--------|-----------|
+| **KPIs** | Ventas del período, # pedidos, ticket promedio, % delivery, pedidos en cocina (en vivo) y en ruta (en vivo) |
+| **Ventas por hora** | Línea doble: salón vs delivery, de 00:00 a 23:00 |
+| **Ventas por día** | Barras por día de la semana (lun–dom) |
+| **Canales** | Dona: salón / para llevar / delivery |
+| **Top platos** | Barras horizontales con los 10 platos más vendidos (cantidad y soles) |
+| **Pagos** | Pie por método: Yape, Plin, efectivo, tarjeta, transferencia |
+| **Pedidos por zona** | Barras con pedidos delivery por zona de reparto |
+| **Embudo delivery** | Recibido → en cocina → listo → en ruta → entregado (y cancelados) |
+| **ROAS por campaña** | Barras: retorno de inversión publicitaria por campaña (Meta, Google, TikTok) |
+| **GMV delivery** | Total vendido del canal delivery, **solo pedidos entregados** |
+
+### Rango de fechas
+
+El panel tiene un selector con **Hoy**, **7 días** y **30 días** (default: últimos 30 días). Al hacer clic, los KPIs y gráficos se actualizan solos.
+
+### Acceso
+
+Disponible para roles **admin**, **manager** y **viewer** (solo lectura — el dueño no edita datos desde aquí).
+
+> 💡 Para ver el Dashboard financiero de la simulación (KPIs, PYG, balance), usa el **Dashboard** clásico (ver [Sección 3](#3-dashboard--panel-de-control)).
 
 ## 4. Setup Wizard — Configuración Inicial
 

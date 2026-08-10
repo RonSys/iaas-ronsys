@@ -99,6 +99,17 @@ El sistema ya no es un proyecto: **es una herramienta de trabajo diario**. Está
 | Consola central para **crear y gestionar empresas** (locales de la franquicia) y **usuarios de todas las empresas**, activar/desactivar accesos y ver indicadores agregados | 🟢 Operativo |
 | Permite vender el sistema como servicio a otros negocios: cada empresa con sus datos, su marca y su propio enlace público | 🟢 Operativo |
 
+### 2.9 Panel del Dueño (Dashboard Ejecutivo) 📊 *(lo más reciente)*
+
+| Qué hace | Estado |
+|---|---|
+| **Vista ejecutiva de una sola pantalla**: el dueño ve cómo va el negocio hoy sin hojas de cálculo — ventas del día, ticket promedio, % de delivery, pedidos en cocina y en ruta en vivo | 🟢 Operativo — verificado en producción |
+| **Ventas por hora (salón vs delivery)** y **por día de la semana** en gráficos | 🟢 Operativo |
+| **Canales de venta** (salón / para llevar / delivery), **top platos vendidos** y **métodos de pago** (Yape, Plin, efectivo, tarjeta, transferencia) | 🟢 Operativo |
+| **Delivery**: pedidos por zona, embudo (recibido → cocina → listo → en ruta → entregado) y **GMV solo de pedidos entregados** | 🟢 Operativo |
+| **ROAS por campaña publicitaria**: cuánto retorna cada campaña (Meta, Google, TikTok) frente a lo invertido | 🟢 Operativo |
+| **Selector de rango**: hoy / 7 días / 30 días, actualizable con un clic; acceso con rol admin/manager/viewer (solo lectura) | 🟢 Operativo |
+
 ---
 
 ## 3. Evolución del Desarrollo (cómo creció el sistema)

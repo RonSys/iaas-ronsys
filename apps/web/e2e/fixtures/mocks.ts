@@ -349,6 +349,7 @@ export function mockHealth(page: Page) {
  */
 export function mockOwnerDashboard(page: Page, data?: Record<string, unknown>) {
   const payload = {
+    period: { date_from: "2026-08-04", date_to: "2026-08-10" },
     kpis: {
       sales_total: 4850.5,
       orders_count: 42,

@@ -82,6 +82,7 @@ export interface CampaignMetric {
 }
 
 export interface OwnerDashboardResponse {
+  period: { date_from: string; date_to: string };
   kpis: OwnerKpis;
   sales_by_hour: HourlySale[];
   sales_by_weekday: WeekdaySale[];

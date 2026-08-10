@@ -134,6 +134,7 @@ IaaS-RonSys/
 | **POS + Kárdex + Contabilidad** | Venta con descuento de stock, kárdex por promedio ponderado y asiento contable automático | `docs/manuales/manual-usuario.md` |
 | **Recetas por plato (explosión)** | Recetas por plato, descuento automático de ingredientes al vender (kárdex `receta`) y costeo/margen del plato | [`docs/manuales/guia-recetas-kardex.md`](docs/manuales/guia-recetas-kardex.md) · Spec [`docs/specs/01-spec-recetas-productos-v0.2.md`](docs/specs/01-spec-recetas-productos-v0.2.md) |
 | **Multi-tenant** | Aislamiento por `X-Tenant-ID` (fallback JWT) en todos los módulos | `docs/architecture/` |
+| **Panel del Dueño** | Dashboard ejecutivo: KPIs del día, canales, top platos, pagos, delivery (zonas/embudo/GMV) y ROAS por campaña — solo lectura, rango Hoy/7d/30d | Spec [`docs/specs/04-panel-indicadores/spec-panel-dueño.md`](docs/specs/04-panel-indicadores/spec-panel-dueño.md) · E2E `apps/web/e2e/panel.spec.ts` |
 
 ---
 
@@ -428,6 +429,11 @@ Base URL: `http://localhost:8000`
 | `PATCH` | `/api/settings` | Actualizar configuración |
 | `GET` | `/api/settings/palette` | Solo paleta de colores |
 | `PATCH` | `/api/settings/palette` | Cambiar paleta |
+
+### Panel del Dueño (Dashboard Ejecutivo)
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/api/v1/dashboard/owner?date_from=&date_to=` | Resumen ejecutivo del dueño: KPIs, ventas por hora/día, canales, top platos, pagos, delivery (zonas/embudo/GMV) y ROAS por campaña (default: últimos 30 días) |
 
 > 📖 Schemas completos en `apps/backend/app/schemas/__init__.py`  
 > 📖 Swagger UI en `http://localhost:8000/docs`

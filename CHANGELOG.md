@@ -4,6 +4,18 @@
 
 ---
 
+## [0.2.0] — 2026-08-10
+
+### Added
+
+#### 📊 Panel del Dueño (Dashboard Ejecutivo — Requerimiento #1, Spec 04)
+- Endpoint `GET /api/v1/dashboard/owner` (KPIs del día, ventas por hora/día, canales, top platos, pagos, delivery: zonas/embudo/GMV, ROAS por campaña) — solo lectura, acceso admin/manager/viewer
+- Página `/panel` (DashboardOwner) con selector de rango Hoy/7 días/30 días y 7 gráficos Recharts
+- Tests: backend `test_owner_dashboard.py` (11) + E2E `e2e/panel.spec.ts` (6)
+- Script demo: `apps/web/scripts/e2e-demo-panel.cjs`
+
+---
+
 ## [0.1.0] — 2026-05-10
 
 ### Added

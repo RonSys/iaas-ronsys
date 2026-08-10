@@ -82,6 +82,7 @@ Response (JSON) agrupado:
 
 ```jsonc
 {
+  "period": { "date_from": "2026-07-12", "date_to": "2026-08-10" },  // rango efectivo aplicado (default: últimos 30 días)
   "kpis": {
     "sales_total": 1250.50,        // ventas del período (sin anuladas)
     "orders_count": 42,            // # pedidos (sales)
@@ -110,6 +111,8 @@ Response (JSON) agrupado:
 ```
 
 **Nota GMV (D7)**: el GMV del panel = pedidos delivery **entregados** (consistente con `metrics_overview` existente, que solo cuenta `status='delivered'`); no incluye no-entregados.
+
+**Nota `period`**: el endpoint devuelve `period.date_from/date_to` con el rango efectivamente aplicado (si no se pasan fechas, default = últimos 30 días incluyendo hoy). El frontend lo usa para reflejar el rango activo en el selector.
 
 **Frontend** — nueva página `/panel` (o `/dashboard/dueño`):
 - Fila 1: tarjetas KPI (ventas del día, pedidos, ticket promedio, % delivery, cocina en vivo, en ruta).
@@ -170,6 +173,7 @@ Response (JSON) agrupado:
 | Pool solo-lectura | `dashboard_ro` (panel es solo lectura — no usa pool de escritura) | §3.1 |
 | Reuso delivery metrics | `app/services/delivery_service.py` (`metrics_overview`, `metrics_campaigns`) | §2.2 |
 | Página panel | `apps/web/src/pages/DashboardOwner.tsx` + ruta `/panel` en `App.tsx` | §3.1 |
+| API client + tipos | `apps/web/src/services/dashboardApi.ts`, `apps/web/src/types/dashboard.ts` | §3.1 |
 | Charts | `apps/web/src/components/dashboard/*` (recharts) | §3.1 |
 | Tests | `apps/backend/tests/test_owner_dashboard.py`, `apps/web/e2e/panel.spec.ts` | §4 |
 | Registro requerimiento | `docs/reports/informe-ejecutivo-cliente-2026-08-10.md` §5.3 (#1) | — |
