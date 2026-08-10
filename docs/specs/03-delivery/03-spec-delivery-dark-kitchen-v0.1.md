@@ -411,8 +411,8 @@ GET   /api/v1/delivery/metrics/overview?from=&to=   pedidos, GMV, fee total, tie
 
 ## 6. Referencias
 
-- Spec 01 (explosión de recetas — patrón de pre-check 409 atómico y COGS): `docs/specs/01-spec-recetas-productos-v0.2.md`
-- Spec 02 (costos variables / kárdex promedio ponderado): `docs/specs/02-spec-costos-variables-v0.1.md`
+- Spec 01 (explosión de recetas — patrón de pre-check 409 atómico y COGS): `docs/specs/02-recetas-costos/01-spec-recetas-productos-v0.2.md`
+- Spec 02 (costos variables / kárdex promedio ponderado): `docs/specs/02-recetas-costos/02-spec-costos-variables-v0.1.md`
 - Plan integral v3 — deuda D-06 (delivery en Fase 2): `Plan-Integral-de-Integración-de-Módulos-ERP-v3.md`
 - Informe de investigación "Top 10 negocios Perú 2026" (dark kitchens: 35k soles, margen 12-18%, éxito 50-55%)
 - Informe de upgrade consolidado: `docs/reports/informe-upgrade-dark-kitchen-delivery-2026-08-03.md`
