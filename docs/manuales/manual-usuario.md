@@ -67,11 +67,11 @@ Este manual es para **todos los usuarios** del sistema: administradores, gerente
 
 | Servicio | 🚀 Producción | 🧪 QA (Pruebas) |
 |----------|:---:|:---:|
-| **Aplicación Web** | `http://localhost` | `http://localhost:5173` |
+| **Aplicación Web** | `http://localhost:8081` | `http://localhost:5173` |
 | **API / Backend** | `http://localhost:8000` | `http://localhost:8001` |
 | **Swagger Docs** | `http://localhost:8000/docs` | `http://localhost:8001/docs` |
 
-> 💡 Producción usa Nginx en el puerto 80 (sin número de puerto). QA usa Vite dev server en `:5173`.
+> 💡 Producción usa Nginx en el puerto 8081 (el 80 lo ocupa otro servicio). QA usa Vite dev server en `:5173`.
 
 ### Credenciales de Demostración
 
@@ -99,7 +99,7 @@ IaaS-RonSys utiliza **JWT (JSON Web Tokens)** con dos tipos de token:
 ### Iniciar Sesión
 
 1. Abre la aplicación en tu navegador:
-   - **Producción**: `http://localhost`
+   - **Producción**: `http://localhost:8081`
    - **QA**: `http://localhost:5173`
 2. Aparece la pantalla de login con los campos **Email** y **Contraseña**
 3. Ingresa tus credenciales
