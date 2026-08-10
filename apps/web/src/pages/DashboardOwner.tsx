@@ -1,12 +1,15 @@
 /**
- * DashboardOwner — Panel de Indicadores para el Dueño (Spec 04, V1).
+ * DashboardOwner — Panel de Indicadores para el Dueño (Spec 04, V1 + V2).
  *
- * Vista ejecutiva de solo lectura: KPIs del día, ventas por hora/día,
- * canales (salón/takeaway/delivery), top 10 platos, métodos de pago,
- * delivery (zonas, embudo, SLA, GMV) y ROAS por campaña.
+ * Vista ejecutiva de solo lectura: KPIs del día con comparativa ▲▼ (CA12),
+ * alertas de desviación (CA14), heatmaps hora×día por canal con CSS grid
+ * coloreado (CA10), márgenes por canal con costeo (CA11), ventas por hora/día,
+ * canales, top platos, pagos, delivery y ROAS por campaña. Botón de descarga
+ * CSV del período (CA13).
  *
  * Data: GET /api/v1/dashboard/owner?date_from=&date_to=
- * Contrato: docs/specs/04-panel-indicadores/spec-panel-dueño.md §3.1
+ * Export: GET /api/v1/dashboard/owner/export?format=csv&date_from=&date_to=
+ * Contrato: docs/specs/04-panel-indicadores/spec-panel-dueño.md §3.1 + §3.1-V2
  *
  * @page DashboardOwner
  */
@@ -27,8 +30,15 @@ import {
   Legend,
 } from "recharts";
 import { KPICard, SectionHeader, Skeleton, fmtCurrency, fmtPct } from "@/components/dashboard/KPICard";
-import { getOwnerDashboard } from "@/services/dashboardApi";
-import type { OwnerDashboardResponse, OwnerDashboardParams } from "@/types";
+import { exportOwnerDashboardCsv, getOwnerDashboard } from "@/services/dashboardApi";
+import type {
+  AlertItem,
+  ComparisonDeltas,
+  HeatmapChannel,
+  MarginsData,
+  OwnerDashboardResponse,
+  OwnerDashboardParams,
+} from "@/types";
 
 // ─── Helpers de fecha (America/Lima) ────────────────────────
 function todayISO(): string {
@@ -59,12 +69,248 @@ const CHANNEL_COLORS: Record<string, string> = {
   delivery: "#10b981",
 };
 
+const CHANNEL_LABELS: Record<string, string> = {
+  dine_in: "Salón",
+  takeout: "Para llevar",
+  delivery: "Delivery",
+};
+
 const PAYMENT_COLORS = ["#6366f1", "#ec4899", "#10b981", "#8b5cf6", "#f59e0b"];
 
+// ─── V2: Indicador de delta ▲▼ (CA12) ───────────────────────
+/**
+ * Flecha ▲ verde si el delta es positivo, ▼ roja si es negativo, junto al
+ * valor. `suffix` distingue % (deltas relativos) de " pts" (delivery_pct_delta,
+ * que llega en puntos porcentuales). Si delta es null → sin indicador.
+ */
+function DeltaChip({ delta, suffix = "%" }: { delta: number | null | undefined; suffix?: string }) {
+  if (delta == null || Number.isNaN(delta)) return null;
+  const positive = delta > 0;
+  const zero = delta === 0;
+  const cls = zero ? "text-slate-400" : positive ? "text-emerald-400" : "text-red-400";
+  const arrow = zero ? "→" : positive ? "▲" : "▼";
+  const sign = positive ? "+" : "";
+  return (
+    <span className={`text-xs font-semibold ${cls}`} title="vs período anterior (CA12)">
+      {arrow} {sign}{delta.toFixed(1)}{suffix}
+    </span>
+  );
+}
+
+/** KPI con indicador de comparativa semana vs semana (CA12). */
+function KpiWithDelta({
+  title,
+  value,
+  icon,
+  subtitle,
+  delta,
+  deltaSuffix = "%",
+}: {
+  title: string;
+  value: string;
+  icon?: string;
+  subtitle?: string;
+  delta?: number | null;
+  deltaSuffix?: string;
+}) {
+  return (
+    <div className="card animate-fade-in">
+      <div className="flex items-start justify-between mb-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-brand-text-secondary">
+          {title}
+        </span>
+        {icon && <span className="text-lg">{icon}</span>}
+      </div>
+      <div className="text-2xl font-bold text-brand-text-primary">{value}</div>
+      <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+        <DeltaChip delta={delta} suffix={deltaSuffix} />
+        {subtitle && <span className="text-xs text-brand-text-secondary">{subtitle}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ─── V2: Banner de alertas (CA14) ───────────────────────────
+/** Lista de alertas de desviación; rojo/ámbar según severidad. Vacío → nada. */
+function AlertsBanner({ alerts }: { alerts: AlertItem[] }) {
+  if (!alerts || alerts.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      {alerts.map((a, i) => {
+        const isRed = a.severity === "red";
+        return (
+          <div
+            key={`${a.metric}-${i}`}
+            className={`card flex items-center gap-2 p-3 text-sm ${
+              isRed
+                ? "border-red-500/40 bg-red-500/10 text-red-300"
+                : "border-yellow-500/40 bg-yellow-500/10 text-yellow-300"
+            }`}
+          >
+            <span className="text-base">⚠️</span>
+            <span className="font-medium">{a.message}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── V2: Heatmap hora×día con CSS grid coloreado (CA10, R4) ──
+const HEATMAP_ACCENTS: Record<string, string> = { dine_in: "#3b82f6", delivery: "#10b981" };
+
+/** Fila del grid: etiqueta de hora + 7 celdas (Lun..Dom). */
+function HeatmapHourRow({
+  hour,
+  totalsByWeekday,
+  max,
+  accent,
+}: {
+  hour: number;
+  totalsByWeekday: Map<number, number> | undefined;
+  max: number;
+  accent: string;
+}) {
+  return (
+    <>
+      <div className="text-right text-[10px] text-slate-500 pr-1 leading-4">
+        {String(hour).padStart(2, "0")}
+      </div>
+      {Array.from({ length: 7 }, (_, i) => {
+        const weekday = i + 1;
+        const total = totalsByWeekday?.get(weekday) ?? 0;
+        // Intensidad relativa al máximo del canal; celdas vacías casi transparentes
+        const opacity = total > 0 ? 0.18 + (max > 0 ? total / max : 0) * 0.82 : 0.04;
+        return (
+          <div
+            key={weekday}
+            title={`${WEEKDAY_NAMES[weekday]} ${String(hour).padStart(2, "0")}:00 — ${fmtCurrency(total)}`}
+            className="h-4 rounded-sm"
+            style={{ backgroundColor: accent, opacity }}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+/** Heatmap completo de un canal: 7 columnas (Lun..Dom) × 24 filas (hora). */
+function HeatmapGrid({
+  title,
+  channel,
+  accent,
+}: {
+  title: string;
+  channel: HeatmapChannel;
+  accent: string;
+}) {
+  const max = useMemo(
+    () => Math.max(...channel.rows.map((r) => r.total), 0),
+    [channel],
+  );
+  const byHour = useMemo(() => {
+    const map = new Map<number, Map<number, number>>();
+    for (const r of channel.rows) {
+      let col = map.get(r.hour);
+      if (!col) {
+        col = new Map<number, number>();
+        map.set(r.hour, col);
+      }
+      col.set(r.weekday, r.total);
+    }
+    return map;
+  }, [channel]);
+
+  return (
+    <div className="card p-4">
+      <h3 className="font-semibold text-sm mb-3">{title}</h3>
+      <div className="overflow-x-auto">
+        <div
+          className="grid min-w-[480px]"
+          style={{ gridTemplateColumns: "2.5rem repeat(7, minmax(0, 1fr))", gap: "2px" }}
+        >
+          <div />
+          {WEEKDAY_NAMES.slice(1).map((d) => (
+            <div key={d} className="text-center text-[10px] font-semibold text-slate-400">
+              {d}
+            </div>
+          ))}
+          {Array.from({ length: 24 }, (_, h) => (
+            <HeatmapHourRow key={h} hour={h} totalsByWeekday={byHour.get(h)} max={max} accent={accent} />
+          ))}
+        </div>
+      </div>
+      <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-400">
+        <span>Bajo</span>
+        <div
+          className="h-2 flex-1 rounded"
+          style={{ background: `linear-gradient(to right, ${accent}14, ${accent})` }}
+        />
+        <span>Alto</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── V2: Márgenes por canal (CA11) ──────────────────────────
+function marginColor(pct: number): string {
+  if (pct >= 50) return "bg-emerald-500";
+  if (pct >= 30) return "bg-amber-500";
+  return "bg-red-500";
+}
+
+function marginTextColor(pct: number): string {
+  if (pct >= 50) return "text-emerald-400";
+  if (pct >= 30) return "text-amber-400";
+  return "text-red-400";
+}
+
+/** Tarjetas de margen por canal con barra de progreso + nota de costeabilidad (R2). */
+function MarginsCards({ margins }: { margins: MarginsData }) {
+  return (
+    <div className="card p-4">
+      <h3 className="font-semibold text-sm mb-3">Margen por canal (costeo por recetas)</h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {margins.by_channel.map((m) => (
+          <div key={m.channel} className="rounded-lg bg-white/5 p-3 border border-white/10">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                {CHANNEL_LABELS[m.channel] ?? m.channel}
+              </span>
+              <span className={`text-lg font-bold ${marginTextColor(m.margin_pct)}`}>
+                {m.margin_pct.toFixed(1)}%
+              </span>
+            </div>
+            <div className="mt-2 h-2 bg-white/10 rounded overflow-hidden">
+              <div
+                className={`h-full ${marginColor(m.margin_pct)}`}
+                style={{ width: `${Math.max(0, Math.min(m.margin_pct, 100))}%` }}
+              />
+            </div>
+            <div className="mt-2 text-xs text-slate-400 space-y-0.5">
+              <div className="flex justify-between">
+                <span>Ingresos</span>
+                <span>{fmtCurrency(m.revenue)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Costo</span>
+                <span>{fmtCurrency(m.cost)}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[11px] text-slate-500">{margins.costable_note}</p>
+    </div>
+  );
+}
+
+// ─── Página ─────────────────────────────────────────────────
 export function DashboardOwner() {
   const [data, setData] = useState<OwnerDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [range, setRange] = useState<OwnerDashboardParams>({
     date_from: daysAgoISO(6),
     date_to: todayISO(),
@@ -86,6 +332,30 @@ export function DashboardOwner() {
   useEffect(() => {
     load(range);
   }, [load, range]);
+
+  // ─── CA13: Descarga CSV del período seleccionado ─────────
+  const downloadCsv = useCallback(async () => {
+    setExporting(true);
+    try {
+      const { blob, filename } = await exportOwnerDashboardCsv({
+        date_from: range.date_from,
+        date_to: range.date_to,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      // Filename del header Content-Disposition (RFC 5987, con ñ) si existe
+      a.download = filename ?? `panel_dueño_${range.date_to ?? todayISO()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al descargar el reporte");
+    } finally {
+      setExporting(false);
+    }
+  }, [range]);
 
   // ─── Datos derivados para gráficos ───────────────────────
   const hourly = useMemo(() => {
@@ -149,11 +419,12 @@ export function DashboardOwner() {
   }, [data]);
 
   const kpis = data?.kpis;
+  const deltas: ComparisonDeltas | undefined = data?.comparison?.deltas;
 
   return (
     <div className="space-y-6 animate-fade-in">
       <SectionHeader title="Panel del Dueño" icon="📊">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           {RANGES.map((r) => (
             <button
               key={r.key}
@@ -169,6 +440,14 @@ export function DashboardOwner() {
               {r.label}
             </button>
           ))}
+          <button
+            onClick={downloadCsv}
+            disabled={exporting || loading || !data}
+            className="ml-1 px-3 py-1.5 text-xs rounded-lg bg-brand-primary/10 border border-brand-primary/30 text-brand-primary hover:bg-brand-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Descargar reporte CSV del período (CA13)"
+          >
+            {exporting ? "⏳ Generando…" : "⬇️ Descargar CSV"}
+          </button>
         </div>
       </SectionHeader>
 
@@ -178,7 +457,10 @@ export function DashboardOwner() {
         </div>
       )}
 
-      {/* ─── KPIs ─────────────────────────────────────────── */}
+      {/* ─── V2: Alertas de desviación (CA14) ─────────────── */}
+      {data && <AlertsBanner alerts={data.alerts} />}
+
+      {/* ─── KPIs (con comparativa ▲▼, CA12) ──────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
         {loading || !kpis
           ? Array.from({ length: 6 }).map((_, i) => (
@@ -190,15 +472,52 @@ export function DashboardOwner() {
             ))
           : (
               <>
-                <KPICard title="Ventas" value={fmtCurrency(kpis.sales_total)} icon="💰" subtitle={kpis.orders_count ? `${kpis.orders_count} pedidos` : "sin pedidos"} />
-                <KPICard title="Ticket promedio" value={fmtCurrency(kpis.avg_ticket)} icon="🎫" />
-                <KPICard title="Delivery" value={fmtPct(kpis.delivery_pct / 100)} icon="🛵" subtitle={`${kpis.orders_delivery} pedidos`} />
+                <KpiWithDelta
+                  title="Ventas"
+                  value={fmtCurrency(kpis.sales_total)}
+                  icon="💰"
+                  subtitle={kpis.orders_count ? `${kpis.orders_count} pedidos` : "sin pedidos"}
+                  delta={deltas?.sales_total_pct}
+                />
+                <KpiWithDelta
+                  title="Ticket promedio"
+                  value={fmtCurrency(kpis.avg_ticket)}
+                  icon="🎫"
+                  delta={deltas?.avg_ticket_pct}
+                />
+                <KpiWithDelta
+                  title="Delivery"
+                  value={fmtPct(kpis.delivery_pct / 100)}
+                  icon="🛵"
+                  subtitle={`${kpis.orders_delivery} pedidos`}
+                  delta={deltas?.delivery_pct_delta}
+                  deltaSuffix=" pts"
+                />
                 <KPICard title="Salón" value={`${kpis.orders_dine_in} pedidos`} icon="🍽️" subtitle="dine-in" />
                 <KPICard title="Cocina en vivo" value={String(kpis.kitchen_open)} icon="👨‍🍳" subtitle="pedidos activos" />
                 <KPICard title="En ruta" value={String(kpis.delivery_in_route)} icon="🏍️" subtitle="delivery activo" />
               </>
             )}
       </div>
+
+      {/* ─── V2: Heatmaps de demanda hora×día (CA10, R4) ──── */}
+      {data && data.heatmap && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <HeatmapGrid
+            title="Heatmap de demanda — Salón"
+            channel={data.heatmap.dine_in}
+            accent={HEATMAP_ACCENTS.dine_in}
+          />
+          <HeatmapGrid
+            title="Heatmap de demanda — Delivery"
+            channel={data.heatmap.delivery}
+            accent={HEATMAP_ACCENTS.delivery}
+          />
+        </div>
+      )}
+
+      {/* ─── V2: Márgenes por canal (CA11) ────────────────── */}
+      {data && data.margins && <MarginsCards margins={data.margins} />}
 
       {/* ─── Fila 2: ventas por hora + por día ─────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

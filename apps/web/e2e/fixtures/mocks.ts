@@ -344,9 +344,23 @@ export function mockHealth(page: Page) {
 }
 
 /**
- * Mock GET /api/v1/dashboard/owner (Spec 04 — Panel del Dueño).
- * Contrato: src/types/dashboard.ts → OwnerDashboardResponse.
+ * Mock GET /api/v1/dashboard/owner (Spec 04 — Panel del Dueño, V1 + V2).
+ * Contrato: src/types/dashboard.ts → OwnerDashboardResponse (§3.1 + §3.1-V2).
  */
+
+/** Genera filas completas 24×7 para el heatmap (CA10); `populate` = {`h-d`: S/} extra. */
+function heatmapRows(
+  populate: Record<string, number> = {},
+): Array<{ hour: number; weekday: number; total: number }> {
+  const rows: Array<{ hour: number; weekday: number; total: number }> = [];
+  for (let h = 0; h < 24; h++) {
+    for (let d = 1; d <= 7; d++) {
+      rows.push({ hour: h, weekday: d, total: populate[`${h}-${d}`] ?? 0 });
+    }
+  }
+  return rows;
+}
+
 export function mockOwnerDashboard(page: Page, data?: Record<string, unknown>) {
   const payload = {
     period: { date_from: "2026-08-04", date_to: "2026-08-10" },
@@ -405,6 +419,37 @@ export function mockOwnerDashboard(page: Page, data?: Record<string, unknown>) {
       { campaign_id: 1, name: "Lanzamiento", channel: "meta", spend: 150.0, orders: 12, gmv: 900.0, aov: 75.0, roas: 6.0 },
       { campaign_id: 2, name: "Delivery Norte", channel: "google", spend: 80.0, orders: 5, gmv: 350.0, aov: 70.0, roas: 4.4 },
     ],
+    // ─── V2 (CA10-CA14) ───
+    heatmap: {
+      dine_in: {
+        rows: heatmapRows({
+          "12-1": 320.5, "12-2": 410.0, "13-1": 512.0, "13-3": 460.0,
+          "13-6": 480.0, "19-5": 505.0, "20-5": 390.0, "19-7": 450.0,
+        }),
+      },
+      delivery: {
+        rows: heatmapRows({
+          "12-1": 210.0, "12-5": 250.0, "13-2": 300.0, "19-6": 340.0,
+          "20-5": 420.0, "20-6": 380.0, "21-7": 260.0,
+        }),
+      },
+    },
+    margins: {
+      by_channel: [
+        { channel: "dine_in", revenue: 2450.0, cost: 980.0, margin_pct: 60.0 },
+        { channel: "takeout", revenue: 620.0, cost: 310.0, margin_pct: 50.0 },
+        { channel: "delivery", revenue: 1780.5, cost: 890.25, margin_pct: 50.0 },
+      ],
+      costable_note: "Margen calculado solo sobre ítems con receta (average_cost); ventas sin receta no aportan costo (decisión R2)",
+    },
+    comparison: {
+      current: { sales_total: 4850.5, orders_count: 42, avg_ticket: 115.5, delivery_pct: 35.7 },
+      previous: { sales_total: 4100.0, orders_count: 38, avg_ticket: 107.9, delivery_pct: 31.2 },
+      deltas: { sales_total_pct: 18.3, orders_count_pct: 10.5, avg_ticket_pct: 7.0, delivery_pct_delta: 4.5 },
+    },
+    alerts: [
+      { severity: "yellow", metric: "sales_total", message: "Hoy Ventas -12% vs promedio últimos 7 días" },
+    ],
     ...data,
   };
   return page.route("**/api/v1/dashboard/owner**", (route) => {
@@ -412,6 +457,25 @@ export function mockOwnerDashboard(page: Page, data?: Record<string, unknown>) {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(payload),
+    });
+  });
+}
+
+/**
+ * Mock GET /api/v1/dashboard/owner/export?format=csv (Spec 04 CA13).
+ * Registrar DESPUÉS de mockOwnerDashboard: Playwright resuelve rutas en
+ * orden inverso de registro (LIFO) → la export gana para /owner/export.
+ */
+export function mockOwnerDashboardExport(page: Page) {
+  return page.route("**/api/v1/dashboard/owner/export**", (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: "text/csv",
+      headers: {
+        "Content-Disposition":
+          'attachment; filename="panel_dueño_20260810.csv"; filename*=UTF-8\'\'panel_due%C3%B1o_20260810.csv',
+      },
+      body: "# kpis\nmetric,value\nsales_total,4850.50\norders_count,42\n# sales_by_hour\nhour,dine_in,delivery\n12,850.0,420.0\n",
     });
   });
 }
@@ -434,6 +498,7 @@ export async function setupAllMocks(page: Page) {
   await mockSettings(page);
   await mockHealth(page);
   await mockOwnerDashboard(page);
+  await mockOwnerDashboardExport(page);
 }
 
 /** Mock de health solamente (para la pantalla de loading) */
