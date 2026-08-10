@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+backups/
+*.dump
+*.sql
+.git/
+node_modules/
+.venv/
+**/node_modules/
+**/.venv/
+**/__pycache__/
+**/dist/
+**/.next/

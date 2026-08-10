@@ -13,6 +13,7 @@
 # ═══════════════════════════════════════════════════════════════
 
 services:
+  # ⚠️ No cambiar context a la raíz: los .env reales y backups/ viven allí (no deben entrar a la imagen)
   backend:
     build:
       context: ./apps/backend
