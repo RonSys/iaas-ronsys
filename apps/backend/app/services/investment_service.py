@@ -5,7 +5,7 @@ HU: Administrar bienes de inversión, registrar costos estimados vs reales,
     asociar comprobantes y calcular resumen de totes.
 """
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -13,7 +13,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.db.models.restaurant import InvestmentItem
-
 
 INVESTMENT_CATEGORIES = [
     "infraestructura",

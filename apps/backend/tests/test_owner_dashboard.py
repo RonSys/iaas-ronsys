@@ -13,19 +13,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
-from app.models.user import User
+from app.adapters.db.database import get_db
 from app.core.dependencies import get_current_active_user, get_current_user
 from app.core.tenant import get_tenant_id
-from app.adapters.db.database import get_db
-
+from app.main import app
+from app.models.user import User
 from app.services.owner_dashboard_service import (
     _money,
     _parse_date,
     _resolve_dates,
     get_owner_dashboard,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # Helpers

@@ -4,30 +4,16 @@
 HU: Mesas, menú, comandas, takeaway, pagos y promociones.
 """
 
-from datetime import date, datetime, UTC
+import logging
+from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
-LIMA_TZ = ZoneInfo("America/Lima")
-
-
-def _fmt_dt(dt: datetime | None) -> str | None:
-    """Serialize datetime to ISO string in America/Lima timezone."""
-    if dt is None:
-        return None
-    if dt.tzinfo is None:
-        # SQLAlchemy puede devolver naive datetime a pesar de DateTime(timezone=True)
-        dt = dt.replace(tzinfo=UTC)
-    return dt.astimezone(LIMA_TZ).isoformat()
-import logging
-
-logger = logging.getLogger(__name__)
-
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.adapters.db.models.accounting import Product, KardexMovement
+from app.adapters.db.models.accounting import KardexMovement, Product
 from app.adapters.db.models.restaurant import (
     KitchenOrder,
     MenuItem,
@@ -40,13 +26,27 @@ from app.adapters.db.models.restaurant import (
     TakeawayOrder,
 )
 from app.adapters.db.models.sales import (
+    RestaurantSale as RestaurantSaleModel,
+)
+from app.adapters.db.models.sales import (
     Sale,
     SaleItem,
     SalePayment,
-    RestaurantSale as RestaurantSaleModel,
 )
 from app.core.ws_manager import manager
 
+logger = logging.getLogger(__name__)
+LIMA_TZ = ZoneInfo("America/Lima")
+
+
+def _fmt_dt(dt: datetime | None) -> str | None:
+    """Serialize datetime to ISO string in America/Lima timezone."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        # SQLAlchemy puede devolver naive datetime a pesar de DateTime(timezone=True)
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(LIMA_TZ).isoformat()
 
 # ═══════════════════════════════════════════════════════════════
 # Tables Service (F0-004)
@@ -395,7 +395,7 @@ class MenuService:
         if category:
             stmt = stmt.where(MenuItem.category == category)
         if active_only:
-            stmt = stmt.where(MenuItem.active == True)
+            stmt = stmt.where(MenuItem.active.is_(True))
         stmt = stmt.order_by(MenuItem.category, MenuItem.name)
         result = await db.execute(stmt)
         items = result.scalars().all()
@@ -974,7 +974,7 @@ class ClosePayService:
         Returns:
             {"all_delivered": bool, "total": float, "items": [...]}
         """
-        table = await TablesService.get_table(db, table_id, tenant_id)
+        await TablesService.get_table(db, table_id, tenant_id)
 
         stmt = select(KitchenOrder).where(
             KitchenOrder.table_id == table_id,
@@ -1264,7 +1264,7 @@ class PromotionsService:
     ) -> list[dict]:
         stmt = select(Promotion).where(Promotion.tenant_id == tenant_id)
         if active_only:
-            stmt = stmt.where(Promotion.active == True)
+            stmt = stmt.where(Promotion.active.is_(True))
         stmt = stmt.order_by(Promotion.created_at.desc())
         result = await db.execute(stmt)
         return [
@@ -1492,7 +1492,7 @@ class RecipesService:
         Reemplaza ingredientes completamente (delete + insert).
         Solo funciona para platos de cocina.
         """
-        item = await RecipesService._validate_cooking_item(db, menu_item_id, tenant_id)
+        await RecipesService._validate_cooking_item(db, menu_item_id, tenant_id)
 
         # Buscar o crear receta
         stmt = select(Recipe).where(Recipe.menu_item_id == menu_item_id)
@@ -1579,7 +1579,7 @@ class RecipesService:
         """
         stmt = select(Product).where(
             Product.tenant_id == tenant_id,
-            Product.active == True,
+            Product.active.is_(True),
         ).order_by(Product.name)
         result = await db.execute(stmt)
         products = result.scalars().all()

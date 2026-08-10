@@ -24,7 +24,6 @@ from sqlalchemy.orm import selectinload
 from app.adapters.db.models.accounting import Company, KardexMovement, Product
 from app.adapters.db.models.restaurant import MenuItem, Recipe, RecipeIngredient
 
-
 # ─── Normalización de unidades (D4) ───────────────────────────────
 UNIT_NORMALIZATION: dict[str, str] = {
     "kg": "kg", "kilo": "kg", "kilogramo": "kg", "kilogramos": "kg",

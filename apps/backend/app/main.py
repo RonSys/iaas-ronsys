@@ -3,8 +3,8 @@ IaaS-RonSys Backend — Punto de entrada FastAPI.
 Monolito Modular + Hexagonal (Ports & Adapters).
 """
 
-from contextlib import asynccontextmanager
 import asyncio
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,20 +16,21 @@ from app.monitoring import (
     setup_rate_limiting,
     setup_security_headers,
 )
-from app.routers.health import router as health_router
-from app.routers.accounting import router as accounting_router, kardex_router
-from app.routers.setup import router as settings_router
-from app.routers.auth import router as auth_router
+from app.routers.accounting import kardex_router
+from app.routers.accounting import router as accounting_router
 from app.routers.admin import router as admin_router
-from app.routers.sales import router as sales_router
-from app.routers.simulator import router as simulator_router
-from app.routers.restaurant import router as restaurant_router
+from app.routers.auth import router as auth_router
+from app.routers.dashboard import router as dashboard_router
+from app.routers.delivery import router as delivery_router
+from app.routers.health import router as health_router
 from app.routers.inventory import router as inventory_router
 from app.routers.investment import router as investment_router
-from app.routers.superadmin import router as superadmin_router
 from app.routers.public import router as public_router
-from app.routers.delivery import router as delivery_router
-from app.routers.dashboard import router as dashboard_router
+from app.routers.restaurant import router as restaurant_router
+from app.routers.sales import router as sales_router
+from app.routers.setup import router as settings_router
+from app.routers.simulator import router as simulator_router
+from app.routers.superadmin import router as superadmin_router
 
 
 @asynccontextmanager

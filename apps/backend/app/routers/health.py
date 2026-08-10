@@ -3,9 +3,10 @@ Endpoints de Health Check — Monitoreo de estado del servicio.
 """
 
 from fastapi import APIRouter, Response
-from app.config import settings
-from app.adapters.db.database import get_engine
 from sqlalchemy import text
+
+from app.adapters.db.database import get_engine
+from app.config import settings
 
 router = APIRouter()
 

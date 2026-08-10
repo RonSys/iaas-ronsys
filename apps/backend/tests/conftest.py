@@ -7,7 +7,6 @@ import pytest
 # ═══════════════════════════════════════════════════════════════
 # Fixtures de dominio
 # ═══════════════════════════════════════════════════════════════
-
 from app.core.accounting import InvestmentVariables
 
 

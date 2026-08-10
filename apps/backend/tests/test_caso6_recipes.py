@@ -12,13 +12,12 @@ Cubre:
   - PUT /menu/{id}/recipe → reemplaza ingredientes
 """
 
+from datetime import UTC, date, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import date, datetime, UTC
 
 import pytest
 
 from app.services.restaurant_service import RecipesService
-
 
 # ═══════════════════════════════════════════════════════════════
 # Helpers
@@ -455,8 +454,6 @@ async def test_explode_for_sale_creates_kardex_movements():
         kardex_moves.append(obj)
 
     db.add.side_effect = _add_side_effect
-
-    original_refresh = db.refresh
 
     async def _refresh_side_effect(obj):
         if hasattr(obj, 'movement_type'):

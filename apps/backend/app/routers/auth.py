@@ -20,7 +20,6 @@ from app.core.dependencies import get_current_active_user
 from app.core.rate_limit import get_rate_limiter
 from app.core.security import (
     create_access_token,
-    decode_access_token,
     generate_refresh_token_value,
     hash_refresh_token,
     verify_password,

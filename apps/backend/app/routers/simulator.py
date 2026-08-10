@@ -13,20 +13,20 @@ Límite: 4 escenarios por empresa.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.db.database import get_db
 from app.core.dependencies import get_current_active_user
 from app.core.tenant import get_tenant_id
 from app.models.user import User
-from app.services.simulator_service import ScenarioService
 from app.schemas.simulator import (
     ScenarioCreate,
     ScenarioListResponse,
     ScenarioResponse,
     ScenarioUpdate,
 )
+from app.services.simulator_service import ScenarioService
 
 router = APIRouter(prefix="/api/simulator", tags=["Simulador"])
 

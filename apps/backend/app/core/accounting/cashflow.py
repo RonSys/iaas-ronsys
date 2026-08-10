@@ -14,7 +14,6 @@ from datetime import date
 
 from app.core.accounting.engine import InvestmentVariables
 
-
 # ═══════════════════════════════════════════════════════════════
 # Modelos de datos
 # ═══════════════════════════════════════════════════════════════
@@ -171,8 +170,8 @@ class CashflowService:
             ))
 
         # Totales
-        total_income = sum(l.projected for l in lines if l.category == "income")
-        total_expenses = sum(l.projected for l in lines if l.category == "expense")
+        total_income = sum(line.projected for line in lines if line.category == "income")
+        total_expenses = sum(line.projected for line in lines if line.category == "expense")
         net_cf = round(total_income - total_expenses, 2)
 
         report = CashflowReport(
@@ -270,10 +269,10 @@ class CashflowService:
                     if line.account_code == "10":
                         opening += line.debit - line.credit
 
-        sorted_lines = sorted(lines.values(), key=lambda l: (l.year, l.month, l.category, l.concept))
+        sorted_lines = sorted(lines.values(), key=lambda line: (line.year, line.month, line.category, line.concept))
 
-        total_inc = sum(l.actual for l in sorted_lines if l.category == "income")
-        total_exp = sum(l.actual for l in sorted_lines if l.category == "expense")
+        total_inc = sum(line.actual for line in sorted_lines if line.category == "income")
+        total_exp = sum(line.actual for line in sorted_lines if line.category == "expense")
         net_cf = round(total_inc - total_exp, 2)
 
         return CashflowReport(
@@ -311,12 +310,12 @@ class CashflowService:
         """
         # Indexar líneas
         proj_map: dict[tuple[int, int, str], CashflowLine] = {}
-        for l in projected.lines:
-            proj_map[(l.year, l.month, l.concept)] = l
+        for line in projected.lines:
+            proj_map[(line.year, line.month, line.concept)] = line
 
         actual_map: dict[tuple[int, int, str], CashflowLine] = {}
-        for l in actual.lines:
-            actual_map[(l.year, l.month, l.concept)] = l
+        for line in actual.lines:
+            actual_map[(line.year, line.month, line.concept)] = line
 
         # Construir líneas comparativas
         all_keys = set(proj_map.keys()) | set(actual_map.keys())
@@ -389,12 +388,11 @@ class CashflowService:
 
         # Alertas de cashflow negativo vs positivo
         for key in proj_map:
-            p_line = proj_map.get(key)
-            month_lines = [l for l in cmp_lines if l.month == key[1] and l.year == key[0]]
-            actual_month_net = sum(l.actual for l in month_lines if l.category == "income") - \
-                sum(l.actual for l in month_lines if l.category == "expense")
-            proj_month_net = sum(l.projected for l in month_lines if l.category == "income") - \
-                sum(l.projected for l in month_lines if l.category == "expense")
+            month_lines = [line for line in cmp_lines if line.month == key[1] and line.year == key[0]]
+            actual_month_net = sum(line.actual for line in month_lines if line.category == "income") - \
+                sum(line.actual for line in month_lines if line.category == "expense")
+            proj_month_net = sum(line.projected for line in month_lines if line.category == "income") - \
+                sum(line.projected for line in month_lines if line.category == "expense")
 
             if actual_month_net < 0 and proj_month_net > 0:
                 # Solo si no existe ya una alerta de liquidez para ese mes
@@ -410,8 +408,8 @@ class CashflowService:
                         month=key[1],
                     ))
 
-        total_inc = sum(l.actual for l in cmp_lines if l.category == "income")
-        total_exp = sum(l.actual for l in cmp_lines if l.category == "expense")
+        total_inc = sum(line.actual for line in cmp_lines if line.category == "income")
+        total_exp = sum(line.actual for line in cmp_lines if line.category == "expense")
         net_cf = round(total_inc - total_exp, 2)
 
         return CashflowReport(
@@ -473,9 +471,9 @@ class CashflowService:
         Returns:
             Número de líneas persistidas.
         """
-        from app.adapters.db.models.accounting import CashflowProjection
-        from sqlalchemy import select
         from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+        from app.adapters.db.models.accounting import CashflowProjection
 
         saved = 0
         for line in report.lines:
@@ -513,8 +511,9 @@ class CashflowService:
         Returns:
             Lista de CashflowLine cargadas.
         """
-        from app.adapters.db.models.accounting import CashflowProjection
         from sqlalchemy import select
+
+        from app.adapters.db.models.accounting import CashflowProjection
 
         result = await db.execute(
             select(CashflowProjection)

@@ -21,7 +21,8 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_, select as sa_select
+from sqlalchemy import or_
+from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.db.database import get_db
@@ -31,33 +32,28 @@ from app.core.accounting import (
     FinancialStatementService,
     InvestmentVariables,
     KardexEngine,
-    KardexProduct,
+    build_general_ledger,
     calculate_bcss,
     calculate_ratios,
-    build_general_ledger,
     evaluate_ratios,
     generate_balance_sheet,
     generate_income_statement,
-    generate_monthly_entries,
-    generate_opening_entries,
     validate_double_entry,
 )
 from app.schemas import (
+    BalanceSheetResponse,
     BCSSAccountResponse,
     BCSSResponse,
-    BalanceSheetResponse,
     FinancialReportResponse,
     IncomeStatementResponse,
     InvestmentInput,
     KardexEntryInput,
     KardexExitInput,
-    KardexMovementInput,
     KardexProductResponse,
     KardexRecordResponse,
     ProductInput,
     RatioItemResponse,
     TransactionInput,
-    TransactionLine,
     ValidationResponse,
     WarehouseCloseResponse,
 )
@@ -80,7 +76,11 @@ _kardex_engine: KardexEngine = KardexEngine()
 
 
 @router.post("/setup", response_model=FinancialReportResponse)
-async def setup_accounting(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)], data: InvestmentInput):
+async def setup_accounting(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    data: InvestmentInput,
+):
     """
     Configura la empresa y ejecuta la simulación financiera inicial.
 
@@ -219,7 +219,10 @@ async def setup_accounting(tenant_id: Annotated[int, Depends(get_tenant_id)], cu
 
 
 @router.get("/bcss", response_model=BCSSResponse)
-async def get_bcss(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)]):
+async def get_bcss(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+):
     """Balance de Comprobación de Sumas y Saldos."""
     if not _journal:
         raise HTTPException(404, "No hay asientos. Ejecuta /api/accounting/setup primero.")
@@ -246,7 +249,10 @@ async def get_bcss(tenant_id: Annotated[int, Depends(get_tenant_id)], current_us
 
 
 @router.get("/pyg", response_model=IncomeStatementResponse)
-async def get_pyg(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)]):
+async def get_pyg(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+):
     """Estado de Resultados (Pérdidas y Ganancias)."""
     if not _journal:
         raise HTTPException(404, "No hay asientos. Ejecuta /api/accounting/setup primero.")
@@ -281,7 +287,10 @@ async def get_pyg(tenant_id: Annotated[int, Depends(get_tenant_id)], current_use
 
 
 @router.get("/balance", response_model=BalanceSheetResponse)
-async def get_balance(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)]):
+async def get_balance(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+):
     """Balance General."""
     if not _journal:
         raise HTTPException(404, "No hay asientos. Ejecuta /api/accounting/setup primero.")
@@ -310,7 +319,10 @@ async def get_balance(tenant_id: Annotated[int, Depends(get_tenant_id)], current
 
 
 @router.get("/ratios", response_model=list[RatioItemResponse])
-async def get_ratios(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)]):
+async def get_ratios(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+):
     """Ratios financieros con semáforo."""
     if not _journal:
         raise HTTPException(404, "No hay asientos. Ejecuta /api/accounting/setup primero.")
@@ -338,7 +350,11 @@ async def get_ratios(tenant_id: Annotated[int, Depends(get_tenant_id)], current_
 
 
 @router.post("/transaction")
-async def post_transaction(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)], data: TransactionInput):
+async def post_transaction(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    data: TransactionInput,
+):
     """Registra una transacción contable manual."""
     from app.core.accounting import JournalEntry, JournalLine
 
@@ -370,7 +386,10 @@ async def post_transaction(tenant_id: Annotated[int, Depends(get_tenant_id)], cu
 
 
 @router.post("/validate", response_model=ValidationResponse)
-async def validate_accounting(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)]):
+async def validate_accounting(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+):
     """Valida la consistencia contable (partida doble)."""
     if not _journal:
         return ValidationResponse(valid=True, errors=[])
@@ -387,7 +406,11 @@ kardex_router = APIRouter(prefix="/api/accounting/kardex", tags=["Kárdex"])
 
 
 @kardex_router.post("/products", response_model=KardexProductResponse)
-async def register_product(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)], data: ProductInput):
+async def register_product(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    data: ProductInput,
+):
     """Registra un nuevo producto en el inventario."""
     try:
         p = _kardex_engine.register_product(
@@ -411,7 +434,11 @@ async def register_product(tenant_id: Annotated[int, Depends(get_tenant_id)], cu
 
 
 @kardex_router.post("/entry", response_model=KardexRecordResponse)
-async def kardex_entry(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)], data: KardexEntryInput):
+async def kardex_entry(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    data: KardexEntryInput,
+):
     """Registra una entrada de inventario (compra). Genera asiento contable."""
     try:
         record, entry = _kardex_engine.record_entry(
@@ -442,7 +469,11 @@ async def kardex_entry(tenant_id: Annotated[int, Depends(get_tenant_id)], curren
 
 
 @kardex_router.post("/exit", response_model=KardexRecordResponse)
-async def kardex_exit(tenant_id: Annotated[int, Depends(get_tenant_id)], current_user: Annotated[User, Depends(get_current_active_user)], data: KardexExitInput):
+async def kardex_exit(
+    tenant_id: Annotated[int, Depends(get_tenant_id)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    data: KardexExitInput,
+):
     """Registra una salida de inventario (venta/merma). Genera asiento contable."""
     try:
         record, entry = _kardex_engine.record_exit(
@@ -532,7 +563,8 @@ async def get_kardex(
     Busca primero en el motor in-memory (restaurant). Si no existe,
     consulta la tabla products + kardex_movements en BD (ferretería).
     """
-    from app.adapters.db.models.accounting import Product as ProductModel, KardexMovement
+    from app.adapters.db.models.accounting import KardexMovement
+    from app.adapters.db.models.accounting import Product as ProductModel
 
     try:
         _kardex_engine.get_product(product_code)
@@ -559,7 +591,7 @@ async def get_kardex(
     # Buscar en BD (ferretería u otros business_type con productos reales)
     conditions = [
         ProductModel.tenant_id == tenant_id,
-        ProductModel.active == True,
+        ProductModel.active.is_(True),
     ]
     if product_code.isdigit():
         conditions.append(
@@ -635,7 +667,7 @@ async def get_inventory_summary(
     db_result = await db.execute(
         sa_select(ProductModel).where(
             ProductModel.tenant_id == tenant_id,
-            ProductModel.active == True,
+            ProductModel.active.is_(True),
         )
     )
     db_products = db_result.scalars().all()
@@ -840,13 +872,12 @@ async def get_cashflow(
     """
     import calendar
     from datetime import date as date_type
+
     from app.schemas.sales import (
-        CashflowLineResponse,
         CashflowAlertResponse,
+        CashflowLineResponse,
         CashflowReportResponse,
     )
-    from app.adapters.db.models.accounting import CashflowProjection
-    from sqlalchemy import select as sa_select
 
     current_year = date.today().year
     target_year = year or current_year
@@ -862,8 +893,8 @@ async def get_cashflow(
                 to_date=date_type(target_year, 12, 31),
                 lines=lines,
                 opening_balance=0.0,
-                total_income=sum(l.projected for l in lines if l.category == "income"),
-                total_expenses=sum(l.projected for l in lines if l.category == "expense"),
+                total_income=sum(line.projected for line in lines if line.category == "income"),
+                total_expenses=sum(line.projected for line in lines if line.category == "expense"),
                 view="projected",
             )
             report.net_cashflow = round(report.total_income - report.total_expenses, 2)
@@ -891,12 +922,12 @@ async def get_cashflow(
             is_balanced=report.is_balanced,
             lines=[
                 CashflowLineResponse(
-                    month=l.month, year=l.year,
-                    concept=l.concept, category=l.category,
-                    projected=l.projected, actual=l.actual,
-                    difference=l.difference, difference_pct=l.difference_pct,
+                    month=line.month, year=line.year,
+                    concept=line.concept, category=line.category,
+                    projected=line.projected, actual=line.actual,
+                    difference=line.difference, difference_pct=line.difference_pct,
                 )
-                for l in report.lines
+                for line in report.lines
             ],
             alerts=[
                 CashflowAlertResponse(
@@ -936,12 +967,12 @@ async def get_cashflow(
             is_balanced=report.is_balanced,
             lines=[
                 CashflowLineResponse(
-                    month=l.month, year=l.year,
-                    concept=l.concept, category=l.category,
-                    projected=l.projected, actual=l.actual,
-                    difference=l.difference, difference_pct=l.difference_pct,
+                    month=line.month, year=line.year,
+                    concept=line.concept, category=line.category,
+                    projected=line.projected, actual=line.actual,
+                    difference=line.difference, difference_pct=line.difference_pct,
                 )
-                for l in report.lines
+                for line in report.lines
             ],
             alerts=[
                 CashflowAlertResponse(
@@ -975,8 +1006,8 @@ async def get_cashflow(
                 from_date=fd, to_date=td,
                 lines=lines,
                 opening_balance=0.0,
-                total_income=sum(l.projected for l in lines if l.category == "income"),
-                total_expenses=sum(l.projected for l in lines if l.category == "expense"),
+                total_income=sum(line.projected for line in lines if line.category == "income"),
+                total_expenses=sum(line.projected for line in lines if line.category == "expense"),
                 view="projected",
             )
             proj.net_cashflow = round(proj.total_income - proj.total_expenses, 2)
@@ -1009,12 +1040,12 @@ async def get_cashflow(
             is_balanced=report.is_balanced,
             lines=[
                 CashflowLineResponse(
-                    month=l.month, year=l.year,
-                    concept=l.concept, category=l.category,
-                    projected=l.projected, actual=l.actual,
-                    difference=l.difference, difference_pct=l.difference_pct,
+                    month=line.month, year=line.year,
+                    concept=line.concept, category=line.category,
+                    projected=line.projected, actual=line.actual,
+                    difference=line.difference, difference_pct=line.difference_pct,
                 )
-                for l in report.lines
+                for line in report.lines
             ],
             alerts=[
                 CashflowAlertResponse(

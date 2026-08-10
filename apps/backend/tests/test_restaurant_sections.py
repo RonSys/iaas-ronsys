@@ -16,13 +16,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
-from app.models.user import User
+from app.adapters.db.database import get_db
 from app.core.dependencies import get_current_active_user
 from app.core.tenant import get_tenant_id
-from app.adapters.db.database import get_db
+from app.main import app
+from app.models.user import User
 from app.services.restaurant_service import SectionsService
-
 
 # ═══════════════════════════════════════════════════════════════
 # Helpers
@@ -56,7 +55,7 @@ def _make_mock_section(
     sort_order=1, table_count=0, created_at=None,
 ):
     """Crea un MagicMock que simula un objeto RestaurantSection."""
-    from datetime import datetime, UTC
+    from datetime import UTC, datetime
     if created_at is None:
         created_at = datetime.now(UTC)
 
@@ -170,7 +169,6 @@ class TestSectionsCreate:
         # Simular que no existe sección con ese nombre
         # y que la nueva sección se guarda correctamente
         async def _execute(stmt):
-            from sqlalchemy import select
             from app.adapters.db.models.restaurant import RestaurantSection
 
             # Detectar si es SELECT de RestaurantSection (unicidad check)

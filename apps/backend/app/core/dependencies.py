@@ -14,14 +14,13 @@ Uso:
 
 from typing import Annotated, Optional
 
+import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import jwt
 
 from app.adapters.db.database import get_db
-from app.config import settings
 from app.core.security import decode_access_token
 from app.models.user import User
 

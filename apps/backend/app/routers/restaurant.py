@@ -40,7 +40,6 @@ router = APIRouter(prefix="/api/v1/restaurant", tags=["Restaurante"])
 # ─── Tenant depende de get_current_active_user ────────────
 from app.core.tenant import get_tenant_id  # noqa: E402
 
-
 # ═══════════════════════════════════════════════════════════════
 # TABLES (F0-004)
 # ═══════════════════════════════════════════════════════════════

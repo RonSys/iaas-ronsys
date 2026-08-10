@@ -8,7 +8,6 @@ Verifica:
   - Data migration infiere desde economic_activity
 """
 
-import pytest
 
 from app.adapters.db.models.accounting import Company
 

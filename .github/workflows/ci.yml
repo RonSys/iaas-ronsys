@@ -17,5 +17,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r apps/backend/requirements.txt
-      - run: pip install flake8
-      - run: flake8 apps/backend/app/ --max-line-length=120
+      - name: Lint backend (ruff)
+        run: |
+          pip install ruff
+          cd apps/backend && ruff check app/ tests/

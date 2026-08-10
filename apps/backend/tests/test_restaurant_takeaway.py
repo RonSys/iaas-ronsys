@@ -16,7 +16,6 @@ from fastapi import HTTPException
 
 from app.services.restaurant_service import TakeawayService
 
-
 # ═══════════════════════════════════════════════════════════════
 # Helpers
 # ═══════════════════════════════════════════════════════════════

@@ -21,7 +21,6 @@ from app.core.accounting.ports import (
     KardexMovementRecord,
     ProductRecord,
 )
-from app.core.accounting.kardex import KardexRecord, Product, MovementType
 from app.core.tenant import get_tenant_id
 
 

@@ -252,8 +252,9 @@ async def get_payment_methods(
     """
     Lista métodos de pago habilitados según business_type/feature flags.
     """
-    from app.adapters.db.models.accounting import Company
     from sqlalchemy import select
+
+    from app.adapters.db.models.accounting import Company
 
     result = await db.execute(select(Company).where(Company.id == tenant_id))
     company = result.scalar_one_or_none()

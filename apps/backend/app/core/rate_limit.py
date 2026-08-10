@@ -147,7 +147,6 @@ class RateLimiter:
         ]
 
         count = len(self._memory[key])
-        remaining = max(0, max_requests - count)
 
         if count >= max_requests:
             oldest = min(self._memory[key])

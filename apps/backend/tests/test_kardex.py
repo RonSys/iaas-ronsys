@@ -9,12 +9,12 @@ Cubre:
   - Validaciones (stock insuficiente, etc.)
 """
 
-import pytest
 from datetime import date
 
-from app.core.accounting.kardex import KardexEngine, MovementType
-from app.core.accounting.engine import EntryType
+import pytest
 
+from app.core.accounting.engine import EntryType
+from app.core.accounting.kardex import KardexEngine, MovementType
 
 # ═══════════════════════════════════════════════════════════════
 # Fixtures
@@ -197,7 +197,7 @@ class TestKardexQueries:
 
         total = engine_with_products.get_total_inventory_value()
         expected = (50 * 3.50) + (20 * 15.00)  # 175 + 300 = 475
-        assert total == pytest.approx(475.0, abs=0.01)
+        assert total == pytest.approx(expected, abs=0.01)
 
     def test_cost_of_sales(self, engine_with_products):
         engine_with_products.record_entry("ARR-001", 50, 3.50, "Compra", date(2026, 6, 1))
@@ -207,7 +207,7 @@ class TestKardexQueries:
 
         cos = engine_with_products.get_cost_of_sales("ARR-001")
         expected = (10 * 3.50) + (5 * 3.50)  # merma no se cuenta como costo de venta
-        assert cos == pytest.approx(52.5, abs=0.05)
+        assert cos == pytest.approx(expected, abs=0.05)
 
     def test_warehouse_close_balanced(self, engine_with_products):
         engine_with_products.record_entry("ARR-001", 50, 3.50, "Compra", date(2026, 6, 1))
