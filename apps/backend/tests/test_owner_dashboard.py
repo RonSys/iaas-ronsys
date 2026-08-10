@@ -134,6 +134,15 @@ class TestOwnerDashboardService:
             [("yape", 500.0)],        # _payments
             [("Zona 1", 12)],         # _delivery_block zonas
             [("delivered", 9), ("cancelled", 2)],  # _delivery_block funnel
+            # V2 — bloques CA10-CA14 (orden de ejecución anexado al final)
+            [(12, 1, "dine_in", 320.0), (13, 2, "delivery", 100.0)],  # _heatmap (hora, dia, canal, total)
+            [("dine_in", 300.0), ("delivery", 40.0)],    # _margins (costo por canal)
+            (2000.0, 50),              # _comparison current base
+            [("delivery", 20), ("dine_in", 25), ("takeout", 5)],  # _comparison current canales
+            (1800.0, 45),              # _comparison previous base
+            [("delivery", 15)],       # _comparison previous canales
+            [(date(2026, 8, 1), 100.0, 3), (date(2026, 8, 2), 100.0, 3)],  # _alerts diario (fecha, total, n)
+            [(date(2026, 8, 1), 1), (date(2026, 8, 2), 1)],  # _alerts delivery diario
             # metrics_overview + metrics_campaigns (parcheados)
         )
         with patch("app.services.owner_dashboard_service.metrics_overview",
@@ -184,6 +193,30 @@ class TestOwnerDashboardService:
 
         assert out["campaigns"][0]["roas"] == 2.4
 
+        # ── V2 — bloques del contrato §3.1-V2 (CA10-CA14) ──
+        assert set(out["heatmap"]) == {"dine_in", "delivery"}
+        assert len(out["heatmap"]["dine_in"]["rows"]) == 24 * 7   # 24×7 completos (CA10)
+        assert len(out["heatmap"]["delivery"]["rows"]) == 24 * 7
+        # orden hora-mayor: índice = hora*7 + (weekday-1)
+        assert out["heatmap"]["dine_in"]["rows"][12 * 7] == {"hour": 12, "weekday": 1, "total": 320.0}
+        assert out["heatmap"]["delivery"]["rows"][13 * 7 + 1] == {"hour": 13, "weekday": 2, "total": 100.0}
+
+        m = out["margins"]
+        assert [b["channel"] for b in m["by_channel"]] == ["dine_in", "takeout", "delivery"]
+        assert m["by_channel"][0]["margin_pct"] == 55.9   # (680-300)/680*100
+        assert m["by_channel"][1] == {"channel": "takeout", "revenue": 0.0, "cost": 0.0, "margin_pct": 0.0}
+        assert m["by_channel"][2]["margin_pct"] == 87.5   # (320-40)/320*100
+        assert "costable_note" in m
+
+        comp = out["comparison"]
+        assert comp["current"]["sales_total"] == 2000.0
+        assert comp["previous"]["sales_total"] == 1800.0
+        assert comp["deltas"]["sales_total_pct"] == round((2000 - 1800) / 1800 * 100, 1)
+        assert comp["deltas"]["orders_count_pct"] == round((50 - 45) / 45 * 100, 1)
+        assert comp["deltas"]["delivery_pct_delta"] == round(40.0 - 33.3, 1)  # puntos porcentuales
+
+        assert isinstance(out["alerts"], list)   # nunca null (CA14)
+
     @pytest.mark.asyncio
     async def test_sin_ventas_devuelve_ceros(self):
         """Sin data: KPIs en 0 y series completas (sin errores de división)."""
@@ -199,6 +232,15 @@ class TestOwnerDashboardService:
             [],              # payments
             [],              # zonas
             [],              # funnel
+            # V2 — sin data (CA10-CA14)
+            [],              # heatmap
+            [],              # margins
+            (0.0, 0),        # comparison current base
+            [],              # comparison current canales
+            (0.0, 0),        # comparison previous base
+            [],              # comparison previous canales
+            [],              # alerts diario
+            [],              # alerts delivery diario
         )
         with patch("app.services.owner_dashboard_service.metrics_overview",
                    new=AsyncMock(return_value={"orders": 0, "gmv": 0.0, "fee_total": 0.0,
@@ -210,6 +252,12 @@ class TestOwnerDashboardService:
         assert out["kpis"]["delivery_pct"] == 0.0
         assert len(out["sales_by_hour"]) == 24
         assert len(out["sales_by_weekday"]) == 7
+        # V2 sin data
+        assert len(out["heatmap"]["dine_in"]["rows"]) == 168
+        assert all(r["total"] == 0.0 for r in out["heatmap"]["dine_in"]["rows"])
+        assert all(b["margin_pct"] == 0.0 for b in out["margins"]["by_channel"])
+        assert out["comparison"]["deltas"]["sales_total_pct"] is None   # previous=0 → null
+        assert out["alerts"] == []
 
 
 # ═══════════════════════════════════════════════════════════════
