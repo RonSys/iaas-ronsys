@@ -343,6 +343,78 @@ export function mockHealth(page: Page) {
   });
 }
 
+/**
+ * Mock GET /api/v1/dashboard/owner (Spec 04 — Panel del Dueño).
+ * Contrato: src/types/dashboard.ts → OwnerDashboardResponse.
+ */
+export function mockOwnerDashboard(page: Page, data?: Record<string, unknown>) {
+  const payload = {
+    kpis: {
+      sales_total: 4850.5,
+      orders_count: 42,
+      avg_ticket: 115.5,
+      orders_delivery: 15,
+      orders_dine_in: 22,
+      orders_takeout: 5,
+      delivery_pct: 35.7,
+      kitchen_open: 6,
+      delivery_in_route: 3,
+    },
+    sales_by_hour: [
+      { hour: 12, dine_in: 850.0, delivery: 420.0 },
+      { hour: 13, dine_in: 1100.0, delivery: 380.0 },
+      { hour: 19, dine_in: 900.0, delivery: 520.0 },
+      { hour: 20, dine_in: 750.0, delivery: 610.0 },
+    ],
+    sales_by_weekday: [
+      { weekday: 1, total: 3200.0 },
+      { weekday: 2, total: 2800.0 },
+      { weekday: 3, total: 3100.0 },
+      { weekday: 4, total: 3400.0 },
+      { weekday: 5, total: 4200.0 },
+      { weekday: 6, total: 5100.0 },
+      { weekday: 7, total: 4600.0 },
+    ],
+    channels: { dine_in: 2450.0, takeout: 620.0, delivery: 1780.5 },
+    top_platos: [
+      { name: "Ceviche Clásico", qty: 18, total: 720.0 },
+      { name: "Lomo Saltado", qty: 14, total: 630.0 },
+      { name: "Arroz con Mariscos", qty: 10, total: 550.0 },
+    ],
+    payments: { yape: 1800.0, plin: 950.0, cash: 1200.0, card: 700.5, transfer: 200.0 },
+    delivery: {
+      orders_by_zone: [
+        { zone: "Norte", orders: 6 },
+        { zone: "Centro", orders: 5 },
+        { zone: "Sur", orders: 4 },
+      ],
+      funnel: {
+        received: 15,
+        preparing: 11,
+        ready: 8,
+        out_for_delivery: 3,
+        delivered: 12,
+        cancelled: 1,
+      },
+      avg_delivery_min: 32,
+      gmv: 1780.5,
+      fee_total: 89.0,
+    },
+    campaigns: [
+      { campaign_id: 1, name: "Lanzamiento", channel: "meta", spend: 150.0, orders: 12, gmv: 900.0, aov: 75.0, roas: 6.0 },
+      { campaign_id: 2, name: "Delivery Norte", channel: "google", spend: 80.0, orders: 5, gmv: 350.0, aov: 70.0, roas: 4.4 },
+    ],
+    ...data,
+  };
+  return page.route("**/api/v1/dashboard/owner**", (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(payload),
+    });
+  });
+}
+
 // ─── Setup all mocks ───────────────────────────────────────
 
 /** Instala todos los mocks de API necesarios para las páginas protegidas */
@@ -360,6 +432,7 @@ export async function setupAllMocks(page: Page) {
   await mockPalette(page);
   await mockSettings(page);
   await mockHealth(page);
+  await mockOwnerDashboard(page);
 }
 
 /** Mock de health solamente (para la pantalla de loading) */

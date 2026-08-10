@@ -10,7 +10,7 @@ import { defineConfig, devices } from "@playwright/test";
  *   npx playwright show-report       # Reporte HTML
  */
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: ".",
   timeout: 30000,
   expect: { timeout: 10000 },
   retries: 1,
