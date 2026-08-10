@@ -10,6 +10,7 @@ que test_owner_dashboard.py / test_delivery).
 from __future__ import annotations
 
 from datetime import date, timedelta
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -29,6 +30,7 @@ from app.services.owner_dashboard_service import (
     _heatmap,
     _margins_by_channel,
     _period_summary,
+    _sales_by_hour,
     render_owner_csv,
 )
 
@@ -201,6 +203,48 @@ class TestHeatmap:
         db, captured = _capture_db([])
         await _heatmap(db, 1, date(2026, 8, 1), date(2026, 8, 10))
         assert "is_voided" in str(captured["stmt"])
+
+    @pytest.mark.asyncio
+    async def test_suma_totales_decimal_asyncpg(self):
+        """Regresión: asyncpg devuelve Decimal en agregaciones SQL (coalesce(sum))
+        y los acumuladores parten de float 0.0 — no debe explotar (bug demo en vivo).
+        (CA10)"""
+        db = _make_db([
+            (12, 3, "dine_in", Decimal("100.50")),
+            (12, 3, "takeout", Decimal("49.50")),
+            (12, 3, "delivery", Decimal("30.00")),
+        ])
+        out = await _heatmap(db, 1, date(2026, 8, 1), date(2026, 8, 10))
+        idx = 12 * 7 + (3 - 1)
+        assert out["dine_in"]["rows"][idx] == {"hour": 12, "weekday": 3, "total": 150.0}
+        assert out["delivery"]["rows"][idx] == {"hour": 12, "weekday": 3, "total": 30.0}
+
+    @pytest.mark.asyncio
+    async def test_huecos_con_decimal_sin_explotar(self):
+        """Regresión: celdas vacías arrancan en float 0.0 y suman Decimal — total 0.0."""
+        db = _make_db([(0, 1, "delivery", Decimal("0.00"))])
+        out = await _heatmap(db, 1, date(2026, 8, 1), date(2026, 8, 10))
+        assert out["dine_in"]["rows"][0] == {"hour": 0, "weekday": 1, "total": 0.0}
+        assert out["delivery"]["rows"][167] == {"hour": 23, "weekday": 7, "total": 0.0}
+
+
+# ═══════════════════════════════════════════════════════════════
+# CA10b — Sales by hour (serie 0-23, mismo fix Decimal)
+# ═══════════════════════════════════════════════════════════════
+
+class TestSalesByHourDecimal:
+    @pytest.mark.asyncio
+    async def test_suma_totales_decimal_asyncpg(self):
+        """Regresión: _sales_by_hour con Decimal de asyncpg no debe explotar (bug demo)."""
+        db = _make_db([
+            (12, "dine_in", Decimal("320.50")),
+            (12, "takeout", Decimal("79.50")),
+            (13, "delivery", Decimal("100.00")),
+        ])
+        out = await _sales_by_hour(db, 1, date(2026, 8, 1), date(2026, 8, 10))
+        assert out[12] == {"hour": 12, "dine_in": 400.0, "delivery": 0.0}
+        assert out[13] == {"hour": 13, "dine_in": 0.0, "delivery": 100.0}
+        assert len(out) == 24
 
 
 # ═══════════════════════════════════════════════════════════════
