@@ -230,7 +230,7 @@ async def _sales_by_hour(db: AsyncSession, tenant_id: int, frm: date, to: date) 
         if canal == "delivery":
             horas[h]["delivery"] = _money(total)
         else:  # dine_in y takeout suman al salón
-            horas[h]["dine_in"] = _money(horas[h]["dine_in"] + total)
+            horas[h]["dine_in"] = _money(horas[h]["dine_in"] + float(total))
     return [horas[h] for h in range(24)]
 
 
@@ -395,9 +395,9 @@ async def _heatmap(db: AsyncSession, tenant_id: int, frm: date, to: date) -> dic
     for hora, dia, canal, total in rows:
         key = (int(hora or 0), int(dia or 0))
         if canal == "delivery":
-            delivery[key] = _money(delivery.get(key, 0.0) + total)
+            delivery[key] = _money(delivery.get(key, 0.0) + float(total))
         else:  # dine_in y takeout suman al salón
-            dine_in[key] = _money(dine_in.get(key, 0.0) + total)
+            dine_in[key] = _money(dine_in.get(key, 0.0) + float(total))
 
     def _rows(grid: dict[tuple[int, int], float]) -> list[dict]:
         # Orden: hora 0-23 (mayor), weekday 1-7 (menor) — filas completas con 0

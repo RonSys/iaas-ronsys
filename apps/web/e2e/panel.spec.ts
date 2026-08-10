@@ -5,6 +5,7 @@
  * Contrato: src/types/dashboard.ts → OwnerDashboardResponse.
  */
 import { test, expect } from "./fixtures/auth.fixture";
+import { mockOwnerDashboard } from "./fixtures/mocks";
 
 test.describe("Panel del Dueño", () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
@@ -50,8 +51,11 @@ test.describe("Panel del Dueño", () => {
     await expect(page.getByText("Pedidos por zona")).toBeVisible();
     await expect(page.getByText("Embudo de pedidos delivery")).toBeVisible();
     await expect(page.getByText("ROAS por campaña (marketing)")).toBeVisible();
-    // GMV delivery del mock (S/ 1,780.50)
-    await expect(page.getByText("S/ 1,780.50")).toBeVisible();
+    // GMV delivery del mock (S/ 1,780.50). Se acota a la tarjeta GMV porque
+    // V2 (CA11) renderiza el mismo importe en la tarjeta de márgenes del
+    // canal Delivery (Ingresos) — getByText global sería ambiguo.
+    const gmvCard = page.locator(".card", { hasText: "GMV delivery (entregados)" });
+    await expect(gmvCard.getByText("S/ 1,780.50")).toBeVisible();
   });
 
   test("gráficos Recharts renderizados como SVG", async ({ authenticatedPage: page }) => {
@@ -69,9 +73,107 @@ test.describe("Panel del Dueño", () => {
       .locator("span.text-xs.font-semibold.uppercase", { hasText: "Ventas" })
       .first();
     await expect(kpiVentas).toBeVisible({ timeout: 15000 });
-    await expect(page.locator("text=⚠️")).toHaveCount(0);
+    // Sin banner de error. El ⚠️ amarillo del banner de alertas V2 (CA14) es
+    // esperado; el banner de error se identifica por su clase text-red-300.
+    await expect(page.locator("div.text-red-300")).toHaveCount(0);
     // Volver a 7 días
     await page.getByRole("button", { name: "7 días" }).click();
     await expect(kpiVentas).toBeVisible();
   });
+});
+
+// ─── V2 (CA10-CA14): heatmap, márgenes, comparativa ▲▼, alertas, export ──
+
+test.describe("Panel del Dueño — V2 (CA10-CA14)", () => {
+  test.beforeEach(async ({ authenticatedPage: page }) => {
+    await page.goto("/panel");
+    await expect(page.locator("h2").first()).toContainText("Panel del Dueño", {
+      timeout: 15000,
+    });
+  });
+
+  test("heatmap hora×día visible en Salón y Delivery (CA10)", async ({
+    authenticatedPage: page,
+  }) => {
+    await expect(page.getByText("Heatmap de demanda — Salón")).toBeVisible();
+    await expect(page.getByText("Heatmap de demanda — Delivery")).toBeVisible();
+    // Celdas coloreadas (con importe > 0): el title de la celda es
+    // "Lun 12:00 — S/ 320.50"; las vacías son "S/ 0.00".
+    const coloredCells = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>("div[title]")].filter(
+        (el) => el.title.includes("— S/") && !el.title.includes("S/ 0.00"),
+      ).length,
+    );
+    expect(coloredCells).toBeGreaterThanOrEqual(10);
+  });
+
+  test("tarjetas de margen por canal con % y nota de costeabilidad (CA11)", async ({
+    authenticatedPage: page,
+  }) => {
+    const marginsCard = page.locator(".card", { hasText: "Margen por canal" });
+    await expect(marginsCard.getByText("Margen por canal (costeo por recetas)")).toBeVisible();
+    // 3 canales del mock: Salón 60.0%, Para llevar 50.0%, Delivery 50.0%
+    await expect(marginsCard.getByText("Salón", { exact: true })).toBeVisible();
+    await expect(marginsCard.getByText("Para llevar")).toBeVisible();
+    await expect(marginsCard.getByText("Delivery")).toBeVisible();
+    await expect(marginsCard.getByText("60.0%")).toBeVisible();
+    await expect(marginsCard.getByText("50.0%")).toHaveCount(2);
+    // Nota de costeabilidad (R2)
+    await expect(
+      marginsCard.getByText(/Margen calculado solo sobre ítems con receta/),
+    ).toBeVisible();
+  });
+
+  test("KPIs muestran comparativa semana vs semana ▲ verde (CA12)", async ({
+    authenticatedPage: page,
+  }) => {
+    // Mock: sales_total +18.3%, avg_ticket +7.0%, delivery +4.5 pts
+    await expect(page.getByText("▲ +18.3%")).toBeVisible();
+    await expect(page.getByText("▲ +7.0%")).toBeVisible();
+    await expect(page.getByText("▲ +4.5 pts")).toBeVisible();
+  });
+
+  test("banner de alerta amarillo visible (CA14)", async ({
+    authenticatedPage: page,
+  }) => {
+    const alertBanner = page.locator("div.text-yellow-300", {
+      hasText: "Hoy Ventas -12% vs promedio últimos 7 días",
+    });
+    await expect(alertBanner).toBeVisible();
+    await expect(alertBanner.getByText("⚠️")).toBeVisible();
+  });
+
+  test("botón Descargar CSV dispara descarga del export (CA13)", async ({
+    authenticatedPage: page,
+  }) => {
+    const exportReqPromise = page.waitForRequest((req) =>
+      req.url().includes("/api/v1/dashboard/owner/export"),
+    );
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: /Descargar CSV/ }).click();
+    const exportReq = await exportReqPromise;
+    const download = await downloadPromise;
+    expect(exportReq.url()).toContain("format=csv");
+    // filename con ñ vía RFC 5987 (Content-Disposition)
+    expect(download.suggestedFilename()).toContain("panel_dueño");
+  });
+});
+
+// Delta negativo: requiere mock con comparativa override ANTES de navegar
+// (el beforeEach del describe ya habría disparado el fetch con el mock base).
+test("KPI con delta negativo muestra ▼ roja (CA12)", async ({
+  authenticatedPage: page,
+}) => {
+  await mockOwnerDashboard(page, {
+    comparison: {
+      current: { sales_total: 4850.5, orders_count: 42, avg_ticket: 115.5, delivery_pct: 35.7 },
+      previous: { sales_total: 5118.0, orders_count: 44, avg_ticket: 113.8, delivery_pct: 33.0 },
+      deltas: { sales_total_pct: -5.2, orders_count_pct: -4.5, avg_ticket_pct: 1.5, delivery_pct_delta: 2.7 },
+    },
+  });
+  await page.goto("/panel");
+  await expect(page.locator("h2").first()).toContainText("Panel del Dueño", {
+    timeout: 15000,
+  });
+  await expect(page.getByText("▼ -5.2%")).toBeVisible();
 });
