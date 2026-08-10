@@ -199,6 +199,14 @@ El **Panel del Dueño** (menú: 📈 Panel del Dueño, ruta `/panel`) es la vist
 | **Embudo delivery** | Recibido → en cocina → listo → en ruta → entregado (y cancelados) |
 | **ROAS por campaña** | Barras: retorno de inversión publicitaria por campaña (Meta, Google, TikTok) |
 | **GMV delivery** | Total vendido del canal delivery, **solo pedidos entregados** |
+| **Heatmap de demanda (V2)** | Cuadrícula hora × día de la semana por canal (Salón / Delivery) — las celdas más intensas muestran las horas de mayor venta |
+| **Margen por canal (V2)** | Ingresos vs costo de recetas/kárdex → margen real por canal (salón / para llevar / delivery) con nota de costeabilidad |
+| **Comparativa semana vs semana (V2)** | % de cambio junto a cada KPI (ventas, pedidos, ticket, % delivery): ▲ subió, ▼ bajó |
+| **Alertas (V2)** | Avisos cuando el negocio está por debajo del promedio de los últimos 7 días (roja = caída fuerte, ámbar = aviso) |
+
+### Reporte descargable (V2)
+
+El botón **⬇️ Descargar CSV** (arriba a la derecha) genera un archivo CSV con el resumen completo del período seleccionado: KPIs, ventas por hora/día, canales, top platos, pagos, delivery, campañas, comparativa, márgenes y alertas. Abre con Excel o Google Sheets.
 
 ### Rango de fechas
 

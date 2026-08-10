@@ -44,7 +44,7 @@
 
 | Spec | Estado | Migraciones | Routers |
 |---|---|---|---|
-| [spec-panel-dueño.md](04-panel-indicadores/spec-panel-dueño.md) — KPIs del día, canales, top platos, ROAS, zonas, embudo delivery (V1 completa; V2 pendiente) | 🟢 IMPLEMENTADA Y DESPLEGADA (V1, 2026-08-10) | — (usa data existente) | `/api/v1/dashboard/owner` |
+| [spec-panel-dueño.md](04-panel-indicadores/spec-panel-dueño.md) — KPIs del día, canales, top platos, ROAS, zonas, embudo delivery (V1) + V2: heatmap hora×día por canal, márgenes por canal con costeo, comparativa semana vs semana, reporte descargable CSV, alertas vs 7 días | 🟢 IMPLEMENTADA Y DESPLEGADA (V1 + V2, 2026-08-10) | — (usa data existente) | `/api/v1/dashboard/owner` · `/api/v1/dashboard/owner/export` |
 
 ### Fase 99 — Infraestructura / DevOps
 
