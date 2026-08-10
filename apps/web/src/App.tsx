@@ -34,6 +34,10 @@ const LoginPage = lazy(() =>
 const Dashboard = lazy(() =>
   import("@/pages/Dashboard").then((m) => ({ default: m.Dashboard })),
 );
+// Panel del Dueño (Spec 04)
+const DashboardOwner = lazy(() =>
+  import("@/pages/DashboardOwner").then((m) => ({ default: m.DashboardOwner })),
+);
 const SetupWizard = lazy(() =>
   import("@/pages/SetupWizard").then((m) => ({ default: m.SetupWizard })),
 );
@@ -202,6 +206,16 @@ function AppRoutes() {
             <PrivateRoute>
               <SuspendedPage title="Dashboard">
                 <Dashboard />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/panel"
+          element={
+            <PrivateRoute>
+              <SuspendedPage title="Panel del Dueño">
+                <DashboardOwner />
               </SuspendedPage>
             </PrivateRoute>
           }

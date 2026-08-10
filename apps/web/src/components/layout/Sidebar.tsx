@@ -55,6 +55,7 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
           defaultExpanded={true}
         >
           <SidebarItem icon="📊" label="Dashboard" path="/" onClick={onMobileClose} />
+          <SidebarItem icon="📈" label="Panel del Dueño" path="/panel" onClick={onMobileClose} />
           <SidebarItem icon="🏗️" label="Setup" path="/setup" onClick={onMobileClose} />
           <SidebarItem icon="🎮" label="Simulador" path="/simulador" onClick={onMobileClose} />
           <SidebarItem
