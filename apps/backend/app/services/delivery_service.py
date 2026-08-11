@@ -11,7 +11,7 @@ Reglas de oro (Spec 03 §2.3):
 """
 
 import time as _time
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from datetime import time as dtime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -52,6 +52,37 @@ def _now() -> datetime:
 
 def _money(v) -> float:
     return round(float(Decimal(str(v))), 2)
+
+
+# ─── Helpers de fechas (patrón owner_dashboard_service) ────────
+
+def _parse_date(value) -> date | None:
+    """'YYYY-MM-DD' → date (None si vacío). Acepta date/datetime (panel)."""
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        raise ValueError(f"Fecha inválida '{value}' (formato YYYY-MM-DD)")
+
+
+def _today() -> date:
+    return datetime.now(UTC).date()
+
+
+def _resolve_dates(date_from, date_to) -> tuple[date, date]:
+    """Resuelve el rango: default = últimos 30 días (incluye hoy)."""
+    to = _parse_date(date_to) or _today()
+    frm = _parse_date(date_from)
+    if frm is None:
+        frm = to - timedelta(days=29)
+    if frm > to:
+        raise ValueError("date_from no puede ser mayor que date_to")
+    return frm, to
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -667,6 +698,7 @@ async def metrics_campaigns(
     db: AsyncSession, tenant_id: int,
     date_from=None, date_to=None, channel: str | None = None,
 ) -> list[dict]:
+    frm, to = _resolve_dates(date_from, date_to)
     campaigns = (await db.execute(
         select(MarketingCampaign).where(
             MarketingCampaign.tenant_id == tenant_id,
@@ -683,11 +715,9 @@ async def metrics_campaigns(
             DeliveryOrder.tenant_id == tenant_id,
             DeliveryOrder.campaign_id == c.id,
             DeliveryOrder.status == "delivered",
+            DeliveryOrder.created_at >= datetime.combine(frm, dtime.min),
+            DeliveryOrder.created_at <= datetime.combine(to, dtime.max),
         )
-        if date_from:
-            stmt = stmt.where(DeliveryOrder.created_at >= date_from)
-        if date_to:
-            stmt = stmt.where(DeliveryOrder.created_at <= date_to)
         row = (await db.execute(stmt)).one()
         orders = row[0] or 0
         gmv = float(row[1] or 0)
@@ -708,6 +738,7 @@ async def metrics_campaigns(
 async def metrics_overview(
     db: AsyncSession, tenant_id: int, date_from=None, date_to=None,
 ) -> dict:
+    frm, to = _resolve_dates(date_from, date_to)
     stmt = select(
         func.count(DeliveryOrder.id),
         func.sum(Sale.total),
@@ -719,17 +750,17 @@ async def metrics_overview(
     ).join(Sale, Sale.id == DeliveryOrder.sale_id).where(
         DeliveryOrder.tenant_id == tenant_id,
         DeliveryOrder.status == "delivered",
+        DeliveryOrder.created_at >= datetime.combine(frm, dtime.min),
+        DeliveryOrder.created_at <= datetime.combine(to, dtime.max),
     )
-    if date_from:
-        stmt = stmt.where(DeliveryOrder.created_at >= date_from)
-    if date_to:
-        stmt = stmt.where(DeliveryOrder.created_at <= date_to)
     row = (await db.execute(stmt)).one()
     orders = row[0] or 0
     cancelled = (await db.execute(
         select(func.count(DeliveryOrder.id)).where(
             DeliveryOrder.tenant_id == tenant_id,
             DeliveryOrder.status == "cancelled",
+            DeliveryOrder.created_at >= datetime.combine(frm, dtime.min),
+            DeliveryOrder.created_at <= datetime.combine(to, dtime.max),
         )
     )).scalar() or 0
     total_secs = float(row[3] or 0)

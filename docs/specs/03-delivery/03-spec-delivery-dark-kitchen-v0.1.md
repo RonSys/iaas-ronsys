@@ -406,6 +406,17 @@ GET   /api/v1/delivery/metrics/overview?from=&to=   pedidos, GMV, fee total, tie
   `docs/reports/guia-pruebas-e2e-browser-2026-08-03.md` (monitor físico + CfT 151 + plugin browser
   + Gateway con DISPLAY=:0). Fase A CERRADA; siguientes fases (B: WhatsApp/métricas avanzadas;
   C: PSP/Rappi) quedan como trabajo futuro fuera del alcance de esta spec.
+- **2026-08-11 (fix — métricas con filtro de fechas, bug verificado en prod)**: commit `← este`.
+  `GET /api/v1/delivery/metrics/overview?from=&to=` y `.../metrics/campaigns?from=&to=`
+  devolvían **500** (`operator does not exist: timestamp with time zone >= character varying`):
+  `delivery_service.metrics_overview/metrics_campaigns` comparaban `created_at` (timestamptz)
+  contra los strings `date_from/date_to`. Fix: helpers `_parse_date`/`_resolve_dates`
+  (patrón `owner_dashboard_service`; default = últimos 30 días) y comparación explícita
+  `created_at >= datetime.combine(frm, time.min)` / `<= datetime.combine(to, time.max)`.
+  El conteo `cancelled` del overview ahora también respeta el rango. Sin cambio de contrato.
+  Tests: +5 en `test_delivery.py` (overview/campaigns con rango, default 30 días, sin
+  campañas, datetime del panel). Sin fechas el endpoint seguía funcionando (por eso no
+  se detectó antes; el frontend llama sin from/to).
 
 ---
 
