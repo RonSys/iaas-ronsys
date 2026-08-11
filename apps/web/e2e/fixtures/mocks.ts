@@ -450,6 +450,47 @@ export function mockOwnerDashboard(page: Page, data?: Record<string, unknown>) {
     alerts: [
       { severity: "yellow", metric: "sales_total", message: "Hoy Ventas -12% vs promedio últimos 7 días" },
     ],
+    // ─── Iteración 3 (CA-M1..M4) ───
+    top_waiters: {
+      rows: [
+        { user_id: 1, name: "Juan Pérez", sales_count: 12, total: 1520.0, avg_ticket: 126.67 },
+        { user_id: 2, name: "María Gómez", sales_count: 10, total: 1310.5, avg_ticket: 131.05 },
+        { user_id: 3, name: "Carlos Ruiz", sales_count: 8, total: 940.0, avg_ticket: 117.5 },
+        { user_id: 4, name: "Lucía Torres", sales_count: 6, total: 690.0, avg_ticket: 115.0 },
+        { user_id: 5, name: "Pedro Díaz", sales_count: 4, total: 390.0, avg_ticket: 97.5 },
+      ],
+      total_sales: 40,
+    },
+    cancellation_rate: {
+      voided_count: 2,
+      total_count: 42,
+      rate_pct: 4.8,
+      top_reasons: [
+        { reason: "Cliente no llegó", count: 1 },
+        { reason: "Error de pedido", count: 1 },
+      ],
+    },
+    avg_ticket_by: {
+      channel: [
+        { channel: "dine_in", ticket: 128.4 },
+        { channel: "delivery", ticket: 97.2 },
+      ],
+      shift: [
+        { shift: "morning", ticket: 88.5, orders: 8 },
+        { shift: "afternoon", ticket: 132.1, orders: 22 },
+        { shift: "evening", ticket: 115.8, orders: 12 },
+      ],
+    },
+    delivery_campaign_effect: {
+      by_campaign: [
+        { campaign_id: 1, campaign_name: "Lanzamiento", orders: 12, gmv: 900.0, aov: 75.0 },
+        { campaign_id: null, campaign_name: "Sin campaña", orders: 3, gmv: 180.5, aov: 60.17 },
+      ],
+      by_channel: [
+        { source: "meta", orders: 12, gmv: 900.0, aov: 75.0 },
+        { source: "directo", orders: 3, gmv: 180.5, aov: 60.17 },
+      ],
+    },
     ...data,
   };
   return page.route("**/api/v1/dashboard/owner**", (route) => {
