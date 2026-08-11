@@ -38,7 +38,7 @@
 
 | Spec | Estado | Migraciones | Routers |
 |---|---|---|---|
-| [03-spec-delivery-dark-kitchen-v0.1.md](03-delivery/03-spec-delivery-dark-kitchen-v0.1.md) — Delivery nocturno, zonas, repartidores, campañas, menú público | 🟢 APROBADA/IMPLEMENTADA | 0016 (+companies.slug) | `/api/v1/delivery`, `/api/public`, `/api/settings` |
+| [03-spec-delivery-dark-kitchen-v0.1.md](03-delivery/03-spec-delivery-dark-kitchen-v0.1.md) — Delivery nocturno, zonas, repartidores, campañas, menú público + **Fase B WhatsApp** (§7, motor dry-run desplegado 2026-08-11) | 🟢 APROBADA/IMPLEMENTADA (Fase A + motor Fase B dry-run) | 0016 (+companies.slug) | `/api/v1/delivery`, `/api/public`, `/api/settings` |
 
 ### Fase 04 — Panel del Dueño (dashboard ejecutivo)
 
@@ -70,8 +70,10 @@
 | Superadmin | 01-superadmin | `routers/superadmin.py` | 0014 | superadmin/* | ⚠️ sin e2e |
 | Inversiones | 01-inversiones | `routers/investment.py`, `services/investment_service.py` | 0013 | InvestmentPage, Reports | — |
 | Recetas | 02-recetas | `services/recipe_explosion.py`, `restaurant_service.py:1377` | 0012, 0015 | RecipeModal (MenuPage) | — |
-| Delivery | 03-delivery | `routers/delivery.py`, `routers/public.py`, `services/delivery_service.py` | 0016 | DeliveryPage, PublicMenuPage | delivery-landing, delivery-staff |
+| Delivery | 03-delivery | `routers/delivery.py`, `routers/public.py`, `services/delivery_service.py`, `services/whatsapp_notifier.py`, `services/notify_events.py`, `services/notify_worker.py` (worker `iaas-worker-prod`) | 0016 | DeliveryPage, PublicMenuPage | delivery-landing, delivery-staff, e2e-demo-delivery-whatsapp.cjs |
 | Panel Dueño | 04-panel | `routers/dashboard.py`, `services/owner_dashboard_service.py` | — | DashboardOwner (`/panel`) | panel (13 tests, e2e — incl. dropdown CSV/PDF) |
+
+> **Fase B (Spec 03 §7, 2026-08-11)**: notificaciones WhatsApp — motor de eventos desplegado en prod en modo dry-run (Notifier MetaCloud/DryRun + cola RabbitMQ `iaas-tasks` + worker con reintentos/DLQ; verificado en vivo: confirmed/new_order/status_changed/cancelled, cero HTTP). Fix métricas delivery con rango de fechas también desplegado (2026-08-11, antes 500 → 200).
 | Infra/CI | 99-infra | compose, deploy.sh, `.github/workflows/`, `routers/health.py` | — | — | configs prod |
 
 ---

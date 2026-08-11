@@ -145,7 +145,7 @@ El sistema se construyó por etapas, y **cada etapa se probó con datos reales a
 - **No existe aplicación móvil** para clientes ni para el personal (el sistema se usa desde el navegador del celular o computadora).
 - **No hay integración con Rappi / PedidosYa / Didi Food** (los pedidos llegan por el menú propio del local).
 - **No hay pago online directo** (tarjeta en línea): el pago es Yape/Plin con referencia o contraentrega.
-- **No hay notificaciones automáticas por WhatsApp** (los avisos de pedidos se ven en las pantallas del sistema).
+- **No hay notificaciones automáticas por WhatsApp en envío real** (el motor de eventos está desplegado y verificado en modo demo/dry-run desde 2026-08-11 — Fase B: avisos de pedido confirmado, en cocina, en camino, entregado y cancelado; el envío real se activa al conectar la cuenta WhatsApp Business de Meta, ver §2.7 y plan de cuenta Meta).
 - **No hay facturación electrónica (SUNAT)**: las ventas se registran internamente; la emisión de comprobantes electrónicos es una fase futura.
 - **No hay escáner de código de barras** en la caja (el código se puede ingresar manualmente).
 - Detalles finos por automatizar: factor de merma/desperdicio en recetas, venta visual de platos con receta desde el punto de venta, y la pantalla de cocina aún no se integra con el POS de platos en todas las variantes.
