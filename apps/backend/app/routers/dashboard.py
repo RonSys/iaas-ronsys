@@ -5,8 +5,10 @@ GET /api/v1/dashboard/owner?date_from=&date_to=
   → OwnerDashboardResponse (KPIs, series, canales, platos, pagos, delivery,
     campañas + bloques V2: heatmap, margins, comparison, alerts)
 
-GET /api/v1/dashboard/owner/export?format=csv&date_from=&date_to=
-  → CSV plano por secciones (CA13; R3: CSV primero, PDF en iteración 2)
+GET /api/v1/dashboard/owner/export?format=csv|pdf&date_from=&date_to=
+  → text/csv plano por secciones (CA13; R3: CSV primero)
+  → application/pdf, 9 secciones reportlab platypus (CA13-b, iteración 2)
+  format != csv|pdf → 422
 
 Acceso: admin/manager/viewer (D6) — solo lectura (D5). Superadmin pasa siempre.
 """
@@ -63,13 +65,13 @@ async def owner_dashboard_export(
     tenant_id: Annotated[int, Depends(get_tenant_id)],
     current_user: Annotated[User, Depends(require_role("admin", "manager", "viewer"))],
     db: Annotated[AsyncSession, Depends(get_db)],
-    format: str = Query("csv", description="Formato de exportación (solo 'csv' soportado, R3)"),
+    format: str = Query("csv", description="Formato de exportación (csv | pdf)"),
     date_from: str | None = Query(None, description="YYYY-MM-DD (default: últimos 30 días)"),
     date_to: str | None = Query(None, description="YYYY-MM-DD (default: hoy)"),
 ):
-    """CA13 — Reporte descargable CSV del período (una sola llamada a get_owner_dashboard)."""
-    if format != "csv":
-        raise HTTPException(status_code=422, detail="Formato no soportado: solo 'csv' (R3; PDF en iteración 2)")
+    """CA13/CA13-b — Reporte descargable del período: CSV o PDF (una sola llamada a get_owner_dashboard)."""
+    if format not in ("csv", "pdf"):
+        raise HTTPException(status_code=422, detail="Formato no soportado: use 'csv' o 'pdf'")
     try:
         data = await owner_dashboard_service.get_owner_dashboard(
             db, tenant_id, date_from=date_from, date_to=date_to,
@@ -78,6 +80,13 @@ async def owner_dashboard_export(
         raise HTTPException(status_code=422, detail=str(e))
 
     ymd = data["period"]["date_to"].replace("-", "")
+    if format == "pdf":
+        filename = f"panel_dueño_{ymd}.pdf"
+        return Response(
+            content=owner_dashboard_service.render_owner_pdf(data),
+            media_type="application/pdf",
+            headers={"Content-Disposition": _export_disposition(filename)},
+        )
     filename = f"panel_dueño_{ymd}.csv"
     return Response(
         content=owner_dashboard_service.render_owner_csv(data),

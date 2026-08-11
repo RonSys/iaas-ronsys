@@ -33,6 +33,7 @@ email-validator==2.2.0
 python-dotenv==1.0.1
 python-dateutil==2.9.0
 httpx==0.28.1
+reportlab==4.2.5  # Spec 04 CA13-b: export PDF del Panel del Dueño (puro Python, sin Dockerfile)
 
 # ─── Tests ────────────────────────────────────────────────────
 pytest==8.3.4
