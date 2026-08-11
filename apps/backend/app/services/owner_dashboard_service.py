@@ -1233,6 +1233,11 @@ async def get_owner_dashboard(
     margins = await _margins_by_channel(db, tenant_id, frm, to, channels)
     comparison = await _comparison(db, tenant_id, frm, to)
     alerts = await _alerts(db, tenant_id, frm, to)
+    # Iteración 3 (Spec 04 §3.2-V2: CA-M1..M4)
+    top_waiters = await _top_waiters(db, tenant_id, frm, to)
+    cancellation_rate = await _cancellation_rate(db, tenant_id, frm, to)
+    avg_ticket_by = await _avg_ticket_by(db, tenant_id, frm, to)
+    delivery_campaign_effect = await _delivery_campaign_effect(db, tenant_id, frm, to)
     return {
         "period": {"date_from": frm.isoformat(), "date_to": to.isoformat()},
         "kpis": kpis,
@@ -1247,4 +1252,8 @@ async def get_owner_dashboard(
         "margins": margins,
         "comparison": comparison,
         "alerts": alerts,
+        "top_waiters": top_waiters,
+        "cancellation_rate": cancellation_rate,
+        "avg_ticket_by": avg_ticket_by,
+        "delivery_campaign_effect": delivery_campaign_effect,
     }
