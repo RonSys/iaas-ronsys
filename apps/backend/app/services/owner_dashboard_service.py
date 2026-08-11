@@ -43,6 +43,7 @@ from app.adapters.db.models.accounting import Product
 from app.adapters.db.models.delivery import (
     DeliveryOrder,
     DeliveryZone,
+    MarketingCampaign,
 )
 from app.adapters.db.models.restaurant import KitchenOrder, MenuItem, Recipe, RecipeIngredient
 from app.adapters.db.models.sales import (
@@ -51,6 +52,7 @@ from app.adapters.db.models.sales import (
     SaleItem,
     SalePayment,
 )
+from app.models.user import User
 from app.services.delivery_service import metrics_campaigns, metrics_overview
 
 # ─── Constantes V2 (contrato §3.1-V2) ──────────────────────────
@@ -591,6 +593,179 @@ async def _alerts(db: AsyncSession, tenant_id: int, frm: date, to: date) -> list
             "message": f"{prefix} {ALERT_LABELS.get(metric, metric)} {round(dev)}% vs promedio últimos 7 días",
         })
     return alerts
+
+
+# ─── Iteración 3 (Spec 04 §3.2-V2: CA-M1..M4) ─────────────────
+
+def _shift_of(t: time) -> str:
+    """CA-M3: turno según hora (D-M1). morning 06-11:59, afternoon 12-17:59, evening 18-23:59."""
+    if t is None:
+        return "morning"
+    if t.hour < 12:
+        return "morning"
+    if t.hour < 18:
+        return "afternoon"
+    return "evening"
+
+
+async def _top_waiters(db: AsyncSession, tenant_id: int, frm: date, to: date, limit: int = 5) -> dict:
+    """CA-M1 — Top N meseros por ventas (sin anuladas). sales.user_id → users.full_name."""
+    rows = (await db.execute(
+        select(Sale.user_id, User.full_name,
+               func.count(Sale.id), func.coalesce(func.sum(Sale.total), 0))
+        .join(User, User.id == Sale.user_id)
+        .where(
+            Sale.tenant_id == tenant_id,
+            Sale.is_voided.is_(False),
+            Sale.sale_date >= frm,
+            Sale.sale_date <= to,
+        )
+        .group_by(Sale.user_id, User.full_name)
+        .order_by(func.sum(Sale.total).desc())
+        .limit(limit)
+    )).all()
+    out = []
+    for uid, name, cnt, total in rows:
+        out.append({
+            "user_id": uid, "name": name,
+            "sales_count": cnt, "total": _money(total),
+            "avg_ticket": round(float(total) / cnt, 2) if cnt else 0.0,
+        })
+    # total_sales = ventas sin anuladas del rango (contexto)
+    total_sales = (await db.execute(
+        select(func.count(Sale.id)).where(
+            Sale.tenant_id == tenant_id,
+            Sale.is_voided.is_(False),
+            Sale.sale_date >= frm,
+            Sale.sale_date <= to,
+        )
+    )).scalar() or 0
+    return {"rows": out, "total_sales": total_sales}
+
+
+async def _cancellation_rate(db: AsyncSession, tenant_id: int, frm: date, to: date) -> dict:
+    """CA-M2 — % anuladas + top motivos."""
+    voided = (await db.execute(
+        select(func.count(Sale.id)).where(
+            Sale.tenant_id == tenant_id, Sale.is_voided.is_(True),
+            Sale.sale_date >= frm, Sale.sale_date <= to,
+        )
+    )).scalar() or 0
+    total = (await db.execute(
+        select(func.count(Sale.id)).where(
+            Sale.tenant_id == tenant_id,
+            Sale.sale_date >= frm, Sale.sale_date <= to,
+        )
+    )).scalar() or 0
+    rate = round(voided / total * 100, 1) if total else 0.0
+    reasons = (await db.execute(
+        select(func.coalesce(Sale.void_reason, "(sin motivo)"), func.count(Sale.id))
+        .where(
+            Sale.tenant_id == tenant_id, Sale.is_voided.is_(True),
+            Sale.sale_date >= frm, Sale.sale_date <= to,
+        )
+        .group_by(Sale.void_reason)
+        .order_by(func.count(Sale.id).desc())
+        .limit(5)
+    )).all()
+    return {
+        "voided_count": voided, "total_count": total, "rate_pct": rate,
+        "top_reasons": [{"reason": r, "count": c} for r, c in reasons],
+    }
+
+
+async def _avg_ticket_by(db: AsyncSession, tenant_id: int, frm: date, to: date) -> dict:
+    """CA-M3 — Ticket promedio por canal (dine_in incluye takeout) y por turno."""
+    ch_rows = (await db.execute(
+        select(RestaurantSale.order_type,
+               func.coalesce(func.avg(Sale.total), 0), func.count(Sale.id))
+        .join(Sale, Sale.id == RestaurantSale.sale_id)
+        .where(
+            Sale.tenant_id == tenant_id, Sale.is_voided.is_(False),
+            Sale.sale_date >= frm, Sale.sale_date <= to,
+        )
+        .group_by(RestaurantSale.order_type)
+    )).all()
+    ch_map = {ot: (round(float(avg), 2), cnt) for ot, avg, cnt in ch_rows}
+    dine = ch_map.get("dine_in", (0.0, 0))
+    takeout = ch_map.get("takeout", (0.0, 0))
+    combined_cnt = dine[1] + takeout[1]
+    combined_avg = (
+        round((dine[0] * dine[1] + takeout[0] * takeout[1]) / combined_cnt, 2)
+        if combined_cnt else 0.0
+    )
+    channel = [
+        {"channel": "dine_in", "ticket": combined_avg},
+        {"channel": "delivery", "ticket": ch_map.get("delivery", (0.0, 0))[0]},
+    ]
+    sh_rows = (await db.execute(
+        select(Sale.sale_time, Sale.total)
+        .where(
+            Sale.tenant_id == tenant_id, Sale.is_voided.is_(False),
+            Sale.sale_date >= frm, Sale.sale_date <= to,
+        )
+    )).all()
+    agg = {"morning": [0, 0.0], "afternoon": [0, 0.0], "evening": [0, 0.0]}
+    for t, total in sh_rows:
+        s = _shift_of(t)
+        agg[s][0] += 1
+        agg[s][1] += float(total)
+    shift = [
+        {"shift": k, "ticket": round(v[1] / v[0], 2) if v[0] else 0.0, "orders": v[0]}
+        for k, v in agg.items()
+    ]
+    return {"channel": channel, "shift": shift}
+
+
+async def _delivery_campaign_effect(db: AsyncSession, tenant_id: int, frm: date, to: date) -> dict:
+    """CA-M4 — Delivery: campaña vs sin campaña (by_campaign + by_channel utm.source). Solo no-cancelados."""
+    dmin, dmax = datetime.combine(frm, time.min), datetime.combine(to, time.max)
+    rows = (await db.execute(
+        select(DeliveryOrder.campaign_id, DeliveryOrder.utm, Sale.total)
+        .join(Sale, Sale.id == DeliveryOrder.sale_id)
+        .where(
+            DeliveryOrder.tenant_id == tenant_id,
+            DeliveryOrder.status != "cancelled",
+            DeliveryOrder.created_at >= dmin,
+            DeliveryOrder.created_at <= dmax,
+        )
+    )).all()
+    camp_names = {}
+    camp_ids = {r[0] for r in rows if r[0] is not None}
+    if camp_ids:
+        crows = (await db.execute(
+            select(MarketingCampaign.id, MarketingCampaign.name).where(MarketingCampaign.id.in_(camp_ids))
+        )).all()
+        camp_names = {cid: name for cid, name in crows}
+    by_camp: dict = {}
+    by_ch: dict = {}
+    for cid, utm, total in rows:
+        g = float(total or 0)
+        key = cid if cid is not None else None
+        if key not in by_camp:
+            by_camp[key] = [0, 0.0]
+        by_camp[key][0] += 1
+        by_camp[key][1] += g
+        src = (utm or {}).get("source") or "directo"
+        if src not in by_ch:
+            by_ch[src] = [0, 0.0]
+        by_ch[src][0] += 1
+        by_ch[src][1] += g
+    by_campaign = [
+        {
+            "campaign_id": k,
+            "campaign_name": camp_names.get(k, "Sin campaña") if k is not None else "Sin campaña",
+            "orders": v[0], "gmv": _money(v[1]),
+            "aov": round(v[1] / v[0], 2) if v[0] else 0.0,
+        }
+        for k, v in sorted(by_camp.items(), key=lambda kv: kv[1][1], reverse=True)
+    ]
+    by_channel = [
+        {"source": k, "orders": v[0], "gmv": _money(v[1]),
+         "aov": round(v[1] / v[0], 2) if v[0] else 0.0}
+        for k, v in sorted(by_ch.items(), key=lambda kv: kv[1][1], reverse=True)
+    ]
+    return {"by_campaign": by_campaign, "by_channel": by_channel}
 
 
 # ─── Export CSV (CA13) ─────────────────────────────────────────
