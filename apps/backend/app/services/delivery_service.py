@@ -521,17 +521,24 @@ async def create_order(db: AsyncSession, tenant_id: int, data: dict) -> dict:
 
     # Spec 03 §7 (Fase B): publicar eventos de notificación WhatsApp en un SOLO
     # punto común (fire-and-forget: si RabbitMQ falla el pedido NO se rompe).
-    await publish_checkout_events(
-        tenant_id=tenant_id,
-        tracking_code=tracking_code,
-        sale_id=sale_id,
-        customer_phone=customer.get("phone"),
-        total=total,
-        items_resumen=[
-            {"name": it["item_name"], "qty": it["quantity"]} for it in validated
-        ],
-        zone=zone.name,
-    )
+    # Defensa en profundidad: un fallo del publicador tampoco rompe el checkout.
+    try:
+        await publish_checkout_events(
+            tenant_id=tenant_id,
+            tracking_code=tracking_code,
+            sale_id=sale_id,
+            customer_phone=customer.get("phone"),
+            total=total,
+            items_resumen=[
+                {"name": it["item_name"], "qty": it["quantity"]} for it in validated
+            ],
+            zone=zone.name,
+        )
+    except Exception:  # noqa: BLE001 — la notificación es best-effort (§7.4)
+        logger.warning(
+            "no se pudieron publicar eventos delivery (checkout %s)", tracking_code,
+            exc_info=True,
+        )
 
     return {
         "tracking_code": tracking_code,
@@ -656,18 +663,25 @@ async def update_status(
     )
     await db.commit()
 
-    # Spec 03 §7 (Fase B): evento tras transición válida (CA-B2). Fire-and-forget.
-    ctx = await _delivery_event_context(db, order)
-    await publish_status_event(
-        tenant_id=tenant_id,
-        tracking_code=order.tracking_code,
-        sale_id=order.sale_id,
-        customer_phone=order.customer_phone,
-        new_status=new_status,
-        total=ctx["total"],
-        items_resumen=ctx["items_resumen"],
-        zone=ctx["zone"],
-    )
+    # Spec 03 §7 (Fase B): evento tras transición válida (CA-B2). Fire-and-forget:
+    # un fallo del publicador NUNCA rompe la transición de estado.
+    try:
+        ctx = await _delivery_event_context(db, order)
+        await publish_status_event(
+            tenant_id=tenant_id,
+            tracking_code=order.tracking_code,
+            sale_id=order.sale_id,
+            customer_phone=order.customer_phone,
+            new_status=new_status,
+            total=ctx["total"],
+            items_resumen=ctx["items_resumen"],
+            zone=ctx["zone"],
+        )
+    except Exception:  # noqa: BLE001 — la notificación es best-effort (§7.4)
+        logger.warning(
+            "no se pudo publicar evento delivery (order %s → %s)",
+            order.tracking_code, new_status, exc_info=True,
+        )
     return detail
 
 
