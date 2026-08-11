@@ -1,9 +1,9 @@
 /**
- * Dashboard API — Panel del Dueño (Spec 04, V1 + V2).
+ * Dashboard API — Panel del Dueño (Spec 04, V1 + V2 + CA13-b).
  *
  * Endpoints autenticados (solo lectura):
  *  - GET /api/v1/dashboard/owner (resumen, §3.1 + §3.1-V2)
- *  - GET /api/v1/dashboard/owner/export?format=csv (CA13 — CSV descargable)
+ *  - GET /api/v1/dashboard/owner/export?format=csv|pdf (CA13 — CSV descargable; CA13-b — PDF descargable)
  *
  * @module services/dashboardApi
  */
@@ -54,15 +54,17 @@ export function parseContentDispositionFilename(header: string | null): string |
 }
 
 /**
- * CA13 — Descarga el reporte CSV del período seleccionado.
- * @param params Rango de fechas (YYYY-MM-DD); format siempre `csv` (R3)
- * @returns Blob del CSV + filename tomado del header Content-Disposition (si existe)
+ * Helper compartido CSV/PDF (CA13 + CA13-b): descarga el reporte del período
+ * en el formato indicado y devuelve el blob + filename del header.
+ * @param params Rango de fechas (YYYY-MM-DD)
+ * @param format Formato del reporte: `csv` o `pdf`
  */
-export async function exportOwnerDashboardCsv(
-  params: OwnerDashboardParams = {},
+async function exportOwnerDashboard(
+  params: OwnerDashboardParams,
+  format: "csv" | "pdf",
 ): Promise<OwnerDashboardExport> {
   const qs = new URLSearchParams();
-  qs.set("format", "csv");
+  qs.set("format", format);
   if (params.date_from) qs.set("date_from", params.date_from);
   if (params.date_to) qs.set("date_to", params.date_to);
   const res = await authFetch(`/api/v1/dashboard/owner/export?${qs.toString()}`);
@@ -75,4 +77,26 @@ export async function exportOwnerDashboardCsv(
     blob,
     filename: parseContentDispositionFilename(res.headers.get("Content-Disposition")),
   };
+}
+
+/**
+ * CA13 — Descarga el reporte CSV del período seleccionado.
+ * @param params Rango de fechas (YYYY-MM-DD); format siempre `csv` (R3)
+ * @returns Blob del CSV + filename tomado del header Content-Disposition (si existe)
+ */
+export async function exportOwnerDashboardCsv(
+  params: OwnerDashboardParams = {},
+): Promise<OwnerDashboardExport> {
+  return exportOwnerDashboard(params, "csv");
+}
+
+/**
+ * CA13-b — Descarga el reporte PDF del período seleccionado.
+ * @param params Rango de fechas (YYYY-MM-DD); format siempre `pdf`
+ * @returns Blob del PDF + filename tomado del header Content-Disposition (si existe)
+ */
+export async function exportOwnerDashboardPdf(
+  params: OwnerDashboardParams = {},
+): Promise<OwnerDashboardExport> {
+  return exportOwnerDashboard(params, "pdf");
 }
