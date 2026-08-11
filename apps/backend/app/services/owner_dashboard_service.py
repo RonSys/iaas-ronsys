@@ -16,6 +16,8 @@ V2 (contrato §3.1-V2, bloques CA10-CA14):
     anterior, con deltas (*_pct null si previous=0; delivery_pct_delta en pts).
   - alerts: desviación del período (o último día si date_from==date_to) vs
     promedio de los 7 días calendario previos; red ≤ -20%, yellow ≤ -10%.
+  - export PDF (CA13-b): render_owner_pdf — reportlab platypus, 9 secciones
+    en español, misma data de get_owner_dashboard (una sola llamada).
 
 Solo lectura (D5). Fechas: date_from/date_to opcionales (ISO YYYY-MM-DD);
 sin fechas → últimos 30 días. Excluye ventas anuladas (is_voided=True).
@@ -24,8 +26,16 @@ from __future__ import annotations
 
 import csv
 import io
+import os
 from datetime import date, datetime, time, timedelta
 
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -673,6 +683,356 @@ def render_owner_csv(data: dict) -> str:
         w.writerow([r["severity"], r["metric"], r["message"]])
 
     return out.getvalue()
+
+
+# ─── Export PDF (CA13-b) ───────────────────────────────────────
+
+# Fuente para los símbolos ▲▼⚠ (las 14 fuentes estándar de PDF no los
+# incluyen). Se intenta registrar DejaVuSans (presente en la mayoría de
+# distros); si no está disponible se usa un fallback ASCII legible
+# (+, -, !) — la generación nunca falla por falta de fuente.
+_DEJAVU_CANDIDATES = (
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+    "/usr/local/share/fonts/dejavu/DejaVuSans.ttf",
+)
+
+
+def _register_pdf_symbol_font() -> str | None:
+    """Registra DejaVuSans (▲▼⚠) si existe en el sistema; None si no."""
+    for path in _DEJAVU_CANDIDATES:
+        if os.path.exists(path):
+            try:
+                pdfmetrics.registerFont(TTFont("DejaVuSans", path))
+                return "DejaVuSans"
+            except Exception:
+                continue
+    return None
+
+
+_PDF_SYMBOL_FONT = _register_pdf_symbol_font()
+if _PDF_SYMBOL_FONT:
+    _SYM_UP = f'<font name="{_PDF_SYMBOL_FONT}">▲</font>'
+    _SYM_DOWN = f'<font name="{_PDF_SYMBOL_FONT}">▼</font>'
+    _SYM_WARN = f'<font name="{_PDF_SYMBOL_FONT}">⚠</font>'
+else:
+    # Fallback ASCII: el signo (+/-) ya comunica la dirección
+    _SYM_UP = ""
+    _SYM_DOWN = ""
+    _SYM_WARN = "!"
+
+_PDF_CHANNEL_LABELS = {
+    "dine_in": "Salón", "takeout": "Para llevar", "delivery": "Delivery",
+}
+_PDF_CHANNEL_ORDER = ("dine_in", "takeout", "delivery")
+_PDF_PAYMENT_LABELS = {
+    "yape": "Yape", "plin": "Plin", "cash": "Efectivo",
+    "card": "Tarjeta", "transfer": "Transferencia",
+}
+_PDF_FUNNEL_LABELS = {
+    "received": "Recibidos", "preparing": "Preparando", "ready": "Listos",
+    "out_for_delivery": "En ruta", "delivered": "Entregados", "cancelled": "Cancelados",
+}
+_PDF_FUNNEL_ORDER = (
+    "received", "preparing", "ready", "out_for_delivery", "delivered", "cancelled",
+)
+_PDF_SEVERITY_LABELS = {"red": "Roja", "yellow": "Ámbar"}
+
+_pdf_base = getSampleStyleSheet()
+PDF_H1 = ParagraphStyle(
+    "PDFH1", parent=_pdf_base["Title"], fontSize=15, leading=18,
+    spaceAfter=3, textColor=colors.HexColor("#1f3864"),
+)
+PDF_SUB = ParagraphStyle(
+    "PDFSub", parent=_pdf_base["Normal"], fontSize=9, leading=12,
+    textColor=colors.HexColor("#4a4a4a"),
+)
+PDF_H2 = ParagraphStyle(
+    "PDFH2", parent=_pdf_base["Heading2"], fontSize=12, leading=15,
+    spaceBefore=12, spaceAfter=5, textColor=colors.HexColor("#1f3864"),
+)
+PDF_H3 = ParagraphStyle(
+    "PDFH3", parent=_pdf_base["Normal"], fontSize=9, leading=11,
+    fontName="Helvetica-Bold", spaceBefore=6, spaceAfter=2,
+    textColor=colors.HexColor("#333333"),
+)
+PDF_TD = ParagraphStyle("PDFTd", parent=_pdf_base["Normal"], fontSize=8, leading=10)
+PDF_NOTE = ParagraphStyle(
+    "PDFNote", parent=_pdf_base["Normal"], fontSize=8, leading=10,
+    textColor=colors.HexColor("#666666"),
+)
+PDF_SEV_RED = ParagraphStyle(
+    "PDFSevRed", parent=PDF_TD, fontName="Helvetica-Bold",
+    textColor=colors.HexColor("#b00020"),
+)
+PDF_SEV_YELLOW = ParagraphStyle(
+    "PDFSevYellow", parent=PDF_TD, fontName="Helvetica-Bold",
+    textColor=colors.HexColor("#b26a00"),
+)
+
+_PDF_HEADER_BG = colors.HexColor("#1f3864")
+_PDF_GRID = colors.HexColor("#b8c2d0")
+_PDF_ROW_ALT = colors.HexColor("#eef2f8")
+
+
+def _money_str(v) -> str:
+    """S/ 1,234.50 — monetario con miles y 2 decimales."""
+    return f"S/ {float(v or 0):,.2f}"
+
+
+def _qty_str(v) -> str:
+    """Cantidad sin decimales innecesarios (15.0 → 15; 2.4 → 2.4)."""
+    try:
+        return f"{float(v):g}"
+    except (TypeError, ValueError):
+        return str(v)
+
+
+def _pdf_delta(value, unit: str = "%") -> str:
+    """Celda de cambio: ▲/▼ (o signo) + valor; '—' si el delta es None."""
+    if value is None:
+        return "—"
+    v = float(value)
+    if v > 0:
+        return f"{_SYM_UP} {v:+.1f} {unit}"
+    if v < 0:
+        return f"{_SYM_DOWN} {v:+.1f} {unit}"
+    return f"• {v:+.1f} {unit}"
+
+
+def _pdf_table(rows: list, widths=None, right_cols=()) -> Table:
+    """Tabla platypus: header con fondo, grid, filas alternadas, numeros a la derecha."""
+    t = Table(rows, colWidths=widths, repeatRows=1)
+    style = [
+        ("GRID", (0, 0), (-1, -1), 0.4, _PDF_GRID),
+        ("BACKGROUND", (0, 0), (-1, 0), _PDF_HEADER_BG),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+    ]
+    for i in range(2, len(rows), 2):
+        style.append(("BACKGROUND", (0, i), (-1, i), _PDF_ROW_ALT))
+    for col in right_cols:
+        style.append(("ALIGN", (col, 1), (col, -1), "RIGHT"))
+    t.setStyle(TableStyle(style))
+    return t
+
+
+def _pdf_side_by_side(left: Table, right: Table, width: float = 88 * mm) -> Table:
+    """Dos tablas lado a lado dentro de una tabla contenedora."""
+    t = Table([[left, right]], colWidths=[width, width], hAlign="LEFT")
+    t.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (0, 0), 0),
+        ("RIGHTPADDING", (1, 0), (1, 0), 0),
+    ]))
+    return t
+
+
+def render_owner_pdf(data: dict) -> bytes:
+    """CA13-b — PDF del Panel del Dueño (reportlab platypus, 9 secciones).
+
+    Recibe la misma data de get_owner_dashboard (una sola llamada, hecha por
+    el router) y devuelve los bytes del PDF. pageCompression=0: streams de
+    contenido sin comprimir → texto buscable en bytes y PDFs más simples.
+    """
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=A4,
+        leftMargin=15 * mm, rightMargin=15 * mm,
+        topMargin=14 * mm, bottomMargin=14 * mm,
+        pageCompression=0,
+        title="Panel del Dueño — El Segoviano",
+        author="IaaS-RonSys",
+        subject="Reporte ejecutivo del Panel del Dueño (Spec 04 CA13-b)",
+    )
+    story: list = []
+    period = data.get("period", {})
+
+    # 1. Encabezado
+    story.append(Paragraph("Panel del Dueño — El Segoviano", PDF_H1))
+    story.append(Paragraph(
+        f"Período: {period.get('date_from', '—')} — {period.get('date_to', '—')}", PDF_SUB,
+    ))
+    story.append(Paragraph(
+        f"Fecha de generación: {datetime.now().strftime('%d/%m/%Y %H:%M')}", PDF_SUB,
+    ))
+
+    # 2. KPIs
+    story.append(Paragraph("2. KPIs", PDF_H2))
+    k = data.get("kpis", {})
+    kpi_rows = [
+        ["Métrica", "Valor"],
+        ["Ventas totales", _money_str(k.get("sales_total"))],
+        ["Pedidos", str(k.get("orders_count", 0))],
+        ["Ticket promedio", _money_str(k.get("avg_ticket"))],
+        ["% Delivery", f"{k.get('delivery_pct', 0)}%"],
+        [
+            "Pedidos por canal (salón / para llevar / delivery)",
+            f"{k.get('orders_dine_in', 0)} / {k.get('orders_takeout', 0)} / {k.get('orders_delivery', 0)}",
+        ],
+        ["Cocina en vivo", str(k.get("kitchen_open", 0))],
+        ["Delivery en ruta", str(k.get("delivery_in_route", 0))],
+    ]
+    story.append(_pdf_table(kpi_rows, widths=[100 * mm, 80 * mm], right_cols=(1,)))
+
+    # 3. Comparativa semana vs semana
+    story.append(Paragraph("3. Comparativa semana vs semana", PDF_H2))
+    comp = data.get("comparison", {})
+    cur_ = comp.get("current", {})
+    prev_ = comp.get("previous", {})
+    deltas = comp.get("deltas", {})
+    comp_rows = [
+        ["Métrica", "Período actual", "Período previo", "Cambio"],
+        [
+            "Ventas", _money_str(cur_.get("sales_total")), _money_str(prev_.get("sales_total")),
+            Paragraph(_pdf_delta(deltas.get("sales_total_pct")), PDF_TD),
+        ],
+        [
+            "Pedidos", str(cur_.get("orders_count", 0)), str(prev_.get("orders_count", 0)),
+            Paragraph(_pdf_delta(deltas.get("orders_count_pct")), PDF_TD),
+        ],
+        [
+            "Ticket promedio", _money_str(cur_.get("avg_ticket")), _money_str(prev_.get("avg_ticket")),
+            Paragraph(_pdf_delta(deltas.get("avg_ticket_pct")), PDF_TD),
+        ],
+        [
+            "% Delivery", f"{cur_.get('delivery_pct', 0)}%", f"{prev_.get('delivery_pct', 0)}%",
+            Paragraph(_pdf_delta(deltas.get("delivery_pct_delta"), unit="pts"), PDF_TD),
+        ],
+    ]
+    story.append(_pdf_table(
+        comp_rows, widths=[45 * mm, 42 * mm, 42 * mm, 51 * mm], right_cols=(1, 2),
+    ))
+
+    # 4. Márgenes por canal
+    story.append(Paragraph("4. Márgenes por canal", PDF_H2))
+    margins = data.get("margins", {})
+    m_rows = [["Canal", "Ingresos", "Costo", "Margen"]]
+    for m in margins.get("by_channel", []):
+        m_rows.append([
+            _PDF_CHANNEL_LABELS.get(m.get("channel"), str(m.get("channel", ""))),
+            _money_str(m.get("revenue")),
+            _money_str(m.get("cost")),
+            f"{m.get('margin_pct', 0)}%",
+        ])
+    if len(m_rows) == 1:
+        m_rows.append(["—", "Sin datos en el período", "", ""])
+    story.append(_pdf_table(m_rows, widths=[60 * mm, 40 * mm, 40 * mm, 40 * mm], right_cols=(1, 2, 3)))
+    costable_note = margins.get("costable_note")
+    if costable_note:
+        story.append(Spacer(1, 3))
+        story.append(Paragraph(f"Nota: {costable_note}", PDF_NOTE))
+
+    # 5. Top platos (top 10 por total)
+    story.append(Paragraph("5. Top platos", PDF_H2))
+    t_rows = [["#", "Plato", "Cantidad", "Total"]]
+    for i, p in enumerate(data.get("top_platos", []), start=1):
+        t_rows.append([
+            str(i), p.get("name", ""), _qty_str(p.get("qty")), _money_str(p.get("total")),
+        ])
+    if len(t_rows) == 1:
+        t_rows.append(["—", "Sin datos en el período", "", ""])
+    story.append(_pdf_table(t_rows, widths=[10 * mm, 100 * mm, 30 * mm, 40 * mm], right_cols=(2, 3)))
+
+    # 6. Canales + Pagos
+    story.append(Paragraph("6. Canales y pagos", PDF_H2))
+    channels = data.get("channels", {})
+    chan_rows = [["Canal", "Ventas"]]
+    for c in _PDF_CHANNEL_ORDER:
+        if c in channels:
+            chan_rows.append([_PDF_CHANNEL_LABELS[c], _money_str(channels[c])])
+    if len(chan_rows) == 1:
+        chan_rows.append(["—", "Sin datos en el período"])
+    payments = data.get("payments", {})
+    pay_rows = [["Método de pago", "Monto"]]
+    for m, a in payments.items():
+        pay_rows.append([_PDF_PAYMENT_LABELS.get(m, str(m)), _money_str(a)])
+    if len(pay_rows) == 1:
+        pay_rows.append(["—", "Sin datos en el período"])
+    story.append(_pdf_side_by_side(
+        _pdf_table(chan_rows, widths=[55 * mm, 33 * mm], right_cols=(1,)),
+        _pdf_table(pay_rows, widths=[55 * mm, 33 * mm], right_cols=(1,)),
+    ))
+
+    # 7. Ventas por hora (0-23, salón vs delivery)
+    story.append(Paragraph("7. Ventas por hora", PDF_H2))
+    h_rows = [["Hora", "Salón (S/)", "Delivery (S/)"]]
+    for r in data.get("sales_by_hour", []):
+        h_rows.append([
+            f"{r.get('hour', '')}:00", _money_str(r.get("dine_in")), _money_str(r.get("delivery")),
+        ])
+    if len(h_rows) == 1:
+        h_rows.append(["—", "Sin datos en el período", ""])
+    story.append(_pdf_table(h_rows, widths=[60 * mm, 60 * mm, 60 * mm], right_cols=(1, 2)))
+
+    # 8. Delivery + Campañas
+    story.append(Paragraph("8. Delivery y campañas", PDF_H2))
+    delivery = data.get("delivery", {})
+    gmv_txt = (
+        f"GMV (entregados): {_money_str(delivery.get('gmv'))} · "
+        f"Fees: {_money_str(delivery.get('fee_total'))}"
+    )
+    if delivery.get("avg_delivery_min") is not None:
+        gmv_txt += f" · Tiempo promedio: {delivery.get('avg_delivery_min')} min"
+    story.append(Paragraph(gmv_txt, PDF_TD))
+    story.append(Spacer(1, 4))
+    z_rows = [["Zona", "Pedidos"]]
+    for z in delivery.get("orders_by_zone", []):
+        z_rows.append([z.get("zone", ""), str(z.get("orders", 0))])
+    if len(z_rows) == 1:
+        z_rows.append(["—", "Sin datos en el período"])
+    funnel = delivery.get("funnel", {})
+    f_rows = [["Etapa", "Pedidos"]]
+    for st in _PDF_FUNNEL_ORDER:
+        f_rows.append([_PDF_FUNNEL_LABELS[st], str(funnel.get(st, 0))])
+    story.append(Paragraph("Pedidos por zona", PDF_H3))
+    story.append(_pdf_table(z_rows, widths=[60 * mm, 120 * mm], right_cols=(1,)))
+    story.append(Paragraph("Embudo delivery", PDF_H3))
+    story.append(_pdf_table(f_rows, widths=[60 * mm, 120 * mm], right_cols=(1,)))
+    story.append(Paragraph("Campañas (ROAS)", PDF_H3))
+    camp_rows = [["Campaña", "Canal", "Inversión", "Pedidos", "GMV", "ROAS"]]
+    for c in data.get("campaigns", []):
+        camp_rows.append([
+            c.get("name") or f"#{c.get('campaign_id', '')}",
+            c.get("channel", ""),
+            _money_str(c.get("spend")),
+            str(c.get("orders", 0)),
+            _money_str(c.get("gmv")),
+            _qty_str(c.get("roas")),
+        ])
+    if len(camp_rows) == 1:
+        camp_rows.append(["—", "Sin campañas en el período", "", "", "", ""])
+    story.append(_pdf_table(
+        camp_rows, widths=[50 * mm, 22 * mm, 27 * mm, 22 * mm, 35 * mm, 24 * mm],
+        right_cols=(2, 3, 4, 5),
+    ))
+
+    # 9. Alertas
+    story.append(Paragraph("9. Alertas", PDF_H2))
+    alerts = data.get("alerts", [])
+    if not alerts:
+        story.append(Paragraph("Sin alertas en el período", PDF_NOTE))
+    else:
+        a_rows = [["Severidad", "Métrica", "Mensaje"]]
+        for a in alerts:
+            sev = str(a.get("severity", ""))
+            label = _PDF_SEVERITY_LABELS.get(sev, sev)
+            cell_style = PDF_SEV_RED if sev == "red" else (PDF_SEV_YELLOW if sev == "yellow" else PDF_TD)
+            a_rows.append([
+                Paragraph(f"{_SYM_WARN} {label}", cell_style),
+                a.get("metric", ""),
+                a.get("message", ""),
+            ])
+        story.append(_pdf_table(a_rows, widths=[28 * mm, 32 * mm, 120 * mm]))
+
+    doc.build(story)
+    return buf.getvalue()
 
 
 # ─── Orquestador ──────────────────────────────────────────────
