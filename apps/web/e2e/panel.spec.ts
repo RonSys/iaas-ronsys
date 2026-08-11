@@ -143,19 +143,40 @@ test.describe("Panel del Dueño — V2 (CA10-CA14)", () => {
     await expect(alertBanner.getByText("⚠️")).toBeVisible();
   });
 
-  test("botón Descargar CSV dispara descarga del export (CA13)", async ({
+  test("dropdown: Descargar CSV dispara descarga del export (CA13)", async ({
     authenticatedPage: page,
   }) => {
     const exportReqPromise = page.waitForRequest((req) =>
       req.url().includes("/api/v1/dashboard/owner/export"),
     );
     const downloadPromise = page.waitForEvent("download");
+    // Abrir el dropdown (CA13-b) y elegir CSV
+    await page.getByRole("button", { name: /Descargar$/ }).click();
     await page.getByRole("button", { name: /Descargar CSV/ }).click();
     const exportReq = await exportReqPromise;
     const download = await downloadPromise;
     expect(exportReq.url()).toContain("format=csv");
     // filename con ñ vía RFC 5987 (Content-Disposition)
     expect(download.suggestedFilename()).toContain("panel_dueño");
+    expect(download.suggestedFilename()).toMatch(/\.csv$/);
+  });
+
+  test("dropdown: Descargar PDF dispara descarga del export format=pdf (CA13-b)", async ({
+    authenticatedPage: page,
+  }) => {
+    const exportReqPromise = page.waitForRequest((req) =>
+      req.url().includes("/api/v1/dashboard/owner/export"),
+    );
+    const downloadPromise = page.waitForEvent("download");
+    // Abrir el dropdown y elegir PDF
+    await page.getByRole("button", { name: /Descargar$/ }).click();
+    await page.getByRole("button", { name: /Descargar PDF/ }).click();
+    const exportReq = await exportReqPromise;
+    const download = await downloadPromise;
+    expect(exportReq.url()).toContain("format=pdf");
+    // filename con ñ vía RFC 5987, extensión .pdf
+    expect(download.suggestedFilename()).toContain("panel_dueño");
+    expect(download.suggestedFilename()).toMatch(/\.pdf$/);
   });
 });
 

@@ -4,7 +4,7 @@
  * Verifica que la página renderiza los bloques V2 (CA10-CA14):
  * alertas, KPIs con comparativa, heatmaps, márgenes y botón de descarga.
  */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { DashboardOwner } from "@/pages/DashboardOwner";
 import type { OwnerDashboardResponse } from "@/types";
@@ -64,13 +64,33 @@ const PAYLOAD: OwnerDashboardResponse = {
 jest.mock("@/services/dashboardApi", () => ({
   getOwnerDashboard: jest.fn(),
   exportOwnerDashboardCsv: jest.fn(),
+  exportOwnerDashboardPdf: jest.fn(),
 }));
 
-import { getOwnerDashboard } from "@/services/dashboardApi";
+import { exportOwnerDashboardCsv, exportOwnerDashboardPdf, getOwnerDashboard } from "@/services/dashboardApi";
 
 beforeEach(() => {
   jest.clearAllMocks();
   (getOwnerDashboard as jest.Mock).mockResolvedValue(PAYLOAD);
+  (exportOwnerDashboardCsv as jest.Mock).mockResolvedValue({
+    blob: new Blob(["# kpis\n"]),
+    filename: "panel_dueño_20260810.csv",
+  });
+  (exportOwnerDashboardPdf as jest.Mock).mockResolvedValue({
+    blob: new Blob(["%PDF-1.4"]),
+    filename: "panel_dueño_20260810.pdf",
+  });
+  // jsdom no implementa URL.createObjectURL → stub para el flujo de descarga
+  Object.defineProperty(URL, "createObjectURL", {
+    writable: true,
+    configurable: true,
+    value: jest.fn(() => "blob:mock"),
+  });
+  Object.defineProperty(URL, "revokeObjectURL", {
+    writable: true,
+    configurable: true,
+    value: jest.fn(),
+  });
 });
 
 describe("DashboardOwner", () => {
@@ -110,5 +130,28 @@ describe("DashboardOwner", () => {
     expect(screen.getByText("Margen por canal (costeo por recetas)")).toBeInTheDocument();
     // Nota de costeabilidad visible (R2)
     expect(screen.getByText(/decisión R2/)).toBeInTheDocument();
+  });
+
+  it("dropdown de descarga ofrece CSV y PDF, y PDF llama a exportOwnerDashboardPdf (CA13-b)", async () => {
+    render(
+      <BrowserRouter>
+        <DashboardOwner />
+      </BrowserRouter>,
+    );
+    // Trigger del dropdown (summary con rol button) visible
+    expect(await screen.findByRole("button", { name: /Descargar$/ })).toBeInTheDocument();
+    // Ambas opciones presentes en el menú (jsdom no oculta el contenido de <details>)
+    expect(screen.getByRole("button", { name: /Descargar CSV/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Descargar PDF/ })).toBeInTheDocument();
+    // Elegir PDF → llama al API client PDF con el rango seleccionado (CA13-b)
+    fireEvent.click(screen.getByRole("button", { name: /Descargar PDF/ }));
+    await waitFor(() => {
+      expect(exportOwnerDashboardPdf).toHaveBeenCalledTimes(1);
+      expect(exportOwnerDashboardPdf).toHaveBeenCalledWith(
+        expect.objectContaining({ date_from: expect.any(String), date_to: expect.any(String) }),
+      );
+    });
+    // El CSV NO se dispara al elegir PDF
+    expect(exportOwnerDashboardCsv).not.toHaveBeenCalled();
   });
 });

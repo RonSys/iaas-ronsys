@@ -462,20 +462,24 @@ export function mockOwnerDashboard(page: Page, data?: Record<string, unknown>) {
 }
 
 /**
- * Mock GET /api/v1/dashboard/owner/export?format=csv (Spec 04 CA13).
+ * Mock GET /api/v1/dashboard/owner/export?format=csv|pdf (Spec 04 CA13/CA13-b).
  * Registrar DESPUÉS de mockOwnerDashboard: Playwright resuelve rutas en
  * orden inverso de registro (LIFO) → la export gana para /owner/export.
  */
 export function mockOwnerDashboardExport(page: Page) {
   return page.route("**/api/v1/dashboard/owner/export**", (route) => {
+    const isPdf = new URL(route.request().url()).searchParams.get("format") === "pdf";
     route.fulfill({
       status: 200,
-      contentType: "text/csv",
+      contentType: isPdf ? "application/pdf" : "text/csv",
       headers: {
-        "Content-Disposition":
-          'attachment; filename="panel_dueño_20260810.csv"; filename*=UTF-8\'\'panel_due%C3%B1o_20260810.csv',
+        "Content-Disposition": isPdf
+          ? 'attachment; filename="panel_dueño_20260810.pdf"; filename*=UTF-8\'\'panel_due%C3%B1o_20260810.pdf'
+          : 'attachment; filename="panel_dueño_20260810.csv"; filename*=UTF-8\'\'panel_due%C3%B1o_20260810.csv',
       },
-      body: "# kpis\nmetric,value\nsales_total,4850.50\norders_count,42\n# sales_by_hour\nhour,dine_in,delivery\n12,850.0,420.0\n",
+      body: isPdf
+        ? "%PDF-1.4\nfake reporte pdf para e2e"
+        : "# kpis\nmetric,value\nsales_total,4850.50\norders_count,42\n# sales_by_hour\nhour,dine_in,delivery\n12,850.0,420.0\n",
     });
   });
 }

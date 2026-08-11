@@ -4,16 +4,22 @@
  * Vista ejecutiva de solo lectura: KPIs del día con comparativa ▲▼ (CA12),
  * alertas de desviación (CA14), heatmaps hora×día por canal con CSS grid
  * coloreado (CA10), márgenes por canal con costeo (CA11), ventas por hora/día,
- * canales, top platos, pagos, delivery y ROAS por campaña. Botón de descarga
- * CSV del período (CA13).
+ * canales, top platos, pagos, delivery y ROAS por campaña. Dropdown de
+ * descarga CSV/PDF del período (CA13 + CA13-b).
  *
  * Data: GET /api/v1/dashboard/owner?date_from=&date_to=
- * Export: GET /api/v1/dashboard/owner/export?format=csv&date_from=&date_to=
+ * Export: GET /api/v1/dashboard/owner/export?format=csv|pdf&date_from=&date_to=
  * Contrato: docs/specs/04-panel-indicadores/spec-panel-dueño.md §3.1 + §3.1-V2
  *
  * @page DashboardOwner
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -30,7 +36,7 @@ import {
   Legend,
 } from "recharts";
 import { KPICard, SectionHeader, Skeleton, fmtCurrency, fmtPct } from "@/components/dashboard/KPICard";
-import { exportOwnerDashboardCsv, getOwnerDashboard } from "@/services/dashboardApi";
+import { exportOwnerDashboardCsv, exportOwnerDashboardPdf, getOwnerDashboard } from "@/services/dashboardApi";
 import type {
   AlertItem,
   ComparisonDeltas,
@@ -333,11 +339,13 @@ export function DashboardOwner() {
     load(range);
   }, [load, range]);
 
-  // ─── CA13: Descarga CSV del período seleccionado ─────────
-  const downloadCsv = useCallback(async () => {
+  // ─── CA13 + CA13-b: Descarga CSV/PDF del período seleccionado ─
+  const downloadExport = useCallback(async (format: "csv" | "pdf") => {
     setExporting(true);
     try {
-      const { blob, filename } = await exportOwnerDashboardCsv({
+      const exporter =
+        format === "pdf" ? exportOwnerDashboardPdf : exportOwnerDashboardCsv;
+      const { blob, filename } = await exporter({
         date_from: range.date_from,
         date_to: range.date_to,
       });
@@ -345,7 +353,7 @@ export function DashboardOwner() {
       const a = document.createElement("a");
       a.href = url;
       // Filename del header Content-Disposition (RFC 5987, con ñ) si existe
-      a.download = filename ?? `panel_dueño_${range.date_to ?? todayISO()}.csv`;
+      a.download = filename ?? `panel_dueño_${range.date_to ?? todayISO()}.${format}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -356,6 +364,12 @@ export function DashboardOwner() {
       setExporting(false);
     }
   }, [range]);
+
+  /** Cierra el menú <details> tras elegir una opción */
+  const closeExportMenu = (e: ReactMouseEvent<HTMLElement>) => {
+    const details = e.currentTarget.closest("details");
+    if (details) details.removeAttribute("open");
+  };
 
   // ─── Datos derivados para gráficos ───────────────────────
   const hourly = useMemo(() => {
@@ -440,14 +454,48 @@ export function DashboardOwner() {
               {r.label}
             </button>
           ))}
-          <button
-            onClick={downloadCsv}
-            disabled={exporting || loading || !data}
-            className="ml-1 px-3 py-1.5 text-xs rounded-lg bg-brand-primary/10 border border-brand-primary/30 text-brand-primary hover:bg-brand-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Descargar reporte CSV del período (CA13)"
-          >
-            {exporting ? "⏳ Generando…" : "⬇️ Descargar CSV"}
-          </button>
+          {/* CA13-b: dropdown Descargar CSV / Descargar PDF */}
+          <details className="relative ml-1 group">
+            <summary
+              role="button"
+              aria-disabled={exporting || loading || !data}
+              className={`flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-brand-primary/10 border border-brand-primary/30 text-brand-primary hover:bg-brand-primary/20 transition-colors list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none ${
+                exporting || loading || !data
+                  ? "opacity-50 pointer-events-none"
+                  : ""
+              }`}
+              title="Descargar reporte del período (CSV o PDF) — CA13-b"
+            >
+              {exporting ? "⏳ Generando…" : "⬇️ Descargar"}
+              <span className="text-[9px] opacity-70" aria-hidden>
+                ▾
+              </span>
+            </summary>
+            <div className="absolute right-0 top-full mt-1 z-20 w-44 overflow-hidden rounded-lg border border-slate-700 bg-slate-800 shadow-xl">
+              <button
+                type="button"
+                onClick={(e) => {
+                  closeExportMenu(e);
+                  void downloadExport("csv");
+                }}
+                disabled={exporting || loading || !data}
+                className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-100 hover:bg-brand-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ⬇️ Descargar CSV
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  closeExportMenu(e);
+                  void downloadExport("pdf");
+                }}
+                disabled={exporting || loading || !data}
+                className="flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-100 hover:bg-brand-primary/20 transition-colors border-t border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ⬇️ Descargar PDF
+              </button>
+            </div>
+          </details>
         </div>
       </SectionHeader>
 
