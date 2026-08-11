@@ -246,8 +246,30 @@ class DeliverySettings(BaseModel):
     yape_phone: str | None = Field(None, description="Número Yape del negocio (se muestra en la landing)")
 
 
+class WhatsAppSettings(BaseModel):
+    """Configuración de notificaciones WhatsApp (Spec 03 §7 — Fase B).
+
+    Persistida en `companies.settings.whatsapp` (JSONB, patrón D-03). Los
+    tokens NUNCA van en código — solo en settings por tenant. Tenant sin
+    config (o sin token/phone_number_id) → modo dry-run: eventos logueados,
+    cero envíos HTTP (CA-B5/CA-B7).
+    """
+
+    enabled: bool = Field(False, description="Activa el envío real (Meta Cloud API)")
+    provider: str = Field("meta_cloud", description="Proveedor (agnóstico vía interfaz Notifier, D-B1)")
+    phone_number_id: str | None = Field(None, description="Meta: Phone Number ID")
+    token: str | None = Field(None, description="Meta: System User token (solo settings, nunca código)")
+    business_phone: str | None = Field(None, description="Número del negocio (remitente)")
+    alert_phone: str | None = Field(None, description="Número del local (alertas: nuevo pedido / cancelación)")
+    templates: dict[str, str] = Field(
+        default_factory=dict,
+        description="Plantillas aprobadas por Meta: confirmed, preparing, ready, "
+        "delivered, cancelled, new_order, order_cancelled",
+    )
+
+
 class CompanySettings(BaseModel):
-    """Configuración de empresa (branding, preferencias, delivery)."""
+    """Configuración de empresa (branding, preferencias, delivery, whatsapp)."""
     palette: ColorPalette = Field(default_factory=ColorPalette)
     logo_url: str | None = None
     favicon_url: str | None = None
@@ -256,6 +278,8 @@ class CompanySettings(BaseModel):
     timezone: str = Field("America/Lima", description="Zona horaria IANA")
     # Spec 03 (D4): config de delivery persistida en companies.settings.delivery
     delivery: DeliverySettings = Field(default_factory=DeliverySettings)
+    # Spec 03 (§7 Fase B): notificaciones WhatsApp persistidas en companies.settings.whatsapp
+    whatsapp: WhatsAppSettings = Field(default_factory=WhatsAppSettings)
 
 
 # ═══════════════════════════════════════════════════════════════
