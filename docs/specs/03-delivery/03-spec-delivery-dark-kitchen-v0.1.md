@@ -1,6 +1,6 @@
-# SPEC 03 — Módulo Delivery / Dark Kitchen (MVP Fase A)
+# SPEC 03 — Módulo Delivery / Dark Kitchen (MVP Fase A + Fase B WhatsApp)
 
-- **Estado**: 🟢 **APROBADA E IMPLEMENTADA (2026-08-03)** — Fase A completa en producción (commits `0f13728`, `7f93642`, `6a4e210`, `7787a70`)
+- **Estado**: 🟢 **APROBADA E IMPLEMENTADA (2026-08-03)** — Fase A completa en producción (commits `0f13728`, `7f93642`, `6a4e210`, `7787a70`); 🟡 **Fase B (WhatsApp) APROBADA 2026-08-11** — en implementación (ver §7)
 - **Proyecto**: IaaS-RonSys — Cliente "El Segoviano"
 - **Alcance**: tenant 1 (El Segoviano); diseño multi-tenant por construcción
 - **Fecha**: 2026-08-03
@@ -417,6 +417,84 @@ GET   /api/v1/delivery/metrics/overview?from=&to=   pedidos, GMV, fee total, tie
   Tests: +5 en `test_delivery.py` (overview/campaigns con rango, default 30 días, sin
   campañas, datetime del panel). Sin fechas el endpoint seguía funcionando (por eso no
   se detectó antes; el frontend llama sin from/to).
+- **2026-08-11 (Fase B aprobada)**: Ron aprueba el plan de Fase B (WhatsApp) con CA-B1..B8 y modo
+  dry-run primero. Alcance e infraestructura en §7 (decisión D-B1: Meta Cloud API oficial,
+  agnóstico al proveedor, RabbitMQ `iaas-tasks` ya desplegado). Plan cuenta Meta en
+  `plan-cuenta-meta-whatsapp.md` (workspace).
+
+---
+
+## 7. Fase B — Notificaciones WhatsApp (aprobada por Ron 2026-08-11)
+
+### 7.1 Objetivo de negocio
+
+Que el cliente que pide por el menú nocturno reciba **confirmación y seguimiento por WhatsApp**
+sin instalar nada, y que el **local reciba alertas** (nuevo pedido, cancelaciones). Reduce
+pedidos perdidos, mejora la experiencia y aumenta la confianza en el delivery nocturno.
+
+### 7.2 Alcance
+
+**INCLUYE (Fase B):**
+- 5 notificaciones al cliente (confirmado / en cocina / en camino / entregado / cancelado) al
+  `delivery_orders.customer_phone`.
+- 2 alertas al local (nuevo pedido recibido / pedido cancelado) al número configurable del negocio.
+- Disparo por **evento de la máquina de estados** (§3.3) + checkout 201, vía **cola RabbitMQ**
+  (`iaas-tasks`, ya desplegado): fire-and-forget, sin bloquear el pedido.
+- Worker consumidor con **reintentos (3: 0s/60s/300s) + dead-letter queue**.
+- Interfaz `Notifier` **agnóstica al proveedor** + implementación **Meta Cloud API** (HTTP).
+- Config por tenant en `companies.settings.whatsapp` (patrón D-03/yape_phone) — tenant sin
+  config → **modo dry-run** (eventos logueados, cero envíos).
+
+**NO INCLUYE (límites Fase B):**
+- Chat bot conversacional / atención al cliente bidireccional por WhatsApp.
+- Plantillas dinámicas no aprobadas por Meta (el contenido se limita a plantillas aprobadas).
+- Pago PSP online (Fase C), Rappi/PedidosYa (Fase C), mapa de seguimiento (Fase C).
+
+### 7.3 Decisión D-B1 — Proveedor
+
+**Elegida: Meta Cloud API oficial** con número propio del negocio (única con garantía de
+entrega y cumplimiento para negocio real). El código se diseña agnóstico (interfaz `Notifier`)
+para poder conmutar a un agregador sin tocar la lógica de eventos. **Regla dura**: NO usar el
+número wacli del agente (+51 975 224 103) — es el canal del asistente, no del negocio.
+
+### 7.4 Contrato
+
+```json
+// companies.settings.whatsapp (JSONB, patrón D-03)
+{
+  "enabled": true,
+  "provider": "meta_cloud",
+  "phone_number_id": "...",   // Meta
+  "token": "...",              // System User token (nunca en código, solo settings)
+  "business_phone": "+51...",  // número del negocio (remitente)
+  "alert_phone": "+51...",     // número del local (alertas)
+  "templates": {
+    "confirmed": "...", "preparing": "...", "ready": "...",
+    "delivered": "...", "cancelled": "...", "new_order": "...", "order_cancelled": "..."
+  }
+}
+```
+
+- **Eventos publicados a RabbitMQ** (`iaas-tasks`): `delivery.confirmed` (checkout 201),
+  `delivery.status_changed` (cada transición válida §3.3), `delivery.cancelled`.
+- **Payload del evento**: `tenant_id`, `tracking_code`, `sale_id`, `customer_phone`, `status`,
+  `total`, `items_resumen`, `zone`, `timestamp`.
+- **PATCH /api/settings** amplía el schema (mismo mecanismo que `yape_phone`); el worker resuelve
+  tenant → config → plantilla → envío. Fallo del proveedor → reintento → DLQ; el pedido **nunca**
+  depende del envío.
+
+### 7.5 Criterios de aceptación (Fase B)
+
+| # | Caso | Resultado esperado |
+|---|---|---|
+| CA-B1 | Checkout 201 | Evento `delivery.confirmed` publicado en cola (verificable en RabbitMQ) |
+| CA-B2 | Transición de estado válida | Evento `delivery.status_changed` con status correcto (preparing/ready/out_for_delivery/delivered) |
+| CA-B3 | Worker consume y llama al proveedor | Payload correcto (tenant, tracking, phone, plantilla) — proveedor mockeado en tests |
+| CA-B4 | Fallo del proveedor | Reintento 3 veces (0/60/300s) → DLQ; pedido intacto |
+| CA-B5 | Tenant sin config whatsapp | No rompe, no envía, loguea (dry-run) |
+| CA-B6 | PATCH /api/settings whatsapp | Persiste en `companies.settings` (patrón D-03); sobrevive reinicio |
+| CA-B7 | Modo dry-run (sin token) | Eventos logueados, cero envíos HTTP |
+| CA-B8 | Mensajes al cliente vs local | Cliente usa `customer_phone`; alertas usan `alert_phone` |
 
 ---
 
