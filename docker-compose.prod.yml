@@ -87,3 +87,7 @@ services:
       SECRET_KEY: ${SECRET_KEY}
     command: python -m app.services.notify_worker
     restart: unless-stopped
+    # El worker no expone HTTP: el HEALTHCHECK del Dockerfile (curl :8000) no aplica.
+    # Estado real se monitorea por logs y consumo de cola; restart lo revive si muere.
+    healthcheck:
+      disable: true
