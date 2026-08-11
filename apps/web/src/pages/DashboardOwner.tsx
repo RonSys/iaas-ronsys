@@ -39,11 +39,15 @@ import { KPICard, SectionHeader, Skeleton, fmtCurrency, fmtPct } from "@/compone
 import { exportOwnerDashboardCsv, exportOwnerDashboardPdf, getOwnerDashboard } from "@/services/dashboardApi";
 import type {
   AlertItem,
+  AvgTicketByData,
+  CancellationRateData,
   ComparisonDeltas,
+  DeliveryCampaignEffectData,
   HeatmapChannel,
   MarginsData,
   OwnerDashboardResponse,
   OwnerDashboardParams,
+  TopWaitersData,
 } from "@/types";
 
 // ─── Helpers de fecha (America/Lima) ────────────────────────
@@ -311,6 +315,188 @@ function MarginsCards({ margins }: { margins: MarginsData }) {
   );
 }
 
+// ─── Iteración 3 (Spec 04 §3.2-V2: CA-M1..M4) ──────────────
+
+const SHIFT_LABELS: Record<string, string> = {
+  morning: "Mañana (06:00–11:59)",
+  afternoon: "Tarde (12:00–17:59)",
+  evening: "Noche (18:00–23:59)",
+};
+
+/** CA-M1 — Top 5 meseros: ranking con barras de ventas. */
+function TopWaitersCard({ data }: { data: TopWaitersData }) {
+  if (!data || data.rows.length === 0) {
+    return (
+      <div className="card p-4">
+        <h3 className="font-semibold text-sm mb-2">Top meseros</h3>
+        <p className="text-xs text-slate-400">Sin ventas de mesero en el período.</p>
+      </div>
+    );
+  }
+  const maxTotal = Math.max(...data.rows.map((r) => r.total), 1);
+  return (
+    <div className="card p-4">
+      <h3 className="font-semibold text-sm mb-1">Top meseros</h3>
+      <p className="text-[11px] text-slate-400 mb-3">{data.total_sales} ventas (sin anuladas)</p>
+      <div className="space-y-2">
+        {data.rows.map((r, i) => (
+          <div key={r.user_id} className="flex items-center gap-2">
+            <span className="w-5 text-xs font-bold text-slate-500">{i + 1}</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex justify-between text-xs mb-0.5">
+                <span className="font-medium truncate">{r.name}</span>
+                <span className="text-slate-400">{fmtCurrency(r.total)}</span>
+              </div>
+              <div className="h-1.5 bg-white/5 rounded overflow-hidden">
+                <div
+                  className="h-full rounded bg-gradient-to-r from-blue-500 to-indigo-400"
+                  style={{ width: `${(r.total / maxTotal) * 100}%` }}
+                />
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                {r.sales_count} ventas · ticket {fmtCurrency(r.avg_ticket)}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** CA-M2 — Rate de anulación con motivos principales. */
+function CancellationRateCard({ data }: { data: CancellationRateData }) {
+  const reasons = data?.top_reasons ?? [];
+  const maxCount = Math.max(...reasons.map((r) => r.count), 1);
+  const rate = data?.rate_pct ?? 0;
+  const rateCls = rate >= 10 ? "text-red-400" : rate >= 5 ? "text-amber-400" : "text-emerald-400";
+  return (
+    <div className="card p-4">
+      <h3 className="font-semibold text-sm mb-2">Rate de anulación</h3>
+      <div className="flex items-end gap-2 mb-3">
+        <span className={`text-3xl font-bold ${rateCls}`}>{rate.toFixed(1)}%</span>
+        <span className="text-[11px] text-slate-400 mb-1.5">
+          {data?.voided_count ?? 0} de {data?.total_count ?? 0} ventas
+        </span>
+      </div>
+      {reasons.length > 0 ? (
+        <div className="space-y-1.5">
+          {reasons.map((r, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="w-6 text-xs text-slate-500">{i + 1}</span>
+              <span className="flex-1 text-xs truncate">{r.reason}</span>
+              <div className="flex-1 h-1.5 bg-white/5 rounded overflow-hidden">
+                <div
+                  className="h-full rounded bg-gradient-to-r from-red-500 to-orange-400"
+                  style={{ width: `${(r.count / maxCount) * 100}%` }}
+                />
+              </div>
+              <span className="w-8 text-right text-xs font-semibold">{r.count}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400">Sin anulaciones en el período. 🎉</p>
+      )}
+    </div>
+  );
+}
+
+/** CA-M3 — Ticket promedio por canal y turno. */
+function AvgTicketCard({ data }: { data: AvgTicketByData }) {
+  const channels = data?.channel ?? [];
+  const shifts = data?.shift ?? [];
+  const maxOrders = Math.max(...shifts.map((s) => s.orders), 1);
+  return (
+    <div className="card p-4">
+      <h3 className="font-semibold text-sm mb-2">Ticket promedio por turno</h3>
+      <div className="space-y-2 mb-4">
+        {shifts.map((s) => (
+          <div key={s.shift} className="flex items-center gap-2">
+            <span className="w-16 text-xs text-slate-400">{SHIFT_LABELS[s.shift] ?? s.shift}</span>
+            <div className="flex-1">
+              <div className="h-2 bg-white/5 rounded overflow-hidden">
+                <div
+                  className="h-full rounded bg-gradient-to-r from-violet-500 to-purple-400"
+                  style={{ width: `${(s.orders / maxOrders) * 100}%` }}
+                />
+              </div>
+            </div>
+            <span className="w-9 text-right text-[10px] text-slate-500">{s.orders} ped.</span>
+            <span className="w-20 text-right text-xs font-semibold">{fmtCurrency(s.ticket)}</span>
+          </div>
+        ))}
+      </div>
+      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Por canal</h4>
+      <div className="grid grid-cols-2 gap-2">
+        {channels.map((c) => (
+          <div key={c.channel} className="rounded-lg bg-white/5 border border-white/10 p-2.5">
+            <div className="text-[10px] uppercase tracking-wider text-slate-400">
+              {CHANNEL_LABELS[c.channel] ?? c.channel}
+            </div>
+            <div className="text-sm font-bold">{fmtCurrency(c.ticket)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** CA-M4 — Delivery: campaña vs sin campaña + canal publicitario. */
+function CampaignEffectCard({ data }: { data: DeliveryCampaignEffectData }) {
+  const byCampaign = data?.by_campaign ?? [];
+  const byChannel = data?.by_channel ?? [];
+  const maxGmv = Math.max(...byChannel.map((c) => c.gmv), 1);
+  return (
+    <div className="card p-4">
+      <h3 className="font-semibold text-sm mb-2">Delivery: campaña vs sin campaña</h3>
+      {byCampaign.length === 0 ? (
+        <p className="text-xs text-slate-400">Sin pedidos delivery con campaña en el período.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+          {byCampaign.map((c) => (
+            <div
+              key={c.campaign_id ?? "sin"}
+              className={`rounded-lg border p-3 ${
+                c.campaign_id != null
+                  ? "bg-brand-primary/5 border-brand-primary/30"
+                  : "bg-white/5 border-white/10"
+              }`}
+            >
+              <div className="text-xs font-semibold mb-1">{c.campaign_name}</div>
+              <div className="flex justify-between text-[11px] text-slate-400">
+                <span>{c.orders} pedidos</span>
+                <span className="text-slate-200 font-semibold">{fmtCurrency(c.gmv)}</span>
+              </div>
+              <div className="text-[10px] text-slate-500 mt-0.5">AOV {fmtCurrency(c.aov)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {byChannel.length > 0 && (
+        <>
+          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Por canal publicitario</h4>
+          <div className="space-y-2">
+            {byChannel.map((c) => (
+              <div key={c.source} className="flex items-center gap-2">
+                <span className="w-14 text-xs capitalize">{c.source}</span>
+                <div className="flex-1 h-2 bg-white/5 rounded overflow-hidden">
+                  <div
+                    className="h-full rounded bg-gradient-to-r from-emerald-500 to-teal-400"
+                    style={{ width: `${(c.gmv / maxGmv) * 100}%` }}
+                  />
+                </div>
+                <span className="w-20 text-right text-[10px] text-slate-500">{c.orders} ped.</span>
+                <span className="w-20 text-right text-xs font-semibold">{fmtCurrency(c.gmv)}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Página ─────────────────────────────────────────────────
 export function DashboardOwner() {
   const [data, setData] = useState<OwnerDashboardResponse | null>(null);
@@ -566,6 +752,18 @@ export function DashboardOwner() {
 
       {/* ─── V2: Márgenes por canal (CA11) ────────────────── */}
       {data && data.margins && <MarginsCards margins={data.margins} />}
+
+      {/* ─── Iteración 3: Mejoras V2 (CA-M1..M4) ─────────── */}
+      {data && data.top_waiters && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <TopWaitersCard data={data.top_waiters} />
+          <CancellationRateCard data={data.cancellation_rate} />
+          <AvgTicketCard data={data.avg_ticket_by} />
+        </div>
+      )}
+      {data && data.delivery_campaign_effect && (
+        <CampaignEffectCard data={data.delivery_campaign_effect} />
+      )}
 
       {/* ─── Fila 2: ventas por hora + por día ─────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
