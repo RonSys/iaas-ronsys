@@ -857,6 +857,32 @@ def render_owner_csv(data: dict) -> str:
     for r in data["alerts"]:
         w.writerow([r["severity"], r["metric"], r["message"]])
 
+    section("top_waiters")
+    w.writerow(["user_id", "name", "sales_count", "total", "avg_ticket"])
+    for r in data.get("top_waiters", {"rows": []})["rows"]:
+        w.writerow([r["user_id"], r["name"], r["sales_count"], r["total"], r["avg_ticket"]])
+    section("cancellation_rate")
+    cr = data.get("cancellation_rate", {})
+    w.writerow(["voided_count", "total_count", "rate_pct"])
+    w.writerow([cr.get("voided_count", 0), cr.get("total_count", 0), cr.get("rate_pct", 0.0)])
+    w.writerow(["reason", "count"])
+    for r in cr.get("top_reasons", []):
+        w.writerow([r["reason"], r["count"]])
+    section("avg_ticket_by")
+    w.writerow(["channel", "ticket"])
+    for r in data.get("avg_ticket_by", {"channel": []})["channel"]:
+        w.writerow([r["channel"], r["ticket"]])
+    w.writerow(["shift", "ticket", "orders"])
+    for r in data.get("avg_ticket_by", {"shift": []})["shift"]:
+        w.writerow([r["shift"], r["ticket"], r["orders"]])
+    section("delivery_campaign_effect")
+    w.writerow(["campaign_id", "campaign_name", "orders", "gmv", "aov"])
+    for r in data.get("delivery_campaign_effect", {"by_campaign": []})["by_campaign"]:
+        w.writerow([r["campaign_id"], r["campaign_name"], r["orders"], r["gmv"], r["aov"]])
+    w.writerow(["source", "orders", "gmv", "aov"])
+    for r in data.get("delivery_campaign_effect", {"by_channel": []})["by_channel"]:
+        w.writerow([r["source"], r["orders"], r["gmv"], r["aov"]])
+
     return out.getvalue()
 
 
