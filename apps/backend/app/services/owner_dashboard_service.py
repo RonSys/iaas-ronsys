@@ -1213,6 +1213,21 @@ def render_owner_pdf(data: dict) -> bytes:
         camp_rows, widths=[50 * mm, 22 * mm, 27 * mm, 22 * mm, 35 * mm, 24 * mm],
         right_cols=(2, 3, 4, 5),
     ))
+    story.append(Paragraph("Campaña vs sin campaña (GMV)", PDF_H3))
+    dce_ch = data.get("delivery_campaign_effect", {}).get("by_channel", [])
+    if dce_ch:
+        dce_rows = [["Fuente", "Pedidos", "GMV", "AOV"]]
+        for r in dce_ch:
+            dce_rows.append([
+                r.get("source", ""), str(r.get("orders", 0)),
+                _money_str(r.get("gmv")), _qty_str(r.get("aov")),
+            ])
+        story.append(_pdf_table(
+            dce_rows, widths=[60 * mm, 30 * mm, 45 * mm, 45 * mm],
+            right_cols=(1, 2, 3),
+        ))
+    else:
+        story.append(Paragraph("Sin datos de campaña en el período", PDF_NOTE))
 
     # 9. Alertas
     story.append(Paragraph("9. Alertas", PDF_H2))
@@ -1231,6 +1246,42 @@ def render_owner_pdf(data: dict) -> bytes:
                 a.get("message", ""),
             ])
         story.append(_pdf_table(a_rows, widths=[28 * mm, 32 * mm, 120 * mm]))
+
+    # 10. Top meseros (CA-M1)
+    story.append(Paragraph("10. Top meseros", PDF_H2))
+    tw = data.get("top_waiters", {"rows": []})
+    if tw["rows"]:
+        tw_rows = [["Mesero", "Ventas", "Total (S/)", "Ticket avg"]]
+        for r in tw["rows"]:
+            tw_rows.append([r["name"], r["sales_count"], f"{r['total']:.2f}", f"{r['avg_ticket']:.2f}"])
+        story.append(_pdf_table(
+            tw_rows, widths=[80 * mm, 30 * mm, 35 * mm, 35 * mm],
+            right_cols=(1, 2, 3),
+        ))
+    else:
+        story.append(Paragraph("Sin ventas en el período", PDF_NOTE))
+
+    # 11. Anulaciones (CA-M2)
+    story.append(Paragraph("11. Anulaciones", PDF_H2))
+    cr = data.get("cancellation_rate", {})
+    story.append(Paragraph(
+        f"Anuladas: {cr.get('voided_count', 0)} de {cr.get('total_count', 0)} ({cr.get('rate_pct', 0.0)}%)",
+        PDF_NOTE,
+    ))
+    if cr.get("top_reasons"):
+        cr_rows = [["Motivo", "N"]]
+        for r in cr["top_reasons"]:
+            cr_rows.append([r["reason"], r["count"]])
+        story.append(_pdf_table(cr_rows, widths=[150 * mm, 30 * mm], right_cols=(1,)))
+
+    # 12. Ticket por turno (CA-M3)
+    story.append(Paragraph("12. Ticket por turno", PDF_H2))
+    atb = data.get("avg_ticket_by", {"shift": []})
+    if atb["shift"]:
+        sh_rows = [["Turno", "Pedidos", "Ticket avg"]]
+        for r in atb["shift"]:
+            sh_rows.append([r["shift"], r["orders"], f"{r['ticket']:.2f}"])
+        story.append(_pdf_table(sh_rows, widths=[70 * mm, 50 * mm, 60 * mm], right_cols=(1, 2)))
 
     doc.build(story)
     return buf.getvalue()
