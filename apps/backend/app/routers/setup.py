@@ -61,16 +61,20 @@ def _merge_settings(company: Company) -> CompanySettings:
     """Defaults + settings persistidos del tenant (los persistidos ganan).
 
     Estructura de companies.settings:
-      {branding: {palette, logo_url, ...}, delivery: {yape_phone, ...}}
+      {branding: {palette, logo_url, ...}, delivery: {yape_phone, ...},
+       whatsapp: {enabled, token, templates, ...}}   (Spec 03 §7)
     """
     raw = company.settings or {}
     raw = raw if isinstance(raw, dict) else {}
     branding = raw.get("branding", {}) if isinstance(raw.get("branding"), dict) else {}
     delivery = raw.get("delivery", {}) if isinstance(raw.get("delivery"), dict) else {}
+    whatsapp = raw.get("whatsapp", {}) if isinstance(raw.get("whatsapp"), dict) else {}
     merged = _default_settings.model_dump()
     merged.update({k: v for k, v in branding.items() if v is not None})
     if delivery:
         merged["delivery"] = delivery
+    if whatsapp:
+        merged["whatsapp"] = whatsapp
     return CompanySettings(**merged)
 
 
@@ -99,12 +103,19 @@ async def update_settings(
     company = await _load_company(db, tenant_id)
     updated = data.model_dump(exclude_unset=True)
     current = _merge_settings(company).model_dump()
-    current.update(updated)
+    # Merge parcial también para sub-configs anidadas (delivery, whatsapp):
+    # los campos NO enviados en el PATCH se preservan del valor persistido.
+    for key, value in updated.items():
+        if isinstance(value, dict) and isinstance(current.get(key), dict):
+            current[key] = {**current[key], **value}
+        else:
+            current[key] = value
 
     # Copia nueva del dict (SQLAlchemy JSON: asignar el mismo objeto no marca dirty)
     stored = dict(company.settings or {})
-    stored["branding"] = {k: v for k, v in current.items() if k != "delivery"}
+    stored["branding"] = {k: v for k, v in current.items() if k not in ("delivery", "whatsapp")}
     stored["delivery"] = current.get("delivery") or {}
+    stored["whatsapp"] = current.get("whatsapp") or {}
     company.settings = stored
     await db.commit()
 
@@ -135,8 +146,9 @@ async def update_palette(
     stored = dict(company.settings or {})
     current = _merge_settings(company).model_dump()
     current["palette"] = palette.model_dump()
-    stored["branding"] = {k: v for k, v in current.items() if k != "delivery"}
+    stored["branding"] = {k: v for k, v in current.items() if k not in ("delivery", "whatsapp")}
     stored["delivery"] = current.get("delivery") or {}
+    stored["whatsapp"] = current.get("whatsapp") or {}
     company.settings = stored
     await db.commit()
     return palette

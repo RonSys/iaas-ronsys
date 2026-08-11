@@ -2,12 +2,36 @@
 Fixtures compartidas para todos los tests del backend.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 # ═══════════════════════════════════════════════════════════════
 # Fixtures de dominio
 # ═══════════════════════════════════════════════════════════════
 from app.core.accounting import InvestmentVariables
+
+
+@pytest.fixture(autouse=True)
+def mock_whatsapp_publisher():
+    """Spec 03 §7 (Fase B): aísla checkout/transiciones del RabbitMQ real.
+
+    Los eventos WhatsApp son fire-and-forget: en tests se mockean SIEMPRE los
+    puntos de publicación de delivery_service (nunca se abre conexión real).
+    Los tests de Fase B acceden a los mocks vía este fixture para verificar
+    payloads (CA-B1/CA-B2) o simular fallos (el pedido nunca se rompe).
+    """
+    with (
+        patch(
+            "app.services.delivery_service.publish_checkout_events",
+            new_callable=AsyncMock,
+        ) as checkout,
+        patch(
+            "app.services.delivery_service.publish_status_event",
+            new_callable=AsyncMock,
+        ) as status,
+    ):
+        yield {"checkout": checkout, "status": status}
 
 
 @pytest.fixture
