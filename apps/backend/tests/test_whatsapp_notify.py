@@ -247,7 +247,8 @@ class TestCAB1CheckoutPublicaEvento:
         channel.declare_queue.assert_awaited_once_with("iaas-tasks", durable=True)
         pub = channel.default_exchange.publish
         assert pub.await_count == 1
-        assert pub.await_args.kwargs["routing_key"] == "delivery.confirmed"
+        assert pub.await_args.kwargs["routing_key"] == "iaas-tasks"
+        # default exchange rutea por NOMBRE DE COLA; el worker despacha por payload.event_type
         body = json.loads(pub.await_args.args[0].body)
         assert body["event_type"] == "confirmed"
         assert body["event"] == "delivery.confirmed"

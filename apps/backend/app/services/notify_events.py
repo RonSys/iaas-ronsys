@@ -106,7 +106,7 @@ async def publish_delivery_event(
                 delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
             )
             await channel.default_exchange.publish(
-                message, routing_key=f"delivery.{event_type}",
+                message, routing_key=settings.rabbitmq_queue,
             )
         logger.info(
             "evento publicado: delivery.%s tracking=%s tenant=%s",
