@@ -204,9 +204,12 @@ El **Panel del Dueño** (menú: 📈 Panel del Dueño, ruta `/panel`) es la vist
 | **Comparativa semana vs semana (V2)** | % de cambio junto a cada KPI (ventas, pedidos, ticket, % delivery): ▲ subió, ▼ bajó |
 | **Alertas (V2)** | Avisos cuando el negocio está por debajo del promedio de los últimos 7 días (roja = caída fuerte, ámbar = aviso) |
 
-### Reporte descargable (V2)
+### Reporte descargable (V2 + PDF)
 
-El botón **⬇️ Descargar CSV** (arriba a la derecha) genera un archivo CSV con el resumen completo del período seleccionado: KPIs, ventas por hora/día, canales, top platos, pagos, delivery, campañas, comparativa, márgenes y alertas. Abre con Excel o Google Sheets.
+El botón **⬇️ Descargar ▾** (arriba a la derecha) abre un menú con 2 opciones:
+
+- **Descargar CSV** — genera un archivo CSV con el resumen completo del período seleccionado: KPIs, ventas por hora/día, canales, top platos, pagos, delivery, campañas, comparativa, márgenes y alertas. Abre con Excel o Google Sheets.
+- **Descargar PDF** — genera un reporte PDF ejecutivo (9 secciones) con la misma información: encabezado con el período, KPIs, comparativa semana vs semana, márgenes por canal, top platos, canales + pagos, ventas por hora, delivery + campañas (ROAS) y alertas (⚠ roja/ámbar; si no hay, muestra "Sin alertas en el período"). El archivo se descarga como `panel_dueño_YYYYMMDD.pdf` y se abre con cualquier lector de PDF (imprimir / compartir directo).
 
 ### Rango de fechas
 

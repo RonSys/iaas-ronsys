@@ -4,6 +4,18 @@
 
 ---
 
+## [0.3.0] — 2026-08-11
+
+### Added
+
+#### 📄 Reporte PDF del Panel del Dueño (Requerimiento #1, Spec 04 §CA13-b — iteración 2)
+- Endpoint `GET /api/v1/dashboard/owner/export?format=pdf` — reporte PDF ejecutivo (reportlab platypus, **9 secciones**: encabezado/período, KPIs, comparativa semana vs semana, márgenes por canal, top platos, canales + pagos, ventas por hora, delivery + campañas, alertas ⚠ con "Sin alertas" si vacío)
+- `format` acepta `csv | pdf` (otro → 422); PDF con `Content-Type: application/pdf` + filename `panel_dueño_YYYYMMDD.pdf` (ñ vía RFC 5987); 1 sola llamada a `get_owner_dashboard`
+- Dependencia `reportlab==4.2.5` (puro Python, Dockerfile 3.12-slim intacto)
+- Frontend: dropdown **⬇️ Descargar ▾** (CSV / PDF) en `/panel` — `exportOwnerDashboardPdf()` vía helper compartido (firma CSV intacta)
+- Tests: backend `test_owner_dashboard_pdf.py` (13 nuevos; panel total 48) + unit dropdown + E2E panel 13/13
+- **Desplegado en producción 2026-08-11**: verificado 200 application/pdf (19.4KB, 3 páginas, %PDF-1.4) + CSV regresión 200
+
 ## [0.2.0] — 2026-08-10
 
 ### Added

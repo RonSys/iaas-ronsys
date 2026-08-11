@@ -1,6 +1,6 @@
 # SPEC 04 — Panel de Indicadores para el Dueño (Dashboard Ejecutivo)
 
-- **Estado**: 🟢 **IMPLEMENTADA Y DESPLEGADA (V1 + V2, 2026-08-10)** — V1 verificado en producción (S/638, 11 pedidos, 90.9% delivery); V2 desplegada: heatmap hora×día por canal, márgenes por canal con costeo, comparativa semana vs semana, reporte descargable **CSV + PDF**, alertas de desviación vs 7 días.
+- **Estado**: 🟢 **IMPLEMENTADA Y DESPLEGADA (V1 + V2 + PDF, 2026-08-11)** — V1 verificado en producción (S/638, 11 pedidos, 90.9% delivery); V2 desplegada: heatmap hora×día por canal, márgenes por canal con costeo, comparativa semana vs semana, reporte descargable **CSV + PDF**, alertas de desviación vs 7 días. **PDF del reporte (CA13-b, iteración 2) desplegado 2026-08-11**: `format=pdf` reportlab platypus, verificado 200 application/pdf en prod.
 - **Proyecto**: IaaS-RonSys — ERP SaaS (cliente: El Segoviano)
 - **Alcance**: tenant restaurante + delivery/dark kitchen (fase inicial); multi-tenant por construcción
 - **Fecha**: 2026-08-10
