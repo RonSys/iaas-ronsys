@@ -1,6 +1,6 @@
 # SPEC 04 — Panel de Indicadores para el Dueño (Dashboard Ejecutivo)
 
-- **Estado**: 🟢 **IMPLEMENTADA Y DESPLEGADA (V1 + V2, 2026-08-10)** — V1 verificado en producción (S/638, 11 pedidos, 90.9% delivery); V2 desplegada: heatmap hora×día por canal, márgenes por canal con costeo, comparativa semana vs semana, reporte descargable CSV, alertas de desviación vs 7 días. PDF del reporte: iteración 2 pendiente (documentado en §3.1-V2 CA13).
+- **Estado**: 🟢 **IMPLEMENTADA Y DESPLEGADA (V1 + V2, 2026-08-10)** — V1 verificado en producción (S/638, 11 pedidos, 90.9% delivery); V2 desplegada: heatmap hora×día por canal, márgenes por canal con costeo, comparativa semana vs semana, reporte descargable **CSV + PDF**, alertas de desviación vs 7 días.
 - **Proyecto**: IaaS-RonSys — ERP SaaS (cliente: El Segoviano)
 - **Alcance**: tenant restaurante + delivery/dark kitchen (fase inicial); multi-tenant por construcción
 - **Fecha**: 2026-08-10
@@ -21,7 +21,7 @@
 | D6 | Acceso: rol `admin`/`manager` (dueño); los `viewer` (inversionista/auditor) también pueden verlo (solo lectura) |
 | D7 | GMV del panel = pedidos delivery **entregados** (consistente con `metrics_overview`); no incluye no-entregados |
 | R2 | Costeabilidad V2: margen solo sobre ítems con receta (`average_cost`); ventas sin receta no aportan costo → margen parcial con nota |
-| R3 | Reporte V2: **CSV primero**; PDF (reportlab/weasyprint) en iteración 2 |
+| R3 | Reporte V2: **CSV primero**; PDF (reportlab) implementado en iteración 2 (2026-08-10) — mismo endpoint, `format=pdf` |
 | R4 | Heatmap V2: render con **CSS grid coloreado** (sin librería extra de heatmaps) |
 
 ---
@@ -241,11 +241,31 @@ hour,weekday,channel,total
 12,1,dine_in,320.5
 ```
 
-**Decisión R3**: **CSV primero**; el **PDF** (reportlab/weasyprint) queda documentado como
-**iteración 2** sobre el mismo contrato de datos.
+**Decisión R3**: **CSV primero**; el **PDF** (reportlab platypus) se implementó en la **iteración 2** (2026-08-10) sobre el mismo contrato de datos — ver §3.1-V2 CA13-b.
 
 **DoD**: endpoint devuelve CSV descargable con TODOS los bloques listados; frontend añade botón
 "Exportar CSV" que descarga el archivo para el rango seleccionado.
+
+#### CA13-b — Reporte descargable PDF (iteración 2, implementado 2026-08-10)
+
+**Endpoint**: `GET /api/v1/dashboard/owner/export?format=pdf&date_from=&date_to=` (mismo endpoint del CSV; `format` acepta `csv` | `pdf`; otro valor → 422).
+
+**Respuesta**: `Content-Type: application/pdf` (attachment) generado con **reportlab platypus** (dependencia pura Python — sin cambios de Dockerfile).
+
+**Secciones del PDF** (en español, misma data de `get_owner_dashboard` — una sola llamada):
+1. **Encabezado**: "Panel del Dueño — El Segoviano" + período (`date_from` — `date_to`) + fecha de generación
+2. **KPIs**: ventas, pedidos, ticket promedio, % delivery
+3. **Comparativa semana vs semana**: current/previous/deltas con ▲▼ (solo si hay deltas no nulos)
+4. **Márgenes por canal**: revenue/cost/margin_pct por canal + `costable_note`
+5. **Top platos** (top 10 por total)
+6. **Canales + Pagos**: resumen de canales (salón/para llevar/delivery) y métodos de pago
+7. **Ventas por hora**: tabla 0-23 con salón vs delivery (misma forma que el CSV)
+8. **Delivery + Campañas**: pedidos por zona, embudo, GMV; ROAS por campaña
+9. **Alertas**: rojas/ámbar con ⚠️ (severidad, métrica, mensaje); "Sin alertas en el período" si `[]`
+
+**Filename**: `panel_dueño_YYYYMMDD.pdf` (misma convención ñ/RFC 5987 que el CSV).
+
+**DoD**: endpoint devuelve PDF descargable con las 9 secciones; frontend añade dropdown "Descargar CSV / Descargar PDF" (mismo rango seleccionado).
 
 #### CA14 — Alertas de desviación vs promedio 7 días
 
@@ -321,7 +341,7 @@ lista coloreada por severidad (rojo/amarillo).
 - **CA12 — Comparativa semana vs semana**: bloque `comparison`; período actual vs previo de igual longitud inmediatamente anterior, con % de cambio.
   Contrato: `{ "comparison": { "current": { "sales_total": 4850.5, "orders_count": 42, "avg_ticket": 115.5, "delivery_pct": 35.7 }, "previous": { "sales_total": 4100.0, "orders_count": 38, "avg_ticket": 107.9, "delivery_pct": 31.2 }, "deltas": { "sales_total_pct": 18.3, "orders_count_pct": 10.5, "avg_ticket_pct": 7.0, "delivery_pct_delta": 4.5 } } }`
   DoD: deltas `*_pct` a 1 decimal; previous=0 → `null`; `delivery_pct_delta` en puntos porcentuales; ventas sin anuladas.
-- **CA13 — Reporte descargable CSV (R3: CSV primero, PDF en iteración 2)**: `GET /api/v1/dashboard/owner/export?format=csv&date_from=&date_to=` → `text/csv` con los bloques del resumen (kpis, sales_by_hour, sales_by_weekday, channels, top_platos, payments, delivery, campaigns, comparison, margins, alerts).
+- **CA13 — Reporte descargable CSV + PDF**: `GET /api/v1/dashboard/owner/export?format=csv|pdf&date_from=&date_to=` → `text/csv` (12 secciones `# bloque`) o `application/pdf` (9 secciones platypus, CA13-b). Frontend: dropdown "Descargar CSV / Descargar PDF".
   Formato: CSV plano con secciones `# <bloque>` + cabecera + filas (UTF-8, `,`, decimales `.`).
   DoD: archivo descargable con TODOS los bloques listados; botón "Exportar CSV" en frontend; PDF documentado como iteración 2 (reportlab/weasyprint).
 - **CA14 — Alertas de desviación vs promedio 7 días**: bloque `alerts`; compara período actual (o último día si `date_from == date_to`) vs promedio de los 7 días previos.
