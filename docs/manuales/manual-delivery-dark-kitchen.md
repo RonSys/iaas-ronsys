@@ -61,6 +61,17 @@ El local **no opera de noche**; con este módulo aprovechamos esa capacidad inst
 📥 Pedido recibido → 👨🍳 En cocina → 🍽️ Listo → 🛵 En camino → 🏠 Entregado
 ```
 
+### 2.5 💬 Notificaciones por WhatsApp (Fase B)
+
+- Cuando el Delivery Nocturno esté activado con WhatsApp, recibirás avisos automáticos en tu celular:
+  - **Pedido confirmado** (con total y tiempo estimado)
+  - **En cocina** 👨🍳
+  - **En camino** 🛵 (con repartidor asignado)
+  - **Entregado** 🏠
+  - **Cancelado** (si aplica)
+- También se envía una **alerta al local** (número configurado) cuando entra un pedido nuevo o se cancela uno.
+- Si el negocio aún no activa WhatsApp, **no pasa nada**: el pedido funciona igual, sin avisos. La activación es por configuración del local.
+
 ---
 
 ## 3. Para el Equipo del Local — Panel Delivery Nocturno
@@ -136,5 +147,6 @@ Para medir cuánto vende cada campaña de anuncios:
 ## 5. Notas técnicas (para el administrador)
 
 - El fee de delivery se contabiliza en la cuenta **40 (Ventas)** como ítem "Delivery fee" (cuenta 705 diferida a futuro).
+- **Notificaciones WhatsApp (Fase B)**: motor de eventos desplegado en producción (cola RabbitMQ `iaas-tasks`). Config en `companies.settings.whatsapp` (endpoint `PATCH /api/settings`): `enabled`, `provider` (`meta_cloud`), `phone_number_id`, `token`, `business_phone`, `alert_phone`, `templates` (confirmed/preparing/ready/delivered/cancelled/new_order/order_cancelled). Sin token/config → **modo dry-run** (los eventos se loguean, no se envían). Plan de cuenta Meta: `plan-cuenta-meta-whatsapp.md`.
 - Endpoints y detalles técnicos: `docs/manuales/manual-admin.md` §5.3, §5.4 y §10.5.
 - Especificación: `docs/specs/03-spec-delivery-dark-kitchen-v0.1.md`.

@@ -421,6 +421,17 @@ GET   /api/v1/delivery/metrics/overview?from=&to=   pedidos, GMV, fee total, tie
   dry-run primero. Alcance e infraestructura en §7 (decisión D-B1: Meta Cloud API oficial,
   agnóstico al proveedor, RabbitMQ `iaas-tasks` ya desplegado). Plan cuenta Meta en
   `plan-cuenta-meta-whatsapp.md` (workspace).
+- **2026-08-11 (Fase B implementada y desplegada — motor dry-run en prod)**: backend completo en
+  commits `415da23`→`8f3d5a9` (schema WhatsAppSettings + Notifier MetaCloud/DryRun + publicador
+  RabbitMQ fire-and-forget + worker reintentos 3×/DLQ + 22 tests). QA 8/8 CA (APROBADO).
+  Deploy: servicio `iaas-worker-prod` en compose + `RABBITMQ_URL` al backend (fix `c60227e`).
+  **Bug real detectado en verificación en vivo y corregido (`a2287fb`)**: el publicador usaba
+  `routing_key="delivery.{event_type}"` en el default exchange — RabbitMQ solo rutea por nombre
+  de cola, así que los eventos se publicaban "exitosamente" pero nadie los recibía (los tests
+  mockeaban aio_pika; solo la verificación en vivo lo vio). Fix: `routing_key=iaas-tasks`
+  (el worker despacha por `payload.event_type`). Verificado en vivo: checkout → confirmed+new_order,
+  transición → status_changed, cancelación → cancelled — todo dry-run (cero HTTP), 3 pedidos de
+  prueba cancelados sin residuos. Envío real pendiente de cuenta Meta (ver §7.3).
 
 ---
 

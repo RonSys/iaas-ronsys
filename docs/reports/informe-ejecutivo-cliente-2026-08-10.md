@@ -91,6 +91,7 @@ El sistema ya no es un proyecto: **es una herramienta de trabajo diario**. Está
 | **Campañas publicitarias con medición**: cada campaña (Meta/Instagram, Google, TikTok) tiene su enlace de anuncio; el sistema atribuye los pedidos a la campaña y muestra ventas y **retorno de la inversión publicitaria (ROAS)** | 🟢 Operativo |
 | Los pedidos online entran a cocina, descuentan inventario y generan contabilidad solos — **sin necesidad de abrir caja** | 🟢 Operativo |
 | **Producción real**: más de 8 pedidos reales registrados desde la puesta en marcha | 🟢 Verificado |
+| **Notificaciones WhatsApp (Fase B)**: avisos automáticos al cliente (pedido confirmado, en cocina, en camino, entregado, cancelado) y alertas al local (pedido nuevo, cancelación). Motor de eventos desplegado y verificado en producción (modo dry-run: funciona sin costo ni cuenta Meta; se activa el envío real al conectar la cuenta WhatsApp Business) | 🟢 Motor desplegado — envío real pendiente de cuenta Meta (ver plan) |
 
 ### 2.8 Panel Administrativo Global (Dueño de la Franquicia) 🏢
 
@@ -206,6 +207,7 @@ Nuevo requerimiento del cliente
 | # | Requerimiento | Prioridad | Spec asociada | Estado | Fecha registro |
 |---|---|---|---|---|---|
 | 1 | **📊 Panel de indicadores para el dueño** — resumen ejecutivo (ventas del día, canal más rentable, platos más vendidos, ROAS campañas, pedidos por zona, embudo delivery) en una sola pantalla. Alcance: V1 (panel inicial) + V2 (analítica avanzada: heatmaps, márgenes por canal, comparativas semanales, reporte descargable). Enfoque inicial: restaurante + delivery/dark kitchen | 🔴 Alta | `docs/specs/04-panel-indicadores/spec-panel-dueño.md` | 🟢 **IMPLEMENTADO Y DESPLEGADO (V1 + V2 + PDF, 2026-08-11)** — V1: endpoint `/api/v1/dashboard/owner` + página `/panel` en producción (verificado: S/638, 11 pedidos, 90.9% delivery). V2 desplegada: heatmap hora×día por canal, márgenes por canal con costeo, comparativa semana vs semana, reporte descargable CSV, alertas vs promedio 7 días. **PDF del reporte (iteración 2) DESPLEGADO (2026-08-11)**: `GET /api/v1/dashboard/owner/export?format=pdf` — reportlab platypus 9 secciones, verificado 200 application/pdf en prod; dropdown CSV/PDF en el panel | 2026-08-10 |
+| 2 | **💬 Notificaciones WhatsApp (Fase B del Delivery)** — avisos automáticos al cliente (confirmado, en cocina, en camino, entregado, cancelado) y alertas al local. Motor de eventos (colas RabbitMQ) desplegado en producción y verificado en vivo el 2026-08-11; envío real requiere cuenta WhatsApp Business API (Meta) — plan en `plan-cuenta-meta-whatsapp.md` | 🟠 Media | `docs/specs/03-delivery/03-spec-delivery-dark-kitchen-v0.1.md` §7 | 🟡 **MOTOR DESPLEGADO (2026-08-11) — envío real pendiente de cuenta Meta** — backend completo (Notifier MetaCloud/DryRun, publicador RabbitMQ fire-and-forget, worker con reintentos + DLQ), QA 8/8 CA, verificado en vivo: checkout→confirmed+new_order, transición→status_changed, cancelación→cancelled (todo dry-run, cero HTTP). Config: `companies.settings.whatsapp` | 2026-08-11 |
 
 ---
 

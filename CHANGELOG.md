@@ -4,6 +4,20 @@
 
 ---
 
+## [0.4.0] — 2026-08-11
+
+### Added
+
+#### 💬 Notificaciones WhatsApp del Delivery (Spec 03 §7 — Fase B, motor dry-run)
+- **Motor de eventos en producción**: checkout 201 → `delivery.confirmed` (cliente) + `delivery.new_order` (alerta local); cada transición de estado → `delivery.status_changed`; cancelación → `delivery.cancelled` + aviso al local. Publicados a la cola RabbitMQ `iaas-tasks` (fire-and-forget: el pedido nunca depende del envío).
+- **Worker consumidor** `iaas-worker-prod` (`python -m app.services.notify_worker`): reintentos 3× (0/60/300s) + dead-letter queue `iaas-tasks-dlq`; ack final anti mensaje-veneno.
+- **Notifier agnóstico**: interfaz `Notifier` + `MetaCloudNotifier` (Graph API v21.0, plantillas aprobadas) + `DryRunNotifier` (sin token → loguea y no envía). Config por tenant en `companies.settings.whatsapp` (patrón D-03, `PATCH /api/settings`).
+- **Bug detectado en verificación en vivo y corregido**: routing key = nombre de cola (`iaas-tasks`) — el default exchange de RabbitMQ no rutea `delivery.*` (los tests mockeaban aio-pika; la verificación real lo encontró).
+- **QA**: 8/8 criterios CA-B1..B8, 22 tests nuevos, ruff 0, sin secretos en código, worker no loguea token.
+- **Verificado en vivo (prod, dry-run)**: pedido real → eventos confirmed+new_order; transición → status_changed; cancelación → cancelled — todo logueado, cero HTTP. Envío real pendiente de cuenta WhatsApp Business (Meta): `plan-cuenta-meta-whatsapp.md`.
+
+---
+
 ## [0.3.0] — 2026-08-11
 
 ### Added

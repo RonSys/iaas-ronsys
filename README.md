@@ -135,6 +135,7 @@ IaaS-RonSys/
 | **Recetas por plato (explosión)** | Recetas por plato, descuento automático de ingredientes al vender (kárdex `receta`) y costeo/margen del plato | [`docs/manuales/guia-recetas-kardex.md`](docs/manuales/guia-recetas-kardex.md) · Spec [`docs/specs/01-spec-recetas-productos-v0.2.md`](docs/specs/01-spec-recetas-productos-v0.2.md) |
 | **Multi-tenant** | Aislamiento por `X-Tenant-ID` (fallback JWT) en todos los módulos | `docs/architecture/` |
 | **Panel del Dueño** | Dashboard ejecutivo: KPIs del día, canales, top platos, pagos, delivery (zonas/embudo/GMV) y ROAS por campaña — solo lectura, rango Hoy/7d/30d. **V2**: heatmap hora×día por canal, márgenes por canal con costeo, comparativa semana vs semana, **reporte descargable CSV + PDF** (dropdown), alertas vs promedio 7 días | Spec [`docs/specs/04-panel-indicadores/spec-panel-dueño.md`](docs/specs/04-panel-indicadores/spec-panel-dueño.md) · E2E `apps/web/e2e/panel.spec.ts` |
+| **Notificaciones WhatsApp del Delivery (Fase B)** | Avisos automáticos al cliente (confirmado/en cocina/en camino/entregado/cancelado) y alertas al local (pedido nuevo/cancelación) vía cola RabbitMQ + worker con reintentos/DLQ. Notifier agnóstico (Meta Cloud API / dry-run). Motor desplegado en producción (verificado en vivo); envío real al activar cuenta WhatsApp Business | Spec [`docs/specs/03-delivery/03-spec-delivery-dark-kitchen-v0.1.md`](docs/specs/03-delivery/03-spec-delivery-dark-kitchen-v0.1.md) §7 · Manual `docs/manuales/manual-delivery-dark-kitchen.md` |
 
 ---
 
