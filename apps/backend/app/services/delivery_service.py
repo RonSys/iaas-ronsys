@@ -10,6 +10,7 @@ Reglas de oro (Spec 03 §2.3):
   - Endpoints públicos resuelven tenant por slug y SIEMPRE filtran por él.
 """
 
+import logging
 import time as _time
 from datetime import UTC, date, datetime, timedelta
 from datetime import time as dtime
@@ -34,10 +35,13 @@ from app.adapters.db.models.restaurant import (
     Promotion,
     RestaurantSection,
 )
-from app.adapters.db.models.sales import Sale
+from app.adapters.db.models.sales import Sale, SaleItem
 from app.core.ws_manager import manager
 from app.models.user import User
+from app.services.notify_events import publish_checkout_events, publish_status_event
 from app.services.sales_service import SaleService
+
+logger = logging.getLogger(__name__)
 
 LIMA_TZ = "America/Lima"
 # Default de ventana nocturna (D5 aprobada): 19:00–24:00 (hora de Lima)
@@ -515,6 +519,20 @@ async def create_order(db: AsyncSession, tenant_id: int, data: dict) -> dict:
     })
     await db.commit()
 
+    # Spec 03 §7 (Fase B): publicar eventos de notificación WhatsApp en un SOLO
+    # punto común (fire-and-forget: si RabbitMQ falla el pedido NO se rompe).
+    await publish_checkout_events(
+        tenant_id=tenant_id,
+        tracking_code=tracking_code,
+        sale_id=sale_id,
+        customer_phone=customer.get("phone"),
+        total=total,
+        items_resumen=[
+            {"name": it["item_name"], "qty": it["quantity"]} for it in validated
+        ],
+        zone=zone.name,
+    )
+
     return {
         "tracking_code": tracking_code,
         "sale_id": sale_id,
@@ -577,6 +595,37 @@ async def get_by_tracking(db: AsyncSession, tracking_code: str) -> DeliveryOrder
     )).scalar_one_or_none()
 
 
+async def _delivery_event_context(db: AsyncSession, order: DeliveryOrder) -> dict:
+    """Contexto para el payload de eventos WhatsApp (Spec 03 §7.4).
+
+    Fire-and-forget: si algo falla al armar el contexto (sale/ítems/zona) se
+    loguea y se devuelven defaults — NUNCA rompe la transición de estado.
+    """
+    ctx = {"total": None, "items_resumen": [], "zone": None}
+    try:
+        if order.sale_id:
+            sale = (await db.execute(
+                select(Sale).where(Sale.id == order.sale_id)
+            )).scalar_one_or_none()
+            if sale:
+                ctx["total"] = float(sale.total)
+                items = (await db.execute(
+                    select(SaleItem).where(SaleItem.sale_id == sale.id)
+                )).scalars().all()
+                ctx["items_resumen"] = [
+                    {"name": i.item_name, "qty": float(i.quantity)} for i in items
+                ]
+        if order.zone_id:
+            zone = (await db.execute(
+                select(DeliveryZone).where(DeliveryZone.id == order.zone_id)
+            )).scalar_one_or_none()
+            if zone:
+                ctx["zone"] = zone.name
+    except Exception:  # noqa: BLE001 — contexto de notificación, nunca bloqueante
+        logger.warning("no se pudo armar contexto del evento delivery", exc_info=True)
+    return ctx
+
+
 async def update_status(
     db: AsyncSession, order_id: int, tenant_id: int, new_status: str,
 ) -> dict:
@@ -606,6 +655,19 @@ async def update_status(
         tenant_id, "delivery_updated", {"id": order.id, "status": new_status},
     )
     await db.commit()
+
+    # Spec 03 §7 (Fase B): evento tras transición válida (CA-B2). Fire-and-forget.
+    ctx = await _delivery_event_context(db, order)
+    await publish_status_event(
+        tenant_id=tenant_id,
+        tracking_code=order.tracking_code,
+        sale_id=order.sale_id,
+        customer_phone=order.customer_phone,
+        new_status=new_status,
+        total=ctx["total"],
+        items_resumen=ctx["items_resumen"],
+        zone=ctx["zone"],
+    )
     return detail
 
 
