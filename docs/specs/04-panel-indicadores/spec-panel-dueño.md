@@ -307,7 +307,94 @@ lista coloreada por severidad (rojo/amarillo).
 - **Pedidos delivery por campaña vs sin campaña** (medir efectividad del marketing).
 - Alertas simples (ej: "hoy 20% menos que el promedio de los últimos 7 días").
 
-> **Nota V2 contratada**: los bloques **CA10-CA14** (heatmap, márgenes, comparativa, export CSV, alertas) tienen contrato detallado en §3.1-V2 y DoD en §4. Top meseros, rate de anulación, ticket por canal/turno y pedidos delivery campaña vs sin campaña quedan **sin contrato** (iteración futura, pendiente de pasos por architecture-agent).
+> **Nota V2 contratada**: los bloques **CA10-CA14** (heatmap, márgenes, comparativa, export CSV, alertas) tienen contrato detallado en §3.1-V2 y DoD en §4. Top meseros, rate de anulación, ticket por canal/turno y pedidos delivery campaña vs sin campaña quedaron **sin contrato** hasta la **iteración 3 (2026-08-11)** — ahora contratados en §3.2-V2 (CA-M1..M8, aprobados por Ron).
+
+### 3.2-V2 — Contrato iteración 3: Top meseros, anulaciones, ticket por canal/turno, campaña vs sin campaña (aprobado Ron 2026-08-11)
+
+Contrato detallado de los 4 bloques pendientes de §3.2 (iteración futura). Aditivos al response de
+`GET /api/v1/dashboard/owner` (keys nuevas; no rompen el contrato V1/V2 — Spec Anchor).
+Esta sección es el Spec Anchor de la iteración 3: backend-dev implementa contra estos JSON.
+
+#### CA-M1 — Top meseros (`top_waiters`)
+
+**Definición**: ventas por usuario del POS (mesero/cajero) en el rango, sin anuladas.
+Fuente: `sales.user_id` → `users.full_name` (verificado en prod: user_id poblado 41/41).
+
+```jsonc
+{
+  "top_waiters": {
+    "rows": [
+      { "user_id": 3, "name": "Lock Test", "sales_count": 24, "total": 1380.00, "avg_ticket": 57.50 }
+    ],
+    "total_sales": 42
+  }
+}
+```
+
+**Reglas**: orden por `total` desc; límite 5 (constante); `avg_ticket` = total/sales_count 2 decimales;
+`total_sales` = ventas sin anuladas del rango (contexto). Usuarios sin ventas no aparecen.
+
+#### CA-M2 — Rate de anulación (`cancellation_rate`)
+
+**Definición**: % de ventas anuladas + motivos. Fuente: `sales.is_voided` + `sales.void_reason`.
+
+```jsonc
+{
+  "cancellation_rate": {
+    "voided_count": 1, "total_count": 42, "rate_pct": 2.4,
+    "top_reasons": [ { "reason": "Cliente no asistió", "count": 1 } ]
+  }
+}
+```
+
+**Reglas**: `rate_pct` = voided/total×100 (1 decimal; 0 si total=0); `top_reasons` agrupa `void_reason`
+top 5 por count desc (si vacío → `[]`).
+
+#### CA-M3 — Ticket promedio por canal y turno (`avg_ticket_by`)
+
+**Definición**: ticket promedio por canal (convención V1: dine_in incluye takeout) y por turno.
+Fuente: `sales.business_type` + `sales.sale_time` (hora).
+
+```jsonc
+{
+  "avg_ticket_by": {
+    "channel": [ { "channel": "dine_in", "ticket": 46.20 }, { "channel": "delivery", "ticket": 52.10 } ],
+    "shift": [
+      { "shift": "morning", "ticket": 38.00, "orders": 10 },
+      { "shift": "afternoon", "ticket": 48.50, "orders": 18 },
+      { "shift": "evening", "ticket": 61.30, "orders": 14 }
+    ]
+  }
+}
+```
+
+**Reglas**: turnos **morning** 06:00–11:59 · **afternoon** 12:00–17:59 · **evening** 18:00–23:59
+(decisión D-M1; fronteras constantes ajustables sin cambiar contrato); huecos sin ventas con
+`ticket: 0, orders: 0` (consistente con CA3). Sin anuladas.
+
+#### CA-M4 — Delivery: campaña vs sin campaña (`delivery_campaign_effect`)
+
+**Definición**: efectividad del marketing en delivery — doble sub-vista. Fuente:
+`delivery_orders.campaign_id` (→ `marketing_campaigns.name`) y `delivery_orders.utm->>'source'`.
+Solo pedidos **no cancelados** (GMV real). Hallazgo verificado en prod: `campaign_id` vacío 0/24,
+pero `utm.source` poblado (meta 13 / e2e 11) → `by_channel` es la vista principal real hoy.
+
+```jsonc
+{
+  "delivery_campaign_effect": {
+    "by_campaign": [
+      { "campaign_id": null, "campaign_name": "Sin campaña", "orders": 24, "gmv": 960.00, "aov": 40.00 }
+    ],
+    "by_channel": [
+      { "source": "meta", "orders": 13, "gmv": 520.00, "aov": 40.00 },
+      { "source": "directo", "orders": 11, "gmv": 440.00, "aov": 40.00 }
+    ]
+  }
+}
+```
+
+**Reglas**: `by_campaign` agrupa campaign_id (null → name "Sin campaña"); `by_channel` agrupa
+`utm->>'source'` (null/vacío → "directo"); `aov` = gmv/orders 2 decimales; orden por gmv desc.
 
 ### 3.3 Fuera de alcance
 
@@ -348,6 +435,17 @@ lista coloreada por severidad (rojo/amarillo).
   Contrato: `{ "alerts": [ { "severity": "red" | "yellow", "metric": "sales_total", "message": "Hoy -20% vs promedio últimos 7 días" } ] }`
   DoD: umbrales red ≤ −20%, yellow ≤ −10% (y > −20%); sin desviación → `alerts: []` (nunca null); frontend colorea por severidad.
 
+### Iteración 3 (aprobada Ron 2026-08-11 — contrato en §3.2-V2)
+
+- **CA-M1 — Top meseros**: bloque `top_waiters`; ventas por `sales.user_id` (join `users.full_name`), sin anuladas, en rango. DoD: rows ordenadas por total desc (límite 5), `avg_ticket` 2 decimales, `total_sales` = contexto del rango.
+- **CA-M2 — Rate de anulación**: bloque `cancellation_rate`; `rate_pct` = voided/total×100 (1 decimal; 0 si total=0); `top_reasons` top 5 por void_reason ([] si vacío).
+- **CA-M3 — Ticket por canal/turno**: bloque `avg_ticket_by`; `channel` (convención V1: dine_in incluye takeout) + `shift` (morning 06-11:59, afternoon 12-17:59, evening 18-23:59 — D-M1); huecos con `ticket: 0, orders: 0`. Sin anuladas.
+- **CA-M4 — Delivery campaña vs sin**: bloque `delivery_campaign_effect`; doble sub-vista `by_campaign` (campaign_id → name, null = "Sin campaña") + `by_channel` (utm.source, null/vacío = "directo"); solo no-cancelados; `aov` = gmv/orders; orden por gmv desc.
+- **CA-M5 — CSV ampliado**: el export CSV incluye las 4 secciones nuevas (`# top_waiters`, `# cancellation_rate`, `# avg_ticket_by`, `# delivery_campaign_effect`) sin romper las 12 existentes.
+- **CA-M6 — PDF ampliado**: el PDF incluye las secciones nuevas (Top Meseros, Anulaciones, Ticket por turno; campaña vs sin amplía la sección Delivery) — sin romper las 9 existentes.
+- **CA-M7 — Regresión**: suite backend completa verde (48 panel + 22 whatsapp + resto; 2 fallos pre-existentes test_caso6_recipes ajenos), E2E panel 13/13.
+- **CA-M8 — Verificación en vivo**: `GET /api/v1/dashboard/owner` devuelve los 4 bloques con data real de prod (top_waiters con usuarios reales; rate real; turnos; campaña vs directo).
+
 ---
 
 ## 5. Matriz Spec Anchor (sincronización spec ↔ código)
@@ -366,6 +464,9 @@ lista coloreada por severidad (rojo/amarillo).
 | V2: bloques heatmap/margins/comparison/alerts | `app/services/owner_dashboard_service.py` (ampliar con CA10-12, CA14) | §3.1-V2 |
 | V2: export CSV | `app/routers/dashboard.py` (ampliar con `GET /export`) | §3.1-V2 (CA13) |
 | V2: frontend | `apps/web/src/pages/DashboardOwner.tsx` (ampliar: heatmap CSS grid, márgenes, comparativa, alertas, botón export) | §3.1-V2 |
+| Iteración 3: bloques top_waiters/cancellation_rate/avg_ticket_by/delivery_campaign_effect | `app/services/owner_dashboard_service.py` (ampliar con CA-M1..M4) | §3.2-V2 (CA-M1..M4) |
+| Iteración 3: CSV/PDF ampliados | `app/routers/dashboard.py` (export) + `render_owner_pdf` | §3.2-V2 (CA-M5..M6) |
+| Iteración 3: frontend | `apps/web/src/pages/DashboardOwner.tsx` (secciones nuevas) | §3.2-V2 |
 | V2: tests | `apps/backend/tests/test_owner_dashboard.py`, `apps/web/e2e/panel.spec.ts` (ampliar CA10-14) | §4 |
 
 > ⚠️ Si cambias los gráficos, KPIs o el contrato del endpoint, **actualiza esta spec** (Spec Anchor) y el registro en el informe ejecutivo.
