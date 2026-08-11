@@ -198,3 +198,48 @@ test("KPI con delta negativo muestra ▼ roja (CA12)", async ({
   });
   await expect(page.getByText("▼ -5.2%")).toBeVisible();
 });
+
+// ─── Iteración 3 (Spec 04 §3.2-V2: CA-M1..M4) ──────────────
+
+test.describe("Panel del Dueño — Mejoras V2 (CA-M1..M4)", () => {
+  test.beforeEach(async ({ authenticatedPage: page }) => {
+    await page.goto("/panel");
+    await expect(page.locator("h2").first()).toContainText("Panel del Dueño", {
+      timeout: 15000,
+    });
+  });
+
+  test("top meseros con ranking, ventas y ticket promedio (CA-M1)", async ({ authenticatedPage: page }) => {
+    const card = page.locator(".card", { hasText: "Top meseros" }).first();
+    await expect(card.getByText("Juan Pérez")).toBeVisible();
+    await expect(card.getByText("María Gómez")).toBeVisible();
+    await expect(card.getByText(/40 ventas \(sin anuladas\)/)).toBeVisible();
+    await expect(card.getByText("S/ 1,520.00")).toBeVisible();
+  });
+
+  test("rate de anulación con % y motivos (CA-M2)", async ({ authenticatedPage: page }) => {
+    const card = page.locator(".card", { hasText: "Rate de anulación" }).first();
+    await expect(card.getByText("4.8%")).toBeVisible();
+    await expect(card.getByText(/2 de 42 ventas/)).toBeVisible();
+    await expect(card.getByText("Cliente no llegó")).toBeVisible();
+    await expect(card.getByText("Error de pedido")).toBeVisible();
+  });
+
+  test("ticket por turno y canal (CA-M3)", async ({ authenticatedPage: page }) => {
+    const card = page.locator(".card", { hasText: "Ticket promedio por turno" }).first();
+    await expect(card.getByText("S/ 132.10")).toBeVisible();
+    await expect(card.getByText("S/ 88.50")).toBeVisible();
+    await expect(card.getByText("S/ 128.40")).toBeVisible();
+    await expect(card.getByText("S/ 97.20")).toBeVisible();
+    await expect(card.getByText("Salón")).toBeVisible();
+  });
+
+  test("delivery campaña vs sin campaña + canal (CA-M4)", async ({ authenticatedPage: page }) => {
+    const card = page.locator(".card", { hasText: "Delivery: campaña vs sin campaña" }).first();
+    await expect(card.getByText("Lanzamiento")).toBeVisible();
+    await expect(card.getByText("Sin campaña", { exact: true })).toBeVisible();
+    await expect(card.getByText("S/ 900.00").first()).toBeVisible();
+    await expect(card.getByText("meta", { exact: true })).toBeVisible();
+    await expect(card.getByText("directo", { exact: true })).toBeVisible();
+  });
+});

@@ -142,6 +142,67 @@ export interface AlertItem {
   message: string;
 }
 
+// ─── Iteración 3 (Spec 04 §3.2-V2: CA-M1..M4) ──────────────
+
+/** CA-M1 — Top 5 meseros por ventas (sin anuladas). */
+export interface TopWaiterRow {
+  user_id: number;
+  name: string;
+  sales_count: number;
+  total: number;
+  avg_ticket: number;
+}
+export interface TopWaitersData {
+  rows: TopWaiterRow[];
+  total_sales: number;
+}
+
+/** CA-M2 — Rate de anulación + top motivos. */
+export interface CancellationReason {
+  reason: string;
+  count: number;
+}
+export interface CancellationRateData {
+  voided_count: number;
+  total_count: number;
+  rate_pct: number;
+  top_reasons: CancellationReason[];
+}
+
+/** CA-M3 — Ticket promedio por canal y turno. */
+export interface AvgTicketByChannel {
+  channel: string;
+  ticket: number;
+}
+export interface AvgTicketByShift {
+  shift: string;
+  ticket: number;
+  orders: number;
+}
+export interface AvgTicketByData {
+  channel: AvgTicketByChannel[];
+  shift: AvgTicketByShift[];
+}
+
+/** CA-M4 — Delivery: campaña vs sin campaña + canal publicitario. */
+export interface CampaignEffectRow {
+  campaign_id: number | null;
+  campaign_name: string;
+  orders: number;
+  gmv: number;
+  aov: number;
+}
+export interface ChannelEffectRow {
+  source: string;
+  orders: number;
+  gmv: number;
+  aov: number;
+}
+export interface DeliveryCampaignEffectData {
+  by_campaign: CampaignEffectRow[];
+  by_channel: ChannelEffectRow[];
+}
+
 export interface OwnerDashboardResponse {
   period: { date_from: string; date_to: string };
   kpis: OwnerKpis;
@@ -157,6 +218,11 @@ export interface OwnerDashboardResponse {
   margins: MarginsData;
   comparison: ComparisonData;
   alerts: AlertItem[];
+  // Iteración 3 (CA-M1..M4)
+  top_waiters: TopWaitersData;
+  cancellation_rate: CancellationRateData;
+  avg_ticket_by: AvgTicketByData;
+  delivery_campaign_effect: DeliveryCampaignEffectData;
 }
 
 export interface OwnerDashboardParams {

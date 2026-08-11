@@ -7,7 +7,7 @@ HTTP: TestClient con dependency overrides (patrón test_sales_routes) —
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -143,6 +143,16 @@ class TestOwnerDashboardService:
             [("delivery", 15)],       # _comparison previous canales
             [(date(2026, 8, 1), 100.0, 3), (date(2026, 8, 2), 100.0, 3)],  # _alerts diario (fecha, total, n)
             [(date(2026, 8, 1), 1), (date(2026, 8, 2), 1)],  # _alerts delivery diario
+            # Iteración 3 — CA-M1..M4 (orden anexado al final)
+            [(1, "Dueño", 5, 400.0), (2, "Mesero", 3, 200.0)],  # _top_waiters rows (user_id, name, n, total)
+            20,                        # _top_waiters total_sales
+            2,                         # _cancellation_rate voided
+            25,                        # _cancellation_rate total
+            [("cliente no vino", 2)],  # _cancellation_rate reasons
+            [("dine_in", 320.0, 15), ("delivery", 100.0, 2)],  # _avg_ticket_by canales (tipo, avg, n)
+            [(time(12, 0), 320.0), (time(20, 0), 100.0)],       # _avg_ticket_by turnos (hora, total)
+            [(1, {"source": "meta"}, 240.0), (None, None, 100.0)],  # _delivery_campaign_effect rows
+            [(1, "Meta Jul")],        # _delivery_campaign_effect camp names
             # metrics_overview + metrics_campaigns (parcheados)
         )
         with patch("app.services.owner_dashboard_service.metrics_overview",
@@ -241,6 +251,15 @@ class TestOwnerDashboardService:
             [],              # comparison previous canales
             [],              # alerts diario
             [],              # alerts delivery diario
+            # Iteración 3 — CA-M1..M4 (sin data)
+            [],              # _top_waiters rows
+            0,               # _top_waiters total_sales
+            0,               # _cancellation_rate voided
+            0,               # _cancellation_rate total
+            [],              # _cancellation_rate reasons
+            [],              # _avg_ticket_by canales
+            [],              # _avg_ticket_by turnos
+            [],              # _delivery_campaign_effect rows (sin ids → no query de nombres)
         )
         with patch("app.services.owner_dashboard_service.metrics_overview",
                    new=AsyncMock(return_value={"orders": 0, "gmv": 0.0, "fee_total": 0.0,
