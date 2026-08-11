@@ -3,7 +3,7 @@
 > **Framework**: SDD — **Spec Anchor**: la especificación está sincronizada con el código;
 > cualquier cambio en uno debe reflejarse en el otro.
 > **Guía base**: `~/investigacion/02-desarrollo-herramientas/20260730_Que-es-SDD-Spec-Driven-Development.md`
-> **Fecha de generación**: 2026-08-10 · Verificadas contra código + BD prod (migración `0016_delivery`)
+> **Fecha de generación**: 2026-08-10 (última verificación 2026-08-11) · Verificadas contra código + BD prod (migración `0016_delivery`)
 
 ---
 
@@ -44,7 +44,7 @@
 
 | Spec | Estado | Migraciones | Routers |
 |---|---|---|---|
-| [spec-panel-dueño.md](04-panel-indicadores/spec-panel-dueño.md) — KPIs del día, canales, top platos, ROAS, zonas, embudo delivery (V1) + V2: heatmap hora×día por canal, márgenes por canal con costeo, comparativa semana vs semana, reporte descargable CSV, alertas vs 7 días | 🟢 IMPLEMENTADA Y DESPLEGADA (V1 + V2, 2026-08-10) | — (usa data existente) | `/api/v1/dashboard/owner` · `/api/v1/dashboard/owner/export` |
+| [spec-panel-dueño.md](04-panel-indicadores/spec-panel-dueño.md) — KPIs del día, canales, top platos, ROAS, zonas, embudo delivery (V1) + V2: heatmap hora×día por canal, márgenes por canal con costeo, comparativa semana vs semana, reporte descargable CSV + PDF (dropdown), alertas vs 7 días | 🟢 IMPLEMENTADA Y DESPLEGADA (V1 + V2 + PDF, 2026-08-11) | — (usa data existente) | `/api/v1/dashboard/owner` · `/api/v1/dashboard/owner/export` |
 
 ### Fase 99 — Infraestructura / DevOps
 
@@ -57,7 +57,7 @@
 ## 🔗 Matriz Spec Anchor (spec ↔ código ↔ migración ↔ frontend)
 
 > **Regla**: si modificas código de un módulo, actualiza su spec; si modificas la spec, ajusta el código.
-> Estado verificado 2026-08-10 contra `main` + BD prod (head `0016_delivery`).
+> Estado verificado 2026-08-11 contra `main` + BD prod (head `0016_delivery`).
 
 | Dominio | Spec | Backend | Migración | Frontend | E2E |
 |---|---|---|---|---|---|
@@ -71,7 +71,7 @@
 | Inversiones | 01-inversiones | `routers/investment.py`, `services/investment_service.py` | 0013 | InvestmentPage, Reports | — |
 | Recetas | 02-recetas | `services/recipe_explosion.py`, `restaurant_service.py:1377` | 0012, 0015 | RecipeModal (MenuPage) | — |
 | Delivery | 03-delivery | `routers/delivery.py`, `routers/public.py`, `services/delivery_service.py` | 0016 | DeliveryPage, PublicMenuPage | delivery-landing, delivery-staff |
-| Panel Dueño | 04-panel | `routers/dashboard.py`, `services/owner_dashboard_service.py` | — | DashboardOwner (`/panel`) | panel (6 tests, e2e) |
+| Panel Dueño | 04-panel | `routers/dashboard.py`, `services/owner_dashboard_service.py` | — | DashboardOwner (`/panel`) | panel (13 tests, e2e — incl. dropdown CSV/PDF) |
 | Infra/CI | 99-infra | compose, deploy.sh, `.github/workflows/`, `routers/health.py` | — | — | configs prod |
 
 ---
