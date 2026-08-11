@@ -96,19 +96,22 @@ async function main() {
     await page.waitForSelector("text=⚠️", { timeout: 15000 }).catch(() => {});
     await demoStep(page, "V2 CA14: Banner de alerta (desviación vs promedio 7 días)");
 
-    // 9. CA13 — Descargar CSV (esperar a que se habilite: data cargada)
-    const csvBtn = page.getByRole("button", { name: /Descargar CSV/ });
-    await csvBtn.waitFor({ state: "visible", timeout: 20000 });
+    // 9. CA13 — Descargar CSV/PDF (dropdown; esperar a que se habilite)
+    const dlBtn = page.getByRole("button", { name: /Descargar/ });
+    await dlBtn.waitFor({ state: "visible", timeout: 20000 });
     await page.waitForFunction(
       () => {
-        const b = [...document.querySelectorAll("button")].find((x) => (x.textContent || "").includes("Descargar CSV"));
+        const b = [...document.querySelectorAll("button, summary")].find((x) => (x.textContent || "").includes("Descargar"));
         return b && !b.disabled;
       },
       { timeout: 20000 }
     ).catch(() => {});
-    await demoStep(page, "V2 CA13: Botón Descargar CSV habilitado (data cargada)");
-    await csvBtn.click({ timeout: 5000 }).catch((e) => console.log("(click descarga omitido: " + e.message.split("\n")[0] + ")"));
-    await demoStep(page, "V2 CA13: Descarga CSV iniciada");
+    await demoStep(page, "V2 CA13: Botón Descargar (dropdown) habilitado — data cargada");
+    // Abrir menú (summary del details) y descargar PDF
+    await page.locator("summary", { hasText: "Descargar" }).first().click({ timeout: 5000 }).catch(() => {});
+    await demoStep(page, "V2 CA13: Menú desplegado — opciones CSV / PDF");
+    await page.locator("button", { hasText: "Descargar PDF" }).first().click({ timeout: 5000 }).catch((e) => console.log("(click PDF omitido: " + e.message.split("\n")[0] + ")"));
+    await demoStep(page, "V2 CA13: Descarga PDF iniciada (panel_dueño_YYYYMMDD.pdf)");
 
     // 10. Cambiar rango
     await page.click('button:has-text("7 días")').catch(() => {});
