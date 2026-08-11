@@ -4,6 +4,23 @@
 
 ---
 
+## [0.5.0] — 2026-08-11
+
+### Added
+
+#### 📈 Mejoras V2 del Panel del Dueño (Spec 04 §3.2-V2 — iteración 3, CA-M1..M8)
+- **Backend** (`owner_dashboard_service.py`, 4 bloques nuevos en `GET /api/v1/dashboard/owner`):
+  - `top_waiters` (CA-M1): top 5 meseros por ventas totales (sin anuladas), con `sales_count`, `total` y `avg_ticket` (2 decimales) — join `users.full_name` por `sales.user_id`.
+  - `cancellation_rate` (CA-M2): rate de anulación % (1 decimal; 0 si total=0) + top 5 motivos por `void_reason`.
+  - `avg_ticket_by` (CA-M3): ticket promedio por canal (dine_in incluye takeout, convención V1) y por turno (morning 06-11:59, afternoon 12-17:59, evening 18-23:59); huecos con ceros. Helper `_shift_of` con fallback `sale_time` nulo → morning (observación documentada en spec).
+  - `delivery_campaign_effect` (CA-M4): doble sub-vista campaña vs sin campaña (`campaign_id` null → "Sin campaña") y por canal publicitario (`utm.source` null/vacío → "directo"); solo no-cancelados; `aov` = gmv/orders; orden gmv desc.
+  - **CSV ampliado** (CA-M5): 4 secciones nuevas (`# top_waiters`, `# cancellation_rate`, `# avg_ticket_by`, `# delivery_campaign_effect`) sin romper las 12 existentes. **PDF ampliado** (CA-M6): secciones Top Meseros, Anulaciones, Ticket por turno; campaña vs sin amplía la sección Delivery.
+- **Frontend** (`DashboardOwner.tsx`, `/panel`): 4 tarjetas nuevas — **Top meseros** (ranking 1-5 con barras + ticket promedio), **Rate de anulación** (% grande con semáforo rojo/ámbar/verde + motivos), **Ticket promedio por turno** (barras por turno + chips por canal), **Delivery: campaña vs sin campaña** (tarjetas comparativas + barras por canal publicitario). Tipos nuevos en `dashboard.ts` (aditivos).
+- **QA (CA-M7)**: suite backend completa 389 passed / 2 failed (solo `test_caso6_recipes` pre-existentes ajenos) · dashboard 60/60 (12 nuevos) · E2E panel **17/17** (4 nuevos CA-M1..M4) · tsc 0 · vite build OK · ruff 0.
+- **Verificado en vivo (CA-M8)**: deploy a prod (main `022b9f7`, ramas limpiadas) — API devuelve los 4 bloques con data real; frontend :8081 sirve el bundle con las secciones nuevas (sha verificado); demo E2E completa en el monitor (DISPLAY :0).
+
+---
+
 ## [0.4.0] — 2026-08-11
 
 ### Added

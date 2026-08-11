@@ -240,6 +240,21 @@ Nuevo requerimiento del cliente
 
 ---
 
+## 6bis. Mejoras V2 del Panel del Dueño (desplegado 11/08/2026) 🆕
+
+La vista ejecutiva **Panel del Dueño** (sección 2.8 / ruta `/panel`) incorporó 4 indicadores nuevos, calculados con datos reales del negocio:
+
+| Indicador | Qué responde | Detalle |
+|---|---|---|
+| **Top meseros** | ¿Quién vende más en el salón? | Ranking de los 5 meseros con más ventas (sin anuladas): total vendido y ticket promedio por mesero |
+| **Rate de anulación** | ¿Cuántas ventas se están anulando? | % de anulaciones con semáforo (verde < 5% · ámbar 5-10% · roja ≥ 10%) + los 5 motivos más frecuentes |
+| **Ticket promedio por turno y canal** | ¿Cuándo y dónde se gasta más por pedido? | Ticket por turno (Mañana 06-11:59 / Tarde 12-17:59 / Noche 18-23:59) y por canal (Salón / Delivery) |
+| **Delivery: campaña vs sin campaña** | ¿La publicidad paga? | Pedidos, GMV y ticket promedio de pedidos con campaña publicitaria vs sin campaña + desglose por canal (Meta, directo, Google…) |
+
+Todo desplegado y verificado en producción (API + pantalla), con descargas CSV y PDF ampliadas y pruebas automatizadas (17/17 E2E del panel).
+
+---
+
 ## 7. Próximos Pasos Sugeridos (opciones de crecimiento)
 
 El sistema ya rinde; estas son opciones de crecimiento para decidir juntos, según prioridad del negocio:
@@ -257,4 +272,4 @@ El sistema ya rinde; estas son opciones de crecimiento para decidir juntos, seg�
 
 ---
 
-*Documento vivo elaborado a partir de la documentación técnica del proyecto (especificaciones SDD verificadas contra el sistema y la base de datos de producción el 10/08/2026). **Este informe se actualiza con cada nuevo requerimiento**: ver sección 5 (Mapa de Requerimientos ↔ Specs).*
+*Documento vivo elaborado a partir de la documentación técnica del proyecto (especificaciones SDD verificadas contra el sistema y la base de datos de producción el 10/08/2026). **Este informe se actualiza con cada nuevo requerimiento**: ver sección 5 (Mapa de Requerimientos ↔ Specs). Última actualización: 11/08/2026 (Mejoras V2 Panel del Dueño — iteración 3, Spec 04 §3.2-V2).*

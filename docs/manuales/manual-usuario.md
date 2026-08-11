@@ -203,12 +203,16 @@ El **Panel del Dueño** (menú: 📈 Panel del Dueño, ruta `/panel`) es la vist
 | **Margen por canal (V2)** | Ingresos vs costo de recetas/kárdex → margen real por canal (salón / para llevar / delivery) con nota de costeabilidad |
 | **Comparativa semana vs semana (V2)** | % de cambio junto a cada KPI (ventas, pedidos, ticket, % delivery): ▲ subió, ▼ bajó |
 | **Alertas (V2)** | Avisos cuando el negocio está por debajo del promedio de los últimos 7 días (roja = caída fuerte, ámbar = aviso) |
+| **Top meseros (V3)** | Ranking de los 5 meseros con más ventas (sin anuladas): barras con total vendido + ticket promedio |
+| **Rate de anulación (V3)** | % de ventas anuladas con semáforo (verde < 5%, ámbar 5-10%, roja ≥ 10%) + top 5 motivos de anulación |
+| **Ticket por turno y canal (V3)** | Ticket promedio por turno (Mañana 06-11:59 / Tarde 12-17:59 / Noche 18-23:59) con barras de pedidos + ticket por canal (Salón / Delivery) |
+| **Delivery: campaña vs sin campaña (V3)** | Comparativa pedidos/GMV/AOV de pedidos con campaña publicitaria vs sin campaña + barras por canal publicitario (Meta / directo / Google…) |
 
 ### Reporte descargable (V2 + PDF)
 
 El botón **⬇️ Descargar ▾** (arriba a la derecha) abre un menú con 2 opciones:
 
-- **Descargar CSV** — genera un archivo CSV con el resumen completo del período seleccionado: KPIs, ventas por hora/día, canales, top platos, pagos, delivery, campañas, comparativa, márgenes y alertas. Abre con Excel o Google Sheets.
+- **Descargar CSV** — genera un archivo CSV con el resumen completo del período seleccionado: KPIs, ventas por hora/día, canales, top platos, pagos, delivery, campañas, comparativa, márgenes, alertas y las 4 secciones nuevas (top meseros, anulaciones, ticket por turno, campaña vs sin). Abre con Excel o Google Sheets.
 - **Descargar PDF** — genera un reporte PDF ejecutivo (9 secciones) con la misma información: encabezado con el período, KPIs, comparativa semana vs semana, márgenes por canal, top platos, canales + pagos, ventas por hora, delivery + campañas (ROAS) y alertas (⚠ roja/ámbar; si no hay, muestra "Sin alertas en el período"). El archivo se descarga como `panel_dueño_YYYYMMDD.pdf` y se abre con cualquier lector de PDF (imprimir / compartir directo).
 
 ### Rango de fechas
