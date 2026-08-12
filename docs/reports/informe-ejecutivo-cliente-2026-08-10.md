@@ -1,6 +1,6 @@
 # 📊 Informe Ejecutivo — Sistema de Gestión El Segoviano
 
-- **Fecha:** 10 de agosto de 2026
+- **Fecha:** 10 de agosto de 2026 *(última actualización: 12 de agosto de 2026)*
 - **Producto:** Sistema de gestión integral (ERP) para la franquicia **El Segoviano**
 - **Estado general:** 🟢 **OPERATIVO EN PRODUCCIÓN** — el sistema está instalado y funcionando en el servidor del negocio (www.ronsyserp.com), con pedidos reales ya registrados.
 - **Audiencia:** Cliente final / dueños de la franquicia
@@ -207,7 +207,11 @@ Nuevo requerimiento del cliente
 | # | Requerimiento | Prioridad | Spec asociada | Estado | Fecha registro |
 |---|---|---|---|---|---|
 | 1 | **📊 Panel de indicadores para el dueño** — resumen ejecutivo (ventas del día, canal más rentable, platos más vendidos, ROAS campañas, pedidos por zona, embudo delivery) en una sola pantalla. Alcance: V1 (panel inicial) + V2 (analítica avanzada: heatmaps, márgenes por canal, comparativas semanales, reporte descargable). Enfoque inicial: restaurante + delivery/dark kitchen | 🔴 Alta | `docs/specs/04-panel-indicadores/spec-panel-dueño.md` | 🟢 **IMPLEMENTADO Y DESPLEGADO (V1 + V2 + PDF, 2026-08-11)** — V1: endpoint `/api/v1/dashboard/owner` + página `/panel` en producción (verificado: S/638, 11 pedidos, 90.9% delivery). V2 desplegada: heatmap hora×día por canal, márgenes por canal con costeo, comparativa semana vs semana, reporte descargable CSV, alertas vs promedio 7 días. **PDF del reporte (iteración 2) DESPLEGADO (2026-08-11)**: `GET /api/v1/dashboard/owner/export?format=pdf` — reportlab platypus 9 secciones, verificado 200 application/pdf en prod; dropdown CSV/PDF en el panel | 2026-08-10 |
-| 2 | **💬 Notificaciones WhatsApp (Fase B del Delivery)** — avisos automáticos al cliente (confirmado, en cocina, en camino, entregado, cancelado) y alertas al local. Motor de eventos (colas RabbitMQ) desplegado en producción y verificado en vivo el 2026-08-11; envío real requiere cuenta WhatsApp Business API (Meta) — plan en `plan-cuenta-meta-whatsapp.md` | 🟠 Media | `docs/specs/03-delivery/03-spec-delivery-dark-kitchen-v0.1.md` §7 | 🟡 **MOTOR DESPLEGADO (2026-08-11) — envío real pendiente de cuenta Meta** — backend completo (Notifier MetaCloud/DryRun, publicador RabbitMQ fire-and-forget, worker con reintentos + DLQ), QA 8/8 CA, verificado en vivo: checkout→confirmed+new_order, transición→status_changed, cancelación→cancelled (todo dry-run, cero HTTP). Config: `companies.settings.whatsapp` | 2026-08-11 |
+| 2 | **💬 Notificaciones WhatsApp (Fase B del Delivery)** — avisos automáticos al cliente (confirmado, en cocina, en camino, entregado, cancelado) y alertas al local. Motor de eventos (colas RabbitMQ) desplegado en producción y verificado en vivo el 2026-08-11; envío real requiere cuenta WhatsApp Business API (Meta) — plan en `plan-cuenta-meta-whatsapp.md` | 🟠 Media | `docs/specs/03-delivery/03-spec-delivery-dark-kitchen-v0.1.md` §7 | 🟡 **MOTOR DESPLEGADO (2026-08-11) — envío real pendiente de cuenta Meta** — backend completo (Notifier MetaCloud/DryRun, publicador RabbitMQ fire-and-forget, worker con reintentos + DLQ), QA 8/8 CA, verificado en vivo: checkout→confirmed+new_order, transición→status_changed, cancelación→cancelled (todo dry-run, cero HTTP). Config: `companies.settings.whatsapp`. **→ Es la Fase 1 del plan integral de canales (2026-08-12): "WhatsApp en Vivo"** | 2026-08-11 |
+| 3 | **📞 Central telefónica "que no pierde llamadas" (canal delivery por teléfono)** — Asterisk en el servidor: varias llamadas simultáneas sin buzón (concurrencia), click-to-call, registro + grabación de llamadas, conversión llamada → pedido delivery al mismo flujo (cocina, kárdex, contabilidad, DLV-). Requiere trunk SIP (4 canales recomendados) | 🟠 Media | `docs/specs/03-delivery/` (extensión — spec a crear) | 🟡 **PROPUESTA (2026-08-12)** — plan por fases aprobado en borrador; validación técnica JARVIS completada (Asterisk viable en Docker red host, integración reutiliza `create_order`). Requiere +8GB RAM al servidor y port-forwarding UDP | 2026-08-12 |
+| 4 | **🤖 Recepcionista IA por voz** — IA contesta el teléfono, toma el pedido (notas + dirección), confirma por WhatsApp, graba y transcribe, transfiere a humano con contexto; el pedido entra solo al sistema. Agente de dominio acotado (solo pedidos/menú/estado — requisito de cumplimiento Meta 15-ene-2026). Requiere Fase 2 + proveedor de voz IA | 🟠 Media | `docs/specs/03-delivery/` (extensión — spec a crear) | 🟡 **PROPUESTA (2026-08-12)** — dentro del plan integral de canales; PoC de 2 semanas con llamadas reales antes de fijar precio | 2026-08-12 |
+| 5 | **🏢 Franquicia conectada (multi-sucursal)** — tablets/pantallas por sucursal con pedidos en tiempo real, monitoreo central del dueño, enrutamiento de llamadas por local ("house service" por sucursal, referencia S/ 2,000 del benchmark). Explota el multi-tenant existente | 🟢 Alta (visión de crecimiento) | `docs/specs/01-fase0-restaurante-ferreteria/spec-superadmin-tenants.md` + extensión | 🟡 **PROPUESTA (2026-08-12)** — dentro del plan integral de canales; se activa cuando el modelo funcione en 1 local | 2026-08-12 |
+| 6 | **🤖📊 "Pregúntale al Sistema" (consultas IA en lenguaje natural)** — el dueño consulta datos reales en tiempo real: "¿qué producto se vendió más hoy por delivery?". La IA decide qué función SQL del catálogo llamar (tool calling / NL2SQL controlado, sin SQL libre), responde en lenguaje natural; replicable a todo el ERP (ventas, inventario, contabilidad, recetas). Base: `app/core/agents/` (puerto hexagonal `BaseSkill` ya diseñado) | 🟠 Media | `docs/specs/00-mvp-core/` (extensión — spec a crear) | 🟡 **PROPUESTA (2026-08-12)** — dentro del plan integral de canales; MVP delivery primero, extensión por módulo | 2026-08-12 |
 
 ---
 
@@ -262,7 +266,7 @@ El sistema ya rinde; estas son opciones de crecimiento para decidir juntos, seg�
 1. **📱 Aplicación móvil** — para que clientes pidan delivery desde una app con su marca (o para que meseros/cocina usen el sistema desde tablet).
 2. **🗺️ Más zonas de delivery** — ampliar el radio de reparto (Zárate, Campoy, más distritos) desde el panel, sin desarrollo adicional.
 3. **🧾 Facturación electrónica (SUNAT)** — emitir boletas y facturas electrónicas desde el sistema, cumpliendo con la tributación.
-4. **💬 Notificaciones por WhatsApp** — avisos automáticos al cliente (pedido confirmado, en camino, entregado) y alertas al local.
+4. **💬 Notificaciones por WhatsApp** — avisos automáticos al cliente (pedido confirmado, en camino, entregado) y alertas al local. **⚠️ Ya está desplegado el motor completo (dry-run, 2026-08-11)** — pendiente solo conectar la cuenta Meta (Fase 1 del Plan Integral, ver §8).
 5. **🤝 Integraciones con Rappi / PedidosYa** — recibir pedidos de las plataformas directamente en la cocina del sistema.
 6. **💳 Pago online directo** — que el cliente pague con tarjeta al momento de ordenar (no solo Yape/Plin/contraentrega).
 7. **📊 Panel de indicadores para el dueño** — un resumen ejecutivo (ventas del día, canal más rentable, platos más vendidos) en una sola pantalla.
@@ -272,4 +276,43 @@ El sistema ya rinde; estas son opciones de crecimiento para decidir juntos, seg�
 
 ---
 
-*Documento vivo elaborado a partir de la documentación técnica del proyecto (especificaciones SDD verificadas contra el sistema y la base de datos de producción el 10/08/2026). **Este informe se actualiza con cada nuevo requerimiento**: ver sección 5 (Mapa de Requerimientos ↔ Specs). Última actualización: 11/08/2026 (Mejoras V2 Panel del Dueño — iteración 3, Spec 04 §3.2-V2).*
+## 8. Plan Integral de Canales — Fases y Cronograma (2026-08-12) 🗓️
+
+> **Requerimiento del cliente (2026-08-12):** sumar el canal telefónico (llamadas de delivery) y consultas con IA, inspirado en soluciones del mercado (benchmark @keno.rdz). Se propone **adopción gradual en 5 fases** — valor rápido primero, lo complejo después — con pago por fase. Detalle completo en `plan-fases-cliente-llamadas-20260812.md` (workspace del agente).
+
+### 8.1 Las 5 fases (qué recibe el cliente y cuándo)
+
+| Fase | Nombre comercial | Qué recibe el cliente | Esfuerzo | Precio (desarrollo único) |
+|---|---|---|---|---|
+| **F1** | **"WhatsApp en Vivo"** 💬 | Mensajes reales de pedido al cliente (confirmado, en cocina, en camino, entregado, cancelado) + alertas al local + botones "Pedir por WhatsApp"/"Llamar" en el menú y campañas. **El motor ya está construido y probado (dry-run); solo falta conectar la cuenta Meta** | 1–2 sem | S/ 1,500 – 2,500 |
+| **F2** | **"Central que No Pierde Llamadas"** 📞 | El número del negocio conectado a una central digital: **varias llamadas a la vez sin buzón**, click-to-call, registro y **grabación** de llamadas, y el operador **convierte la llamada en pedido delivery** (mismo flujo: cocina, repartidor, contabilidad, tracking) | 3–4 sem | S/ 4,000 – 6,500 |
+| **F3** | **"Recepcionista IA"** 🤖 | **Una IA contesta el teléfono**, toma el pedido (notas + dirección), **confirma por WhatsApp**, graba y transcribe la llamada, y **transfiere a un humano** si hace falta — el pedido entra solo al sistema. Nunca se pierde una llamada | 6–8 sem | S/ 8,000 – 12,000 |
+| **F4** | **"Franquicia Conectada"** 🏢 | **Cada sucursal con su pantalla** (pedidos en tiempo real) y su atención; el dueño monitorea todo desde un panel. Enrutamiento de llamadas por local | 3–5 sem | S/ 4,000 – 7,000 |
+| **F5** | **"Pregúntale al Sistema"** 🤖📊 | El dueño **le pregunta al sistema en lenguaje natural** ("¿qué producto se vendió más hoy por delivery?") y obtiene la respuesta al instante con datos reales. La IA elige la consulta correcta de un catálogo seguro (tool calling); **replicable a todo el ERP** | 3–5 sem | S/ 5,000 – 8,000 |
+| | **Total** | | **16–24 sem** | **S/ 22,500 – 36,000** |
+
+> **Precios orientativos** (mercado peruano SMB, desarrollo único). No incluyen costos mensuales (WhatsApp Meta, trunk SIP, voz IA — ~S/ 200–600/mes según fases activas) ni hardware (tablets, teléfonos). Pago por fase (hitos), 50% inicio / 50% entrega recomendado.
+
+### 8.2 Cronograma estimado (referencial, desde aprobación del cliente)
+
+| Período (semanas desde aprobación) | Fase en curso | Entregable visible para el cliente |
+|---|---|---|
+| Semanas 1–2 | **F1 — WhatsApp en Vivo** | El cliente recibe su primer WhatsApp real de pedido (confirmado/en camino/entregado) y el local sus alertas |
+| Semanas 3–6 | **F2 — Central telefónica** | El número del negocio contesta siempre (sin buzón), las llamadas quedan grabadas y los pedidos telefónicos entran al sistema con tracking |
+| Semanas 7–14 | **F3 — Recepcionista IA** | La IA contesta, toma pedidos completos, confirma por WhatsApp y transfiere a humano si es necesario (PoC con llamadas reales en las primeras 2 semanas) |
+| Semanas 15–19 | **F4 — Franquicia Conectada** *(si aplica)* | Segunda sucursal (o más) operando con su pantalla, su número y monitoreo central del dueño |
+| Semanas 15–19 | **F5 — Pregúntale al Sistema** *(puede ir en paralelo con F4)* | El dueño consulta ventas delivery por chat y recibe respuestas con datos reales; luego se extiende a salón, inventario y contabilidad |
+
+**Horizonte total:** ~4–6 meses desde la aprobación (según fases contratadas). **Cada fase se entrega, prueba y cobra por separado** — el cliente ve valor desde la semana 1 y decide fase a fase si continúa.
+
+### 8.3 Lo que el cliente ya tiene (no se paga de nuevo) 🎁
+
+Todo el ERP operativo (POS, restaurante, inventario, contabilidad, recetas, delivery online con ROAS, panel del dueño V1+V2+PDF, panel global) **+ el motor WhatsApp ya desplegado y verificado** (Fase 1 = solo activar).
+
+### 8.4 Nota sobre cambios Meta 2026 (consulta del cliente) ✅
+
+Los cambios recientes de Meta/WhatsApp afectan **precios y reglas de uso** (pago por mensaje, plantillas Utility, prohibición de chatbots IA de propósito general, BSUID/usernames), **no la tecnología base**: la integración es agnóstica al proveedor (`Notifier`), usa plantillas transaccionales (el formato más estable), guardará el identificador BSUID desde el día 1 y la IA se diseña como agente de negocio acotado (exigencia Meta). **El código no quedará obsoleto**; detalle en §6 del plan de fases.
+
+---
+
+*Documento vivo elaborado a partir de la documentación técnica del proyecto (especificaciones SDD verificadas contra el sistema y la base de datos de producción el 10/08/2026). **Este informe se actualiza con cada nuevo requerimiento**: ver sección 5 (Mapa de Requerimientos ↔ Specs). Última actualización: 12/08/2026 (Plan Integral de Canales — 5 fases: WhatsApp en Vivo, Central telefónica, Recepcionista IA, Franquicia Conectada, Pregúntale al Sistema; ver §8).*
