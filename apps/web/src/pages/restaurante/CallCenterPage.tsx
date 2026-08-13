@@ -689,16 +689,12 @@ function ConvertModal({
 // ═══════════════════════════════════════════════════════════════
 
 function parseWs(raw: unknown): CallWsEvent | null {
-  // Fix 2026-08-13: el WsManager del backend envuelve en `{event, data}`
-  // (patrón spec 03 §2.2) — `parseCallWsMessage` aplana data e incluye el
-  // `id` del CallRecord (crítico para convert-to-order). Antes se devolvía
-  // el envelope crudo → s.id=undefined → card con id=0 → 404 en conversión.
-  try {
-    const obj = typeof raw === "string" ? JSON.parse(raw) : raw;
-    return parseCallWsMessage(obj);
-  } catch {
-    return null;
-  }
+  // Fix 2026-08-13: `parseCallWsMessage` recibe el string crudo y hace el
+  // JSON.parse internamente (aplana el envelope {event, data} e incluye el
+  // `id` del CallRecord — crítico para convert-to-order). NO parsear aquí:
+  // pasar el objeto a JSON.parse fallaba → null → panel sin eventos.
+  if (typeof raw !== "string") return null;
+  return parseCallWsMessage(raw);
 }
 
 function fmtDuration(seconds: number): string {
