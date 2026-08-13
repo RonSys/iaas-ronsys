@@ -230,54 +230,82 @@ async function main() {
     if (await convBtn.count()) {
       await convBtn.click();
       await page.waitForTimeout(2000);
-      await demoStep(page, "5/9 Modal 'Convertir a pedido' abierto");
+      await demoStep(page, "5/11 Modal 'Convertir a pedido' abierto");
 
-      // 5. Seleccionar zona (Montenegro / Motupe / Canto Grande = id 1)
+      // Helper: scroll DENTRO del modal hasta que el elemento sea visible.
+      // (El modal tiene max-h-[85vh] overflow-y-auto: sin scroll los
+      // selectores de zona/pago quedan fuera del viewport y Ron no los ve.)
+      const scrollModalTo = async (locator) => {
+        await locator.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
+        await page.waitForTimeout(600);
+      };
+
+      // 5. Scroll a Zona + seleccionar (Montenegro / Motupe / Canto Grande = id 1)
       await page.getByText("Zona de delivery").first().waitFor({ timeout: 10000 }).catch(() => {});
       const zonaSelect = page.getByLabel(/Zona de delivery/).first();
+      await scrollModalTo(zonaSelect);
+      await demoStep(page, "6/11 Scroll dentro del modal → selector ZONA visible");
       await zonaSelect.selectOption({ index: 1 }).catch(async () => {
         await zonaSelect.selectOption("1").catch(() => {});
       });
       console.log("   zona value:", await zonaSelect.inputValue().catch(() => "?"));
-      await demoStep(page, "6/9 Zona seleccionada (Montenegro — S/5 fee, min S/35)");
+      await demoStep(page, "7/11 Zona SELECCIONADA: Montenegro — S/5 fee, min S/35");
 
-      // 6. Items: Arroz con Mariscos x1 + Inca Kola x1 (inputs de cantidad)
-      // Filas del modal: <div class="flex items-center justify-between text-sm">
+      // 6. Scroll a items + cantidad (Arroz con Mariscos x1 + Inca Kola x1)
       await page.getByText("Arroz con Mariscos").first().waitFor({ timeout: 15000 }).catch(() => {});
       for (const itemName of ["Arroz con Mariscos", "Inca Kola"]) {
         const row = page
           .locator('div.flex.items-center.justify-between.text-sm', { hasText: itemName })
           .first();
         if (await row.count()) {
-          await row.locator('input[type="number"]').fill("1");
-          const val = await row.locator('input[type="number"]').inputValue();
+          const input = row.locator('input[type="number"]');
+          await scrollModalTo(input);
+          await input.fill("1");
+          const val = await input.inputValue();
           if (val !== "1") {
-            await row.locator('input[type="number"]').press("ArrowUp");
+            await input.press("ArrowUp");
           }
-          console.log(`   item ${itemName}: cantidad ${await row.locator('input[type="number"]').inputValue()}`);
+          console.log(`   item ${itemName}: cantidad ${await input.inputValue()}`);
         } else {
           console.log(`   ⚠️ item ${itemName} no encontrado en el modal`);
         }
       }
-      await demoStep(page, "7/9 Items: Arroz con Mariscos (S/32) + Inca Kola (S/5) = S/37");
+      await demoStep(page, "8/11 Items: Arroz con Mariscos (S/32) + Inca Kola (S/5) = S/37 (min OK)");
 
-      // 7. Pago Efectivo (sin referencia) + dirección
-      await page
-        .getByLabel(/Pago/)
-        .first()
-        .selectOption("cash")
-        .catch(() => {});
+      // 7. Scroll a Pago + seleccionar YAPE con referencia (flujo real)
+      const pagoSelect = page.getByLabel(/Pago/).first();
+      await scrollModalTo(pagoSelect);
+      await demoStep(page, "9/11 Scroll → desplegable PAGO visible");
+      await pagoSelect.selectOption("yape").catch(async () => {
+        await pagoSelect.selectOption({ index: 0 }).catch(() => {});
+      });
+      // Referencia yape (obligatoria en el motor de ventas)
+      const refInput = page.getByPlaceholder(/Código de referencia/).first();
+      if (await refInput.count()) {
+        await scrollModalTo(refInput);
+        await refInput.fill("E2E-KARDEX-" + Date.now().toString().slice(-6));
+      }
+      // Dirección (sugerencia de zona) + nombre
       const addr = page.getByPlaceholder(/Av\. …/);
-      if (await addr.count()) await addr.fill("Av. Montenegro 123, Lima");
-      await demoStep(page, "8/9 Pago Efectivo + dirección");
+      if (await addr.count()) {
+        await scrollModalTo(addr);
+        await addr.fill("Av. Montenegro 123, Lima");
+      }
+      const nombre = page.getByPlaceholder(/Nombre \(opcional\)/);
+      if (await nombre.count()) {
+        await scrollModalTo(nombre);
+        await nombre.fill("Cliente E2E Kárdex");
+      }
+      await demoStep(page, "10/11 Pago SELECCIONADO: Yape + referencia + dirección");
 
-      // 8. Guardar → DLV- (esperar a que el botón del MODAL se habilite)
+      // 8. Scroll al botón Guardar + clic → DLV-
       const btn = page.getByRole("button", { name: /Crear pedido/ });
+      await scrollModalTo(btn);
       await btn.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
       await btn.evaluate((el) => el.disabled).then((d) => console.log("   btnCrear disabled?", d));
       await btn.click({ timeout: 5000 }).catch(() => console.log("   ⚠️ no se pudo hacer clic en Crear pedido"));
       await page.waitForTimeout(6000);
-      await demoStep(page, "9/9 Pedido creado (DLV-) — card '✅ Convertida'");
+      await demoStep(page, "11/11 Pedido creado (DLV-) — card '✅ Convertida'");
 
       // Capturar el tracking del mensaje de éxito (si aparece)
       try {

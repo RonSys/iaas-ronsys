@@ -514,6 +514,7 @@ function ConvertModal({
   const [customerName, setCustomerName] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [payment, setPayment] = useState<"yape" | "plin" | "cash">("yape");
+  const [paymentRef, setPaymentRef] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -549,7 +550,7 @@ function ConvertModal({
           phone: call.caller || undefined,
           address: customerAddress || "",
         },
-        payment: { method: payment },
+        payment: { method: payment, reference: paymentRef || undefined },
         notes: notes || undefined,
       });
       onConverted(res.tracking_code);
@@ -651,6 +652,17 @@ function ConvertModal({
               <option value="cash">Efectivo</option>
             </select>
           </label>
+          {payment !== "cash" && (
+            <label className="block text-xs text-gray-500">
+              Referencia (Yape/Plin)
+              <input
+                value={paymentRef}
+                onChange={(e) => setPaymentRef(e.target.value)}
+                placeholder="Código de referencia del pago"
+                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+          )}
           <label className="block text-xs text-gray-500">
             Notas
             <input
