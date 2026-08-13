@@ -1,6 +1,6 @@
 # SPEC F2 — Central que No Pierde Llamadas (Asterisk + Trunk SIP + integración al ERP)
 
-- **Estado**: 🟡 **PROPUESTA (2026-08-12)** — pendiente de aprobación por Ron (esfuerzo estimado 3–4 semanas)
+- **Estado**: 🟢 **APROBADA PARA IMPLEMENTACIÓN (2026-08-13)** — decisiones D1–D4 aprobadas por Ron (esfuerzo estimado 3–4 semanas)
 - **Proyecto**: IaaS-RonSys — Cliente "El Segoviano"
 - **Alcance**: tenant 1 (El Segoviano); diseño multi-tenant por construcción
 - **Fecha**: 2026-08-12
@@ -8,7 +8,7 @@
 
 ---
 
-## 0. Decisiones (D1–D4 — PROPUESTAS, pendientes de aprobación)
+## 0. Decisiones (D1–D4 — APROBADAS por Ron 2026-08-13)
 
 | # | Decisión | Acuerdo propuesto |
 |---|---|---|
@@ -458,6 +458,18 @@ WS /ws/calls/{tenant_id}         (mismo mecanismo que /ws/kitchen: tenant en pat
     load ~2.1, IP pública 190.235.163.29 → 192.168.1.35 NAT; puertos SIP libres.
   - **Pendiente**: aprobación de D1–D4 por Ron. Esfuerzo estimado 3–4 semanas. Prerrequisito
     RAM +8 GB antes del go-live.
+- **2026-08-13 (v0.1 → APROBADA)**: Ron aprueba F2 para implementación (pipeline Asistente → Jarvis).
+  Decisiones D1–D4 **aprobadas**: D1 Asterisk Docker host A20 LTS, D2 trunk SIP 4 canales G.711
+  (externip/localnet/rtp_symmetric/direct_media=no), D3 seguridad SIP (ACL + fail2ban + AMI/ARI
+  localhost), D4 integración por eventos (call-bridge AMI/ARI → RabbitMQ `iaas-tasks`).
+  **Decisión de implementación D-13/08 (Spec Anchor)**: el trunk SIP real depende del cliente
+  (número + proveedor) → la implementación avanza con **SIP local de prueba** (extensiones/softphones
+  locales, patrón dry-run de F1) para validar todo el flujo sin trunk; el port-forward NAT queda
+  documentado y pendiente del router del local.
+  **Prerrequisito RAM verificado 2026-08-13**: 3.0 GB disponibles, swap 2.8/4 GB en uso, load 1.6–2.7.
+  Asterisk idle ~150–250 MB + call-bridge ~50–100 MB caben en QA/desarrollo con SIP local; **+8 GB RAM
+  sigue recomendado antes del go-live con trunk real** (margen para picos y evitar swap→jitter).
+  **Rama de implementación**: `feat/f2-central-telefonica`. Plan interno P1–P6 (§4).
 
 ---
 
