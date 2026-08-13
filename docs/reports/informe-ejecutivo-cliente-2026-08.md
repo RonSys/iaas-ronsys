@@ -315,4 +315,81 @@ Los cambios recientes de Meta/WhatsApp afectan **precios y reglas de uso** (pago
 
 ---
 
-*Documento vivo elaborado a partir de la documentación técnica del proyecto (especificaciones SDD verificadas contra el sistema y la base de datos de producción el 10/08/2026). **Este informe se actualiza con cada nuevo requerimiento**: ver sección 5 (Mapa de Requerimientos ↔ Specs). Última actualización: 13/08/2026 (F1 WhatsApp en Vivo y F2 Central Telefónica IMPLEMENTADAS Y DEPLOYADAS — Plan Integral de Canales: WhatsApp en Vivo ✅, Central telefónica ✅, Recepcionista IA, Franquicia Conectada, Pregúntale al Sistema; ver §8).*
+## 9. Inteligencia Artificial en el Sistema — Propuesta en 3 Bloques (2026-08-13) 🤖
+
+> **Nuevo requerimiento del cliente (2026-08-13):** evaluar IA práctica para el negocio.
+> La arquitectura ya está diseñada (capa de agentes `app/core/agents/` con puerto hexagonal
+> `BaseSkill` — hoy sin skills concretos, listo para activar). Esta propuesta diferencia
+> dos tecnologías que suelen confundirse:
+
+| | **Herramientas (Tool Calling)** | **RAG (Retrieval de documentos)** |
+|---|---|---|
+| Qué usa | Datos **estructurados** de la BD (PostgreSQL) | Documentos **no estructurados** (PDF, manuales, textos) |
+| Cómo responde | La IA elige una función SQL del catálogo y la ejecuta | Busca el fragmento relevante (embeddings + pgvector) y responde con él |
+| Exactitud | **Alta (dato real, verificable)** | Media (depende del documento) |
+| Ideal para | "¿Cuánto vendió la Zona 1 esta semana?" | "¿Cuál es el procedimiento para X?" |
+| Riesgo | Cero SQL libre (catálogo cerrado) | Alucinación si no hay documento |
+
+**Regla del sistema:** datos que ya están en la BD → **siempre tool calling** (exactitud);
+solo conocimiento que NO está en la BD → RAG.
+
+### 9.1 Bloque A — "Pregúntale al Sistema" (F5, agente en vivo para el dueño) 📊
+
+- **Qué es**: chat en el panel del dueño — escribe en lenguaje natural y obtiene respuesta
+  con datos reales al instante ("¿qué producto se vendió más hoy por delivery?").
+- **Cómo**: implementar los skills que el puerto ya tiene diseñado —
+  `VentasSkill` (top productos, ventas por zona/canal, embudo, ROAS, ticket promedio)
+  e `InventarioSkill` (stock bajo, rotación, sugerencias de compra), vía
+  `SkillRegistry` + LLM con function calling (OpenAI/DeepSeek).
+- **Seguridad**: catálogo SQL cerrado (la IA no escribe SQL libre), solo lectura,
+  permisos por rol/tenant, log de consultas (quién preguntó qué y cuándo).
+- **Esfuerzo**: 3–5 sem (MVP delivery) · **S/ 5,000 – 8,000**; extensión por módulo ~S/ 1,500–3,000.
+- **Nota para el cliente**: *para KPIs en vivo se usa tool calling, NO RAG* — los datos
+  ya están estructurados; RAG no aporta exactitud aquí.
+
+### 9.2 Bloque B — "Knowledge Agent" (RAG para usuarios del sistema) 📚
+
+- **Qué es**: el equipo pregunta al sistema sobre procedimientos: "¿cómo registro una
+  compra con factura?", "¿qué hacer cuando un repartidor no llega?".
+- **Cómo**: se cargan los documentos del negocio (manuales, guías, recetas en texto)
+  → embeddings (pgvector, ya disponible en PostgreSQL 16) → retrieval + respuesta
+  citando la fuente.
+- **Frontera clara**: recetas/insumos están en BD → tool calling (ver Bloque A);
+  RAG solo para conocimiento NO estructurado. Sin documento → la IA lo dice, no inventa.
+- **Esfuerzo**: 2–4 sem (carga inicial + chat en panel + fuentes citadas) · **S/ 3,000 – 5,000**.
+
+### 9.3 Bloque C — Evaluación de outputs de IA (transversal, garantía de calidad) 🧪
+
+> Cierra un vacío identificado: **no existe hoy ningún proceso de evaluación de
+> respuestas generadas por modelos de IA** en la documentación del proyecto.
+
+- **Golden queries / test sets por skill**: cada skill (ventas, inventario) trae
+  consultas de prueba con respuesta esperada (calculada contra la BD real).
+- **Chequeo de exactitud**: toda respuesta con dato numérico se valida contra la BD
+  (el dato del reporte = el dato de la query) — el cliente puede verificar.
+- **Guardrails**: catálogo SQL cerrado, permisos por tenant, rate limiting, sin escritura.
+- **Human-in-the-loop**: respuestas con baja confianza → "no estoy seguro, ¿quieres que
+  revise un reporte?" en vez de inventar.
+- **Logging**: cada Q&A queda registrado (pregunta, tool usada, respuesta, tiempo) —
+  auditable y sirve para mejorar los test sets.
+- **Esfuerzo**: integrado en cada bloque (no se cotiza aparte; ~10% del esfuerzo de A/B).
+
+### 9.4 Por qué ya es viable (ventaja de la arquitectura)
+
+- La capa `app/core/agents/base.py` (BaseSkill, SkillResult, AgentContext, SkillRegistry)
+  está **diseñada y lista** — es deuda técnica consciente (#8) con puerto hexagonal:
+  se implementan los skills sin rediseñar nada.
+- PostgreSQL 16 + pgvector ya disponibles (RAG sin infraestructura nueva).
+- Multi-tenant, permisos por rol y logging ya existen en el ERP (se reutilizan).
+- Precios orientativos; el detalle operativo (LLM mensual ~US$5–20, embeddings) es
+  marginal frente al valor.
+
+---
+
+*Bloques A y B son independientes y contratables por separado; el Bloque C acompaña
+a cualquiera de ellos. Orden sugerido: A primero (valor inmediato con datos reales),
+B después (documentación), C siempre activo.*
+
+---
+
+*Documento vivo elaborado a partir de la documentación técnica del proyecto (especificaciones SDD verificadas contra el sistema y la base de datos de producción el 10/08/2026). **Este informe se actualiza con cada nuevo requerimiento**: ver sección 5 (Mapa de Requerimientos ↔ Specs). Última actualización: 13/08/2026 (F1 WhatsApp en Vivo y F2 Central Telefónica IMPLEMENTADAS Y DEPLOYADAS — Plan Integral de Canales: WhatsApp en Vivo ✅, Central telefónica ✅, Recepcionista IA, Franquicia Conectada, Pregúntale al Sistema; ver §8; + §9 Propuesta IA en 3 Bloques: Tool Calling vs RAG y Evaluación de outputs).*
