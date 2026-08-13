@@ -542,6 +542,23 @@ WS /ws/calls/{tenant_id}         (mismo mecanismo que /ws/kitchen: tenant en pat
     `companies.settings.calls` ya configurado para tenant 3 (enabled, DID
     +5115551234 placeholder, extensions 100/101); CALL_BRIDGE_TOKEN y creds
     AMI/ARI en .env al activar; deploy aprobado.
+- **2026-08-13 (deploy prod + E2E en caliente + fix UX)**:
+  - Merge `feat/f2-central-telefonica` (7 commits) → main `e5f6512` + deploy
+    `./deploy.sh --env prod` (backup imágenes .bak-2026-08-13 + pg_dump).
+  - **E2E en caliente** (ronsyserp.com, monitor DISPLAY=:0): bug de script —
+    el E2E inyectaba tenant 3 pero el login staff es tenant 1 (CA-F2.6 filtra
+    por tenant → la llamada nunca era visible). Fix solo script
+    (`e2e-hot-f2-central.cjs`: tenant_id 1) commit `c8bc494`; verificado con
+    llamada en vivo en panel (CallRecord id=29 tenant 1). **No era bug del
+    sistema — el aislamiento por tenant funcionaba correctamente.**
+  - **Fix UX reportado por Ron** (commit `d7a738c`, merge `2013c49`): botón
+    "Convertir a pedido" se ocultaba con status=answered — justo el flujo
+    principal (contestó → convierte). Ahora visible en ringing/answered e
+    in_progress; oculto solo en terminales (completed/missed/failed) o ya
+    convertida (R6). Timer del card ahora corre continuo desde `started_at`
+    (antes se reseteaba al pasar a answered). Verificado por E2E: modal
+    Convertir se abre en llamada contestada. Deployado a prod (frontend
+    rebuild + recreate).
 
 ---
 
