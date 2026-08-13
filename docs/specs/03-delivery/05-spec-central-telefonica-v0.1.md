@@ -559,6 +559,22 @@ WS /ws/calls/{tenant_id}         (mismo mecanismo que /ws/kitchen: tenant en pat
     (antes se reseteaba al pasar a answered). Verificado por E2E: modal
     Convertir se abre en llamada contestada. Deployado a prod (frontend
     rebuild + recreate).
+  - **E2E kárdex (2026-08-13) — 2 bugs reales encontrados y corregidos**:
+    1. **WS sin id → convert 404**: los eventos WS call.* no incluían el `id`
+       del CallRecord y `parseWs` devolvía el envelope crudo sin aplanar
+       `{event, data}` → card con id=0 → POST convert-to-order 404
+       "Llamada no encontrada". Fix en 3 capas: backend manda `id` (+direction)
+       en todos los eventos WS (call_service), `CallWsEvent` tipado con id,
+       `parseWs` usa `parseCallWsMessage` (aplana data). Commits `5aee74d`,
+       `dc25a89`, `d294a04`.
+    2. **Doble JSON.parse rompía el WS**: `parseWs` parseaba el JSON y luego
+       pasaba el objeto a `parseCallWsMessage` (que re-parsea) → TypeError →
+       null → panel sin eventos. Fix: `parseWs` pasa el string crudo.
+    **Verificación E2E kárdex completa**: login → panel → llamada en vivo por
+    WS → modal convertir (zona Montenegro + Arroz con Mariscos S/32 + Inca
+    Kola S/5 = S/37) → **DLV-9ff99d6a00 creado** → **kárdex con delta real**
+    (Arroz -0.20, Mariscos -0.15, Cebolla -0.05, Ají -0.02) → pedido cancelado
+    + CallRecords purgados. Script: `apps/web/scripts/e2e-hot-f2-kardex.cjs`.
 
 ---
 
