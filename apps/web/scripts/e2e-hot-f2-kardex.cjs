@@ -192,6 +192,8 @@ async function main() {
     args: [
       "--no-first-run", "--no-default-browser-check", "--disable-infobars",
       "--disable-session-crashed-bubble", "--disable-features=Translate",
+      "--disable-application-cache", "--disable-cache", "--disk-cache-size=0",
+      "--aggressive-cache-discard",
     ],
     chromiumSandbox: false,
   });
