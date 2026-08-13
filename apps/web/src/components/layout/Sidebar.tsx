@@ -146,6 +146,12 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
               onClick={onMobileClose}
             />
             <SidebarItem
+              icon="📞"
+              label="Central Telefónica"
+              path="/restaurante/central"
+              onClick={onMobileClose}
+            />
+            <SidebarItem
               icon="🏷️"
               label="Promociones"
               path="/restaurante/promociones"
