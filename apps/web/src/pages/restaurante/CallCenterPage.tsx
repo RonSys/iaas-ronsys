@@ -24,6 +24,7 @@ import {
   convertCallToOrder,
   getCalls,
   originateCall,
+  parseCallWsMessage,
   recordingHref,
   LIVE_STATUSES,
   CALL_STATUS_LABEL,
@@ -688,12 +689,13 @@ function ConvertModal({
 // ═══════════════════════════════════════════════════════════════
 
 function parseWs(raw: unknown): CallWsEvent | null {
+  // Fix 2026-08-13: el WsManager del backend envuelve en `{event, data}`
+  // (patrón spec 03 §2.2) — `parseCallWsMessage` aplana data e incluye el
+  // `id` del CallRecord (crítico para convert-to-order). Antes se devolvía
+  // el envelope crudo → s.id=undefined → card con id=0 → 404 en conversión.
   try {
     const obj = typeof raw === "string" ? JSON.parse(raw) : raw;
-    if (obj && typeof obj === "object" && "event" in obj) {
-      return obj as CallWsEvent;
-    }
-    return null;
+    return parseCallWsMessage(obj);
   } catch {
     return null;
   }
