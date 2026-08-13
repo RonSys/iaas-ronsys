@@ -176,33 +176,41 @@ async def upsert_from_ami(db: AsyncSession, data: dict) -> dict:
     # ── Broadcast WS (Spec 05 §3.5.3) ──────────────────────
     event_map = {
         "ringing": ("call.incoming", {
+            "id": record.id,
             "external_call_id": record.external_call_id,
             "caller": record.caller, "callee": record.callee,
+            "direction": record.direction,
             "started_at": record.started_at.isoformat() if record.started_at else None,
         }),
         "in_progress": ("call.incoming", {
+            "id": record.id,
             "external_call_id": record.external_call_id,
             "caller": record.caller, "callee": record.callee,
+            "direction": record.direction,
             "started_at": record.started_at.isoformat() if record.started_at else None,
         }),
         "answered": ("call.answered", {
+            "id": record.id,
             "external_call_id": record.external_call_id,
             "caller": record.caller,
             "answered_at": record.answered_at.isoformat() if record.answered_at else None,
         }),
         "missed": ("call.ended", {
+            "id": record.id,
             "external_call_id": record.external_call_id,
             "caller": record.caller, "duration": record.duration,
             "status": record.status,
             "hangup_cause": (record.metadata_ or {}).get("hangup_cause"),
         }),
         "completed": ("call.ended", {
+            "id": record.id,
             "external_call_id": record.external_call_id,
             "caller": record.caller, "duration": record.duration,
             "status": record.status,
             "hangup_cause": (record.metadata_ or {}).get("hangup_cause"),
         }),
         "failed": ("call.ended", {
+            "id": record.id,
             "external_call_id": record.external_call_id,
             "caller": record.caller, "duration": record.duration,
             "status": record.status,

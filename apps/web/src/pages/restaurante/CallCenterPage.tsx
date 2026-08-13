@@ -89,11 +89,14 @@ function LiveCallsTab() {
       const ext = ev.external_call_id;
       if (ev.event === "call.incoming") {
         next[ext] = {
-          id: prev[ext]?.id ?? 0,
+          // Fix 2026-08-13: el backend ahora manda el `id` del CallRecord en
+          // los eventos WS (Spec 05 §3.5.3) — antes el card quedaba con id=0
+          // y convert-to-order fallaba con 404 "Llamada no encontrada".
+          id: ev.id ?? prev[ext]?.id ?? 0,
           external_call_id: ext,
           caller: ev.caller ?? "",
           callee: ev.callee ?? "",
-          direction: "inbound",
+          direction: (ev.direction ?? "inbound") as CallRecord["direction"],
           status: "ringing",
           started_at: ev.started_at ?? new Date().toISOString(),
           answered_at: null,
@@ -105,12 +108,18 @@ function LiveCallsTab() {
         };
       } else if (ev.event === "call.answered") {
         if (next[ext]) {
-          next[ext] = { ...next[ext], status: "answered", answered_at: ev.answered_at ?? null };
+          next[ext] = {
+            ...next[ext],
+            id: ev.id ?? next[ext].id,
+            status: "answered",
+            answered_at: ev.answered_at ?? null,
+          };
         }
       } else if (ev.event === "call.ended") {
         if (next[ext]) {
           next[ext] = {
             ...next[ext],
+            id: ev.id ?? next[ext].id,
             status: ev.status ?? "completed",
             ended_at: new Date().toISOString(),
             duration: ev.duration ?? 0,

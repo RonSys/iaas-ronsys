@@ -102,19 +102,23 @@ export interface OriginateResult {
 export type CallWsEvent =
   | {
       event: "call.incoming";
+      id: number;
       external_call_id: string;
       caller: string;
       callee: string;
+      direction?: string;
       started_at: string;
     }
   | {
       event: "call.answered";
+      id: number;
       external_call_id: string;
       caller: string;
       answered_at: string;
     }
   | {
       event: "call.ended";
+      id: number;
       external_call_id: string;
       caller: string;
       duration: number;
@@ -290,14 +294,17 @@ export function parseCallWsMessage(raw: string): CallWsEvent | null {
     case "call.incoming":
       return {
         event: "call.incoming",
+        id: n("id") ?? 0,
         external_call_id: s("external_call_id"),
         caller: s("caller"),
         callee: s("callee"),
+        direction: s("direction") as CallDirection | undefined,
         started_at: s("started_at"),
       };
     case "call.answered":
       return {
         event: "call.answered",
+        id: n("id") ?? 0,
         external_call_id: s("external_call_id"),
         caller: s("caller"),
         answered_at: s("answered_at"),
@@ -306,6 +313,7 @@ export function parseCallWsMessage(raw: string): CallWsEvent | null {
       const status = s("status") as CallStatus;
       return {
         event: "call.ended",
+        id: n("id") ?? 0,
         external_call_id: s("external_call_id"),
         caller: s("caller"),
         duration: n("duration") ?? 0,
