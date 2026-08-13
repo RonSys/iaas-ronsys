@@ -43,11 +43,29 @@ export interface PublicPromotion {
   description: string | null;
 }
 
+/**
+ * Contacto del negocio para botones wa.me / tel: (Spec 04 §3.5).
+ *
+ * Contrato backend `GET /api/public/{slug}/menu`:
+ * - `whatsapp_link` = `https://wa.me/<business_phone>?text=<mensaje prefabricado>` (URL-encoded)
+ * - `phone` = `tel:<business_phone>`
+ * - `whatsapp_message` = mensaje prefabricado en texto plano
+ *
+ * `contact` es `null` cuando la config WhatsApp está inactiva (enabled=false o sin
+ * business_phone) → los botones NO se renderizan (CA-F1.14).
+ */
+export interface ContactInfo {
+  whatsapp_link?: string | null;
+  phone?: string | null;
+  whatsapp_message?: string | null;
+}
+
 export interface PublicMenu {
   tenant_name: string;
   delivery_window: { from: string; to: string };
   currency: string;
   yape_phone: string | null;
+  contact?: ContactInfo | null;
   branding: {
     palette?: Record<string, string> | null;
     logo_url?: string | null;
@@ -117,4 +135,42 @@ export function checkoutOrder(
 
 export function getTrackingStatus(trackingCode: string): Promise<TrackingStatus> {
   return publicFetch(`/api/public/orders/${encodeURIComponent(trackingCode)}/status`);
+}
+
+// ─── Helpers botones wa.me / tel: (Spec 04 §3.6, D5) ──────
+
+/**
+ * Número base del negocio extraído SOLO desde el contrato público (`contact`),
+ * nunca hardcodeado (R-F1.3 / CA-F1.11).
+ *
+ * Fuentes: `whatsapp_link` (`wa.me/<num>?text=...`) y fallback `phone` (`tel:<num>`).
+ */
+function waBusinessNumber(contact: ContactInfo | null | undefined): string | null {
+  if (!contact) return null;
+  const waMatch = contact.whatsapp_link?.match(/wa\.me\/([^?/#]+)/);
+  if (waMatch?.[1]) return waMatch[1];
+  const tel = contact.phone?.replace(/^tel:/, "");
+  return tel || null;
+}
+
+/**
+ * Construye `https://wa.me/<business_phone>?text=<mensaje>` (URL-encoded).
+ * Devuelve `null` si no hay `contact` válido (CA-F1.14: sin config → sin botones).
+ */
+export function buildWhatsAppUrl(
+  contact: ContactInfo | null | undefined,
+  message: string,
+): string | null {
+  const number = waBusinessNumber(contact);
+  if (!number || !message.trim()) return null;
+  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+}
+
+/**
+ * Devuelve el href `tel:<business_phone>` del contrato, o `null` si no existe.
+ */
+export function getCallHref(contact: ContactInfo | null | undefined): string | null {
+  const tel = contact?.phone;
+  if (!tel) return null;
+  return tel.startsWith("tel:") ? tel : `tel:${tel}`;
 }

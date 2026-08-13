@@ -7,6 +7,11 @@
  */
 import { authFetch } from "./authFetch";
 
+// Tipado de contacto wa.me / tel: (Spec 04 §3.6) — el contrato vive en el menú
+// público (`GET /api/public/{slug}/menu`, Spec 04 §3.5); aquí solo se re-exporta
+// para que el panel Delivery lo consuma desde `deliveryApi`.
+export type { ContactInfo } from "./publicMenuApi";
+
 // ─── Tipos ────────────────────────────────────────────────
 
 export interface DeliveryOrder {
