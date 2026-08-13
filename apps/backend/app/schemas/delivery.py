@@ -48,12 +48,26 @@ class PublicPromotion(BaseModel):
     description: Optional[str] = None
 
 
+class PublicMenuContact(BaseModel):
+    """Spec 04 F1 (D5): contacto para botones "Pedir por WhatsApp" / "Llamar".
+
+    Solo se puebla con config activa (`enabled=true` + `business_phone`);
+    si no → `PublicMenuResponse.contact = null` y la landing oculta los
+    botones (CA-F1.14).
+    """
+    whatsapp_link: str      # https://wa.me/<business_phone>?text=<mensaje prefabricado>
+    phone: str             # tel:<business_phone>
+    whatsapp_message: str  # mensaje prefabricado (texto plano, URL-encoded en el link)
+
+
 class PublicMenuResponse(BaseModel):
     tenant_name: str
     delivery_window: dict = Field(default_factory=dict)  # {from, to}
     currency: str = "PEN"
     yape_phone: Optional[str] = None  # D4: configurable en companies.settings
     branding: dict = Field(default_factory=dict)  # D-03: {palette, logo_url} para la landing
+    # Spec 04 F1 (D5): contacto wa.me/tel: — null sin config activa (CA-F1.14)
+    contact: Optional[PublicMenuContact] = None
     sections: list[PublicMenuSection] = Field(default_factory=list)
     promotions: list[PublicPromotion] = Field(default_factory=list)
 

@@ -20,10 +20,11 @@ import logging
 
 import aio_pika
 from aio_pika.abc import AbstractIncomingMessage
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.adapters.db.database import get_session_factory
 from app.adapters.db.models.accounting import Company
+from app.adapters.db.models.delivery import DeliveryOrder
 from app.config import settings
 from app.schemas import WhatsAppSettings
 from app.services.notify_events import RETRY_DELAYS_SECONDS
@@ -96,6 +97,39 @@ async def _load_company(tenant_id: int) -> Company | None:
     return company
 
 
+async def _persist_bsuid(payload: dict) -> None:
+    """Spec 04 F1 (D3): persiste el BSUID de Meta cuando el payload lo trae.
+
+    Update ligero y fire-and-forget: solo si el payload trae `bsuid` y la
+    columna `delivery_orders.whatsapp_bsuid` está NULL para ese tracking
+    (R-F1.6: nunca reemplaza a `customer_phone`). Un fallo de BD aquí NO
+    bloquea el envío ni provoca reintentos del mensaje (se loguea y se sigue).
+    """
+    bsuid = payload.get("bsuid")
+    tracking_code = payload.get("tracking_code")
+    if not bsuid or not tracking_code:
+        return
+    try:
+        async with get_session_factory()() as db:
+            await db.execute(
+                update(DeliveryOrder)
+                .where(
+                    DeliveryOrder.tracking_code == tracking_code,
+                    DeliveryOrder.whatsapp_bsuid.is_(None),
+                )
+                .values(whatsapp_bsuid=str(bsuid)[:64])
+            )
+            await db.commit()
+        logger.info(
+            "bsuid persistido: tracking=%s bsuid=%s", tracking_code, str(bsuid)[:16],
+        )
+    except Exception as exc:  # noqa: BLE001 — fire-and-forget: nunca bloquear el envío
+        logger.warning(
+            "no se pudo persistir bsuid (tracking=%s): %s",
+            tracking_code, exc,
+        )
+
+
 async def _process_event(payload: dict) -> None:
     """Procesa UN evento: tenant → config → notifier → envío.
 
@@ -114,6 +148,10 @@ async def _process_event(payload: dict) -> None:
     company = await _load_company(int(tenant_id))
     if not company:
         raise ValueError(f"tenant {tenant_id} no existe")
+
+    # Spec 04 F1 (D3): BSUID desde el día 1 — persiste cuando el payload lo
+    # trae (update ligero, fire-and-forget; un fallo aquí no bloquea el envío).
+    await _persist_bsuid(payload)
 
     whatsapp = _whatsapp_from_raw(company.settings)
     notifier: Notifier = build_notifier(whatsapp)

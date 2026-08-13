@@ -213,6 +213,9 @@ class DeliveryOrder(Base):
     tracking_code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     customer_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     customer_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Spec 04 F1 (D3): BSUID/user_id de Meta — se persiste cuando el payload lo
+    # trae; NUNCA reemplaza a customer_phone (R-F1.6). Webhook entrante es F3 (D7).
+    whatsapp_bsuid: Mapped[str | None] = mapped_column(String(64), nullable=True)
     customer_address: Mapped[str] = mapped_column(String(300), nullable=False)
     lat: Mapped[float | None] = mapped_column(Numeric(9, 6), nullable=True)
     lng: Mapped[float | None] = mapped_column(Numeric(9, 6), nullable=True)
