@@ -502,6 +502,46 @@ WS /ws/calls/{tenant_id}         (mismo mecanismo que /ws/kitchen: tenant en pat
     — Spec Anchor). Frontend: `tsc -b` + `vite build` limpios.
   - **Pendiente**: P6 QA en vivo con SIP local (requiere levantar el contenedor
     + call-bridge), trunk real del cliente, +8GB RAM go-live, deploy aprobado.
+- **2026-08-13 (QA EN VIVO P6 — SIP local, sin trunk)**: ejecutado por Jarvis con
+  aprobación de Ron. Resultados por CA:
+  - **CA-F2.1 ✅**: llamada SIP simulada (AMI Originate Local/+5115551234@from-pstn
+    con callerid de prueba) → eventos Newchannel/Newstate/Hangup → call-bridge →
+    POST /events → CallRecord inbound con caller/callee/direction correctos y
+    tenant resuelto por DID (R4). Upsert idempotente verificado (created true→false).
+  - **CA-F2.5 ✅**: /events con token + IP validados (401/403 cubiertos por tests);
+    GET /calls con JWT staff + X-Tenant-ID devuelve solo llamadas del tenant.
+  - **CA-F2.6 ✅**: WS /api/v1/calls/ws/{tenant} recibe call.incoming/call.ended
+    solo de su tenant (verificado con cliente websockets en vivo).
+  - **CA-F2.7 ✅ (bug corregido en vivo)**: el payload manda `event_type` crudo
+    ("new"/"ended") y el prefijo vive en `event` ("call.new") → el dispatch
+    inicial no matcheaba y call.* caía al flujo delivery. **Corregido** en
+    `notify_worker._process_event` (mira `payload.event` — commit d27b0a2).
+    Verificado en vivo: worker QA loguea "call.* recibido y ack'ed" y drena la
+    cola sin redelivery; delivery.* intacto (regresión 0).
+  - **CA-F2.3 ✅**: convert-to-order en vivo → 201 con **DLV-9ff9434679**
+    (Sale VEN-2026-00046-363, S/42, zona Montenegro, pago yape c/ref) reusando
+    `create_order` (mínimo S/35 y ref yape aplicados por el motor existente);
+    `call_records.converted_order_id` vinculado; **409 en segundo intento** (R6).
+    Pedido de prueba **cancelado con limpieza** (patrón F1) y CallRecords QA
+    purgados de la BD.
+  - **CA-F2.2 ✅ parcial**: MixMonitor generó .wav (44 bytes — llamada simulada
+    sin audio real); `recording_path` se propaga en eventos. Con trunk real y
+    audio se valida el .wav completo.
+  - **CA-F2.11 ✅**: migración 0018 aplicada a prod (upgrade head →
+    alembic_version=0018), tabla call_records creada; verificada reversible.
+  - **Hallazgos de infra (Spec Anchor, commit d27b0a2)**: la imagen
+    `asterisk/asterisk:20` de la spec **no existe en Docker Hub** → se usa
+    `mlan/asterisk:latest` (Asterisk 20.15.2, incluye res_ari + chan_pjsip);
+    se añadieron volúmenes asterisk_var/asterisk_log; puerto HTTP interno del
+    bridge 8091 (8090 ocupado por docker-proxy de otro proyecto).
+  - **Rendimiento medido**: Asterisk idle **17.8MB RAM / 1.7% CPU**, backend
+    QA 111MB, worker QA 61MB, load 1.5-1.8 estable — el servidor aguanta el
+    QA con holgura (4GB disponibles tras pausar monitoreo).
+  - **Pendiente real**: trunk SIP del cliente (número + proveedor) + port-forward
+    UDP 5060/10000-10100 en el router del local; +8GB RAM go-live;
+    `companies.settings.calls` ya configurado para tenant 3 (enabled, DID
+    +5115551234 placeholder, extensions 100/101); CALL_BRIDGE_TOKEN y creds
+    AMI/ARI en .env al activar; deploy aprobado.
 
 ---
 
