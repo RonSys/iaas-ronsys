@@ -39,8 +39,20 @@ import {
   type DeliveryOverview,
   type DeliveryZone,
 } from "@/services/deliveryApi";
+import {
+  buildWhatsAppUrl,
+  getCallHref,
+  getPublicMenu,
+  type ContactInfo,
+} from "@/services/publicMenuApi";
 
 type Tab = "orders" | "zones" | "couriers" | "campaigns" | "metrics";
+
+/**
+ * Slug público del tenant para el panel Delivery (Spec 04 §3.6).
+ * Mismo slug que usan los links UTM existentes de campañas.
+ */
+const DELIVERY_MENU_SLUG = "el-segoviano";
 
 const STATUS_COLORS: Record<DeliveryOrder["status"], string> = {
   received: "bg-yellow-100 text-yellow-800",
@@ -598,14 +610,46 @@ function AddCourierForm({ onCreated }: { onCreated: () => Promise<void> }) {
 // 📢 Campañas
 // ═══════════════════════════════════════════════════════════
 
+/**
+ * Link UTM de una campaña (mismo patrón del hint del form de alta).
+ * `null` si la campaña no tiene utm_source/utm_campaign.
+ */
+function campaignUtmPath(c: Campaign): string | null {
+  if (!c.utm_source || !c.utm_campaign) return null;
+  const params = new URLSearchParams({
+    utm_source: c.utm_source,
+    utm_medium: c.utm_medium ?? "cpc",
+    utm_campaign: c.utm_campaign,
+  });
+  return `/menu/${DELIVERY_MENU_SLUG}?${params.toString()}`;
+}
+
+/**
+ * Mensaje de preview WhatsApp de la campaña (Spec 04 §3.6): mensaje de la
+ * campaña (notes) + link UTM absoluto.
+ */
+function campaignWaMessage(c: Campaign, utmPath: string | null): string {
+  const base = c.notes?.trim() || `Mira nuestra promo ${c.name}.`;
+  if (!utmPath) return base;
+  return `${base} — Pide aquí: ${window.location.origin}${utmPath}`;
+}
+
 function CampaignsTab() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [contact, setContact] = useState<ContactInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCampaigns = useCallback(async () => {
     try {
-      setCampaigns(await getCampaigns());
+      // Contacto del negocio: mismo `contact` del menú público (Spec 04 §3.5).
+      // Si falla o es null → botones de preview ocultos (CA-F1.14).
+      const [cs, menu] = await Promise.all([
+        getCampaigns(),
+        getPublicMenu(DELIVERY_MENU_SLUG).catch(() => null),
+      ]);
+      setCampaigns(cs);
+      setContact(menu?.contact ?? null);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error");
@@ -627,7 +671,7 @@ function CampaignsTab() {
           <button onClick={() => setError(null)} className="ml-2 underline text-xs">Cerrar</button>
         </div>
       )}
-      <AddCampaignForm onCreated={fetchCampaigns} />
+      <AddCampaignForm contact={contact} onCreated={fetchCampaigns} />
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -642,13 +686,47 @@ function CampaignsTab() {
             </tr>
           </thead>
           <tbody>
-            {campaigns.map((c) => (
-              <tr key={c.id} className="border-b">
-                <td className="py-2 font-medium">{c.name}</td>
-                <td className="uppercase text-xs">{c.channel}</td>
-                <td className="text-xs font-mono">
-                  {c.utm_source}/{c.utm_medium}/{c.utm_campaign}
-                </td>
+            {campaigns.map((c) => {
+              const utmPath = campaignUtmPath(c);
+              const waPreviewHref = contact
+                ? buildWhatsAppUrl(contact, campaignWaMessage(c, utmPath))
+                : null;
+              const callPreviewHref = getCallHref(contact);
+              return (
+                <tr key={c.id} className="border-b">
+                  <td className="py-2 font-medium">{c.name}</td>
+                  <td className="uppercase text-xs">{c.channel}</td>
+                  <td className="text-xs font-mono">
+                    {utmPath ? (
+                      <a
+                        href={utmPath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-brand-primary underline"
+                      >
+                        {c.utm_source}/{c.utm_medium}/{c.utm_campaign}
+                      </a>
+                    ) : (
+                      <span className="text-gray-400">
+                        {c.utm_source || "—"}/{c.utm_medium || "—"}/{c.utm_campaign || "—"}
+                      </span>
+                    )}
+                    {waPreviewHref && (
+                      <a
+                        href={waPreviewHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block font-sans text-green-700 underline mt-1"
+                      >
+                        💬 Abrir en WhatsApp
+                      </a>
+                    )}
+                    {callPreviewHref && (
+                      <a href={callPreviewHref} className="block font-sans mt-0.5 underline">
+                        📞 Llamar
+                      </a>
+                    )}
+                  </td>
                 <td>S/ {c.budget.toFixed(2)}</td>
                 <td>S/ {c.spend.toFixed(2)}</td>
                 <td>
@@ -681,7 +759,8 @@ function CampaignsTab() {
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {campaigns.length === 0 && (
               <tr>
                 <td colSpan={7} className="py-6 text-center text-brand-text-secondary text-sm">
@@ -696,7 +775,13 @@ function CampaignsTab() {
   );
 }
 
-function AddCampaignForm({ onCreated }: { onCreated: () => Promise<void> }) {
+function AddCampaignForm({
+  contact,
+  onCreated,
+}: {
+  contact: ContactInfo | null;
+  onCreated: () => Promise<void>;
+}) {
   const [name, setName] = useState("");
   const [channel, setChannel] = useState("meta");
   const [utmSource, setUtmSource] = useState("");
@@ -708,8 +793,16 @@ function AddCampaignForm({ onCreated }: { onCreated: () => Promise<void> }) {
   const utmHint = useMemo(() => {
     const src = utmSource || "fuente";
     const camp = utmCampaign || "campaña";
-    return `/menu/el-segoviano?utm_source=${src}&utm_medium=${channel === "meta" ? "cpc" : "cpc"}&utm_campaign=${camp}`;
-  }, [utmSource, utmCampaign, channel]);
+    return `/menu/${DELIVERY_MENU_SLUG}?utm_source=${src}&utm_medium=cpc&utm_campaign=${camp}`;
+  }, [utmSource, utmCampaign]);
+
+  // Preview WhatsApp de la campaña en creación (Spec 04 §3.6): mensaje + UTM.
+  const waPreviewHref = useMemo(() => {
+    if (!utmSource || !utmCampaign) return null;
+    const base = name.trim() ? `Mira nuestra promo ${name.trim()}.` : "Mira nuestra promo de esta semana.";
+    return buildWhatsAppUrl(contact, `${base} — Pide aquí: ${window.location.origin}${utmHint}`);
+  }, [utmSource, utmCampaign, name, utmHint, contact]);
+  const callPreviewHref = useMemo(() => getCallHref(contact), [contact]);
 
   return (
     <div className="card p-3 space-y-2">
@@ -748,9 +841,31 @@ function AddCampaignForm({ onCreated }: { onCreated: () => Promise<void> }) {
         </button>
       </div>
       {utmSource && utmCampaign && (
-        <p className="text-xs text-brand-text-secondary">
-          🔗 Link para anuncios: <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{utmHint}</span>
-        </p>
+        <div className="text-xs text-brand-text-secondary space-y-1.5">
+          <p>
+            🔗 Link para anuncios:{" "}
+            <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{utmHint}</span>
+          </p>
+          {(waPreviewHref || callPreviewHref) && (
+            <div className="flex flex-wrap gap-2 pt-0.5">
+              {waPreviewHref && (
+                <a
+                  href={waPreviewHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 bg-green-600 text-white rounded-md font-semibold"
+                >
+                  💬 Abrir en WhatsApp
+                </a>
+              )}
+              {callPreviewHref && (
+                <a href={callPreviewHref} className="px-2.5 py-1 border rounded-md font-semibold">
+                  📞 Llamar
+                </a>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

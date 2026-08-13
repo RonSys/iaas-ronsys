@@ -12,11 +12,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
+  buildWhatsAppUrl,
   checkoutOrder,
+  getCallHref,
   getPublicMenu,
   getPublicZones,
   getTrackingStatus,
   type CheckoutResponse,
+  type ContactInfo,
   type PublicMenu,
   type PublicMenuItem,
   type PublicZone,
@@ -129,6 +132,24 @@ export function PublicMenuPage() {
       }, 0),
     [cart],
   );
+
+  // ── Botones de contacto (Spec 04 §3.6 — D5): wa.me / tel: ──
+  // Los enlaces se construyen SIEMPRE desde `contact` del menú público (§3.5),
+  // nunca con números hardcodeados (R-F1.3 / CA-F1.11). Si `contact` es null
+  // (config inactiva) los hrefs son null → botones ocultos (CA-F1.14).
+  const contact = menu?.contact ?? null;
+  const waOrderMessage = useMemo(() => {
+    const tenant = menu?.tenant_name ?? "";
+    if (cart.length === 0) return `¡Hola ${tenant}! Quiero hacer un pedido.`;
+    const items = cart.map((c) => `${c.quantity}x ${c.item.name}`).join(", ");
+    const total = subtotal + (selectedZone?.fee ?? 0);
+    return `¡Hola ${tenant}! Quiero hacer un pedido: ${items} — Total aprox: S/ ${total.toFixed(2)}`;
+  }, [cart, menu?.tenant_name, subtotal, selectedZone?.fee]);
+  const waOrderHref = useMemo(
+    () => buildWhatsAppUrl(contact, waOrderMessage),
+    [contact, waOrderMessage],
+  );
+  const callHref = useMemo(() => getCallHref(contact), [contact]);
 
   const addToCart = (item: PublicMenuItem, preselected: ModifierSelection[] = []) => {
     if (item.modifiers.length > 0 && preselected.length === 0) {
@@ -279,7 +300,36 @@ export function PublicMenuPage() {
 
       <main className="max-w-4xl mx-auto px-4 py-6">
         {view === "menu" ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <>
+            {(waOrderHref || callHref) && (
+              <div className="bg-brand-primary text-white rounded-2xl p-6 mb-6 shadow-sm">
+                <h1 className="text-2xl font-bold">🍽️ {menu?.tenant_name}</h1>
+                <p className="text-white/80 text-sm mt-1">
+                  Delivery nocturno — arma tu pedido y contáctanos directo por WhatsApp o llámanos.
+                </p>
+                <div className="flex flex-wrap gap-2 mt-4">
+                  {waOrderHref && (
+                    <a
+                      href={waOrderHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white text-brand-primary rounded-xl text-sm font-bold hover:opacity-90"
+                    >
+                      💬 Pedir por WhatsApp
+                    </a>
+                  )}
+                  {callHref && (
+                    <a
+                      href={callHref}
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-white/60 text-white rounded-xl text-sm font-semibold hover:bg-white/10"
+                    >
+                      📞 Llamar
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Catálogo */}
             <div className="lg:col-span-2 space-y-6">
               {menu?.promotions && menu.promotions.length > 0 && (
@@ -341,7 +391,15 @@ export function PublicMenuPage() {
             {/* Carrito + checkout */}
             <div className="space-y-4">
               {result ? (
-                <SuccessCard result={result} onTrack={() => { setView("tracking"); setTrackingCode(result.tracking_code); }} onNew={() => setResult(null)} />
+                <SuccessCard
+                  result={result}
+                  contact={contact}
+                  onTrack={() => {
+                    setView("tracking");
+                    setTrackingCode(result.tracking_code);
+                  }}
+                  onNew={() => setResult(null)}
+                />
               ) : (
                 <>
                   <div className="card p-4">
@@ -495,7 +553,8 @@ export function PublicMenuPage() {
                 </>
               )}
             </div>
-          </div>
+            </div>
+          </>
         ) : (
           /* Tracking */
           <div className="max-w-md mx-auto space-y-4">
@@ -570,13 +629,21 @@ function parseUtm(): Record<string, string> | null {
 
 function SuccessCard({
   result,
+  contact,
   onTrack,
   onNew,
 }: {
   result: CheckoutResponse;
+  contact: ContactInfo | null;
   onTrack: () => void;
   onNew: () => void;
 }) {
+  // Spec 04 §3.6 — botón "Ver mi pedido por WhatsApp" (mensaje de servicio con tracking).
+  // Solo se renderiza si `contact` es válido (CA-F1.14).
+  const waTrackingHref = buildWhatsAppUrl(
+    contact,
+    `Hola, mi pedido es ${result.tracking_code}. ¿En qué estado está?`,
+  );
   return (
     <div className="card p-6 text-center">
       <span className="text-5xl block mb-3">✅</span>
@@ -594,7 +661,17 @@ function SuccessCard({
           🎉 Promoción aplicada: {result.promotion.name} (−S/ {result.promotion.discount.toFixed(2)})
         </p>
       )}
-      <div className="flex gap-2 justify-center mt-4">
+      <div className="flex flex-wrap gap-2 justify-center mt-4">
+        {waTrackingHref && (
+          <a
+            href={waTrackingHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:opacity-90"
+          >
+            💬 Ver mi pedido por WhatsApp
+          </a>
+        )}
         <button onClick={onTrack} className="px-4 py-2 bg-brand-primary text-white rounded-lg text-sm">
           📍 Seguir mi pedido
         </button>

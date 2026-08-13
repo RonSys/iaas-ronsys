@@ -48,8 +48,15 @@ def build_delivery_event_payload(
     total: float | None = None,
     items_resumen: list[dict] | None = None,
     zone: str | None = None,
+    bsuid: str | None = None,
 ) -> dict:
-    """Payload del evento (Spec 03 §7.4)."""
+    """Payload del evento (Spec 03 §7.4 + Spec 04 F1 D3).
+
+    Contrato existente intacto: tenant_id, tracking_code, sale_id,
+    customer_phone, status, total, items_resumen, zone, timestamp.
+    F1 añade `bsuid` (opcional, str|None) — el user_id/BSUID de Meta; el
+    worker lo persiste en delivery_orders.whatsapp_bsuid cuando viene.
+    """
     return {
         "event": f"delivery.{event_type}",
         "event_type": event_type,
@@ -57,6 +64,7 @@ def build_delivery_event_payload(
         "tracking_code": tracking_code,
         "sale_id": sale_id,
         "customer_phone": customer_phone,
+        "bsuid": bsuid,
         "status": status,
         "total": total,
         "items_resumen": items_resumen or [],
@@ -76,6 +84,7 @@ async def publish_delivery_event(
     total: float | None = None,
     items_resumen: list[dict] | None = None,
     zone: str | None = None,
+    bsuid: str | None = None,
 ) -> bool:
     """Publica `delivery.{event_type}` en la cola `iaas-tasks` (fire-and-forget).
 
@@ -92,6 +101,7 @@ async def publish_delivery_event(
         total=total,
         items_resumen=items_resumen,
         zone=zone,
+        bsuid=bsuid,
     )
     try:
         connection = await aio_pika.connect(settings.rabbitmq_url, timeout=5)
@@ -130,6 +140,7 @@ async def publish_checkout_events(
     total: float | None,
     items_resumen: list[dict] | None,
     zone: str | None,
+    bsuid: str | None = None,
 ) -> None:
     """Punto único de publicación tras checkout 201 (Spec 03 §7.4).
 
@@ -145,6 +156,7 @@ async def publish_checkout_events(
         total=total,
         items_resumen=items_resumen,
         zone=zone,
+        bsuid=bsuid,
     )
     await publish_delivery_event("confirmed", **kwargs)
     await publish_delivery_event("new_order", **kwargs)
@@ -160,6 +172,7 @@ async def publish_status_event(
     total: float | None = None,
     items_resumen: list[dict] | None = None,
     zone: str | None = None,
+    bsuid: str | None = None,
 ) -> None:
     """Punto único de publicación tras una transición válida de estado.
 
@@ -178,6 +191,7 @@ async def publish_status_event(
         total=total,
         items_resumen=items_resumen,
         zone=zone,
+        bsuid=bsuid,
     )
     await publish_delivery_event("status_changed", **kwargs)
     if new_status == "cancelled":

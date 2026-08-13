@@ -15,6 +15,7 @@ import time as _time
 from datetime import UTC, date, datetime, timedelta
 from datetime import time as dtime
 from decimal import Decimal
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
@@ -139,6 +140,42 @@ def _item_available(item: MenuItem, now_time: dtime | None = None) -> bool:
     return t >= frm or t <= to  # ventana que cruza medianoche
 
 
+def _phone_digits(phone: str) -> str:
+    """Solo dígitos: formato wa.me requiere número internacional sin '+'/espacios."""
+    return "".join(ch for ch in phone if ch.isdigit())
+
+
+def _public_contact(whatsapp_cfg: dict | None) -> dict | None:
+    """Spec 04 F1 (D5/CA-F1.14): contacto para botones wa.me/tel:.
+
+    - `whatsapp_link` = https://wa.me/<business_phone>?text=<mensaje prefabricado>
+    - `phone` = tel:<business_phone>
+    - Ambos `null` si `enabled=false` o sin `business_phone` (los botones se
+      ocultan en la landing — sin enlaces rotos).
+
+    Lee la config de `companies.settings.whatsapp` (patrón D-03, igual que
+    `yape_phone`). El mensaje prefabricado es genérico multi-tenant; el
+    frontend lo usa como base para armar mensajes con el carrito / tracking
+    (Spec 04 §3.6) y construye sus propios links URL-encoded.
+    """
+    if not isinstance(whatsapp_cfg, dict):
+        return None
+    enabled = whatsapp_cfg.get("enabled")
+    business_phone = whatsapp_cfg.get("business_phone")
+    if not enabled or not business_phone:
+        return None
+    raw_phone = str(business_phone).strip()
+    digits = _phone_digits(raw_phone)
+    if not digits:
+        return None
+    message = "¡Hola! Quiero hacer un pedido por el menú. 🍽️"
+    return {
+        "whatsapp_link": f"https://wa.me/{digits}?text={quote(message)}",
+        "phone": f"tel:{'+' if raw_phone.startswith('+') else ''}{digits}",
+        "whatsapp_message": message,
+    }
+
+
 async def get_public_menu(db: AsyncSession, tenant_id: int) -> dict:
     """Catálogo público: secciones + items delivery + promos vigentes + ventana."""
     now = datetime.now(UTC)
@@ -209,6 +246,9 @@ async def get_public_menu(db: AsyncSession, tenant_id: int) -> dict:
     branding = settings.get("branding", {}) if isinstance(settings.get("branding"), dict) else {}
     delivery_cfg = settings.get("delivery", {}) if isinstance(settings.get("delivery"), dict) else {}
     yape_phone = delivery_cfg.get("yape_phone") or branding.get("yape_phone")
+    # Spec 04 F1 (D5): contacto wa.me/tel: — null sin config activa (CA-F1.14)
+    whatsapp_cfg = settings.get("whatsapp", {}) if isinstance(settings.get("whatsapp"), dict) else {}
+    contact = _public_contact(whatsapp_cfg)
 
     return {
         "tenant_name": company.name if company else "",
@@ -220,6 +260,7 @@ async def get_public_menu(db: AsyncSession, tenant_id: int) -> dict:
             "palette": branding.get("palette"),
             "logo_url": branding.get("logo_url"),
         },
+        "contact": contact,
         "sections": sections_out,
         "promotions": promotions_out,
     }
@@ -676,6 +717,9 @@ async def update_status(
             total=ctx["total"],
             items_resumen=ctx["items_resumen"],
             zone=ctx["zone"],
+            # Spec 04 F1 (D3): si el pedido ya tiene BSUID, viaja en el payload
+            # para que el worker lo persista en otros eventos (nullable-safe).
+            bsuid=order.whatsapp_bsuid,
         )
     except Exception:  # noqa: BLE001 — la notificación es best-effort (§7.4)
         logger.warning(
