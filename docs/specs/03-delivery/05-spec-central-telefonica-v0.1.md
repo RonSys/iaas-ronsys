@@ -470,6 +470,38 @@ WS /ws/calls/{tenant_id}         (mismo mecanismo que /ws/kitchen: tenant en pat
   Asterisk idle ~150–250 MB + call-bridge ~50–100 MB caben en QA/desarrollo con SIP local; **+8 GB RAM
   sigue recomendado antes del go-live con trunk real** (margen para picos y evitar swap→jitter).
   **Rama de implementación**: `feat/f2-central-telefonica`. Plan interno P1–P6 (§4).
+- **2026-08-13 (implementación P1–P5 completa — commits 58d9314, ffe88ce, f468d77)**:
+  - **P2/P4 backend** (`58d9314`): migración `0018_call_records` (upgrade/downgrade
+    verificados en Postgres desechable: tabla con CHECKs direction/status/duration,
+    UNIQUE external_call_id, índices tenant; CA-F2.11 ✅), `CallSettings` en
+    `companies.settings.calls` (D-03), `WsManager._calls` + `broadcast_to_calls`,
+    `CallService` (upsert idempotente R8, DID→tenant R4, broadcast WS §3.5.3,
+    publish `call.*` fire-and-forget R3, convert_to_order reusa `create_order` R7
+    con sugerencia de zona por distrito, originate CA-F2.8), routers `calls.py`
+    (list/detail/convert-to-order/originate/events con token servicio + allowlist
+    IP CA-F2.5, WS `/api/v1/calls/ws/{tenant_id}`), `notify_events` gana
+    `build_call_event_payload`/`publish_call_event`.
+  - **P3 call-bridge + worker** (`58d9314`): `call_bridge.py` (AMI listener por
+    socket TCP sin dependencias nuevas + ARI originate + mini-HTTP interno
+    127.0.0.1:8090 para click-to-call; reconexión con backoff; env-only
+    credenciales); `notify_worker._process_event` gana dispatch `call.*` →
+    log + ack ANTES del flujo WhatsApp (CA-F2.7 ✅, delivery.* intacto).
+  - **P1 infra** (`ffe88ce`): servicio `asterisk` en docker-compose (host
+    network D1), `deploy/asterisk/conf/` (pjsip trunk G.711 + endpoints QA
+    comentados, extensions from-pstn/from-internal/from-qa, rtp 10000-10100,
+    AMI/ARI 127.0.0.1 D3), fail2ban jail SIP, README con simulación local
+    sin trunk (patrón dry-run F1) + NAT pendiente + prerrequisito RAM.
+  - **P5 frontend** (`f468d77`): `callsApi.ts` + `CallCenterPage.tsx` (en vivo
+    por WS, histórico con filtros, click-to-call, modal convertir con zona+
+    items+pago, link grabación R1) + ruta `/restaurante/central` + Sidebar.
+  - **QA**: 20 tests nuevos F2 (upsert R8, DID→tenant, convert 201/409/422,
+    originate 202/400/409, tenant isolation CA-F2.6, worker call.* CA-F2.7,
+    bridge AMI parseo) + regresión delivery/WhatsApp **62 passed** + suite
+    completa **424 passed** (3 fallos: 2 preexistentes en caso6_recipes por
+    BD de test sin producto #1; `test_migration_is_head` actualizado a 0018
+    — Spec Anchor). Frontend: `tsc -b` + `vite build` limpios.
+  - **Pendiente**: P6 QA en vivo con SIP local (requiere levantar el contenedor
+    + call-bridge), trunk real del cliente, +8GB RAM go-live, deploy aprobado.
 
 ---
 
