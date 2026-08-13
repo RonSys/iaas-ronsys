@@ -341,7 +341,7 @@ class TestMigration0009:
         assert os.path.exists(os.path.abspath(path))
 
     def test_migration_is_head(self):
-        """Verificar que la cadena de migraciones está viva y 0016_delivery es head."""
+        """Verificar que la cadena de migraciones está viva y la head es la última conocida."""
         import subprocess
         import sys
 
@@ -360,7 +360,8 @@ class TestMigration0009:
                 or "4bc771f43a4e" in result.stdout
                 or "0013_investment_items" in result.stdout
                 or "0016_delivery" in result.stdout
-                or "0017_whatsapp_bsuid" in result.stdout)  # Spec 04 F1: nueva head (BSUID)
+                or "0017_whatsapp_bsuid" in result.stdout
+                or "0018_call_records" in result.stdout)  # Spec 05 F2: nueva head (call_records)
 
 
 # ═══════════════════════════════════════════════════════════════

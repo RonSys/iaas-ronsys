@@ -75,6 +75,9 @@ const TakeawayPage = lazy(() =>
 const DeliveryPage = lazy(() =>
   import("@/pages/restaurante/DeliveryPage").then((m) => ({ default: m.DeliveryPage })),
 );
+const CallCenterPage = lazy(() =>
+  import("@/pages/restaurante/CallCenterPage").then((m) => ({ default: m.CallCenterPage })),
+);
 const PromotionsPage = lazy(() =>
   import("@/pages/restaurante/PromotionsPage").then((m) => ({ default: m.PromotionsPage })),
 );
@@ -334,6 +337,16 @@ function AppRoutes() {
             <PrivateRoute>
               <SuspendedPage title="Delivery Nocturno">
                 <DeliveryPage />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/restaurante/central"
+          element={
+            <PrivateRoute>
+              <SuspendedPage title="Central Telefónica">
+                <CallCenterPage />
               </SuspendedPage>
             </PrivateRoute>
           }

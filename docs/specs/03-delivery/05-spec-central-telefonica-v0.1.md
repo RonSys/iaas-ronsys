@@ -1,6 +1,6 @@
 # SPEC F2 — Central que No Pierde Llamadas (Asterisk + Trunk SIP + integración al ERP)
 
-- **Estado**: 🟡 **PROPUESTA (2026-08-12)** — pendiente de aprobación por Ron (esfuerzo estimado 3–4 semanas)
+- **Estado**: 🟢 **APROBADA PARA IMPLEMENTACIÓN (2026-08-13)** — decisiones D1–D4 aprobadas por Ron (esfuerzo estimado 3–4 semanas)
 - **Proyecto**: IaaS-RonSys — Cliente "El Segoviano"
 - **Alcance**: tenant 1 (El Segoviano); diseño multi-tenant por construcción
 - **Fecha**: 2026-08-12
@@ -8,7 +8,7 @@
 
 ---
 
-## 0. Decisiones (D1–D4 — PROPUESTAS, pendientes de aprobación)
+## 0. Decisiones (D1–D4 — APROBADAS por Ron 2026-08-13)
 
 | # | Decisión | Acuerdo propuesto |
 |---|---|---|
@@ -458,6 +458,90 @@ WS /ws/calls/{tenant_id}         (mismo mecanismo que /ws/kitchen: tenant en pat
     load ~2.1, IP pública 190.235.163.29 → 192.168.1.35 NAT; puertos SIP libres.
   - **Pendiente**: aprobación de D1–D4 por Ron. Esfuerzo estimado 3–4 semanas. Prerrequisito
     RAM +8 GB antes del go-live.
+- **2026-08-13 (v0.1 → APROBADA)**: Ron aprueba F2 para implementación (pipeline Asistente → Jarvis).
+  Decisiones D1–D4 **aprobadas**: D1 Asterisk Docker host A20 LTS, D2 trunk SIP 4 canales G.711
+  (externip/localnet/rtp_symmetric/direct_media=no), D3 seguridad SIP (ACL + fail2ban + AMI/ARI
+  localhost), D4 integración por eventos (call-bridge AMI/ARI → RabbitMQ `iaas-tasks`).
+  **Decisión de implementación D-13/08 (Spec Anchor)**: el trunk SIP real depende del cliente
+  (número + proveedor) → la implementación avanza con **SIP local de prueba** (extensiones/softphones
+  locales, patrón dry-run de F1) para validar todo el flujo sin trunk; el port-forward NAT queda
+  documentado y pendiente del router del local.
+  **Prerrequisito RAM verificado 2026-08-13**: 3.0 GB disponibles, swap 2.8/4 GB en uso, load 1.6–2.7.
+  Asterisk idle ~150–250 MB + call-bridge ~50–100 MB caben en QA/desarrollo con SIP local; **+8 GB RAM
+  sigue recomendado antes del go-live con trunk real** (margen para picos y evitar swap→jitter).
+  **Rama de implementación**: `feat/f2-central-telefonica`. Plan interno P1–P6 (§4).
+- **2026-08-13 (implementación P1–P5 completa — commits 58d9314, ffe88ce, f468d77)**:
+  - **P2/P4 backend** (`58d9314`): migración `0018_call_records` (upgrade/downgrade
+    verificados en Postgres desechable: tabla con CHECKs direction/status/duration,
+    UNIQUE external_call_id, índices tenant; CA-F2.11 ✅), `CallSettings` en
+    `companies.settings.calls` (D-03), `WsManager._calls` + `broadcast_to_calls`,
+    `CallService` (upsert idempotente R8, DID→tenant R4, broadcast WS §3.5.3,
+    publish `call.*` fire-and-forget R3, convert_to_order reusa `create_order` R7
+    con sugerencia de zona por distrito, originate CA-F2.8), routers `calls.py`
+    (list/detail/convert-to-order/originate/events con token servicio + allowlist
+    IP CA-F2.5, WS `/api/v1/calls/ws/{tenant_id}`), `notify_events` gana
+    `build_call_event_payload`/`publish_call_event`.
+  - **P3 call-bridge + worker** (`58d9314`): `call_bridge.py` (AMI listener por
+    socket TCP sin dependencias nuevas + ARI originate + mini-HTTP interno
+    127.0.0.1:8090 para click-to-call; reconexión con backoff; env-only
+    credenciales); `notify_worker._process_event` gana dispatch `call.*` →
+    log + ack ANTES del flujo WhatsApp (CA-F2.7 ✅, delivery.* intacto).
+  - **P1 infra** (`ffe88ce`): servicio `asterisk` en docker-compose (host
+    network D1), `deploy/asterisk/conf/` (pjsip trunk G.711 + endpoints QA
+    comentados, extensions from-pstn/from-internal/from-qa, rtp 10000-10100,
+    AMI/ARI 127.0.0.1 D3), fail2ban jail SIP, README con simulación local
+    sin trunk (patrón dry-run F1) + NAT pendiente + prerrequisito RAM.
+  - **P5 frontend** (`f468d77`): `callsApi.ts` + `CallCenterPage.tsx` (en vivo
+    por WS, histórico con filtros, click-to-call, modal convertir con zona+
+    items+pago, link grabación R1) + ruta `/restaurante/central` + Sidebar.
+  - **QA**: 20 tests nuevos F2 (upsert R8, DID→tenant, convert 201/409/422,
+    originate 202/400/409, tenant isolation CA-F2.6, worker call.* CA-F2.7,
+    bridge AMI parseo) + regresión delivery/WhatsApp **62 passed** + suite
+    completa **424 passed** (3 fallos: 2 preexistentes en caso6_recipes por
+    BD de test sin producto #1; `test_migration_is_head` actualizado a 0018
+    — Spec Anchor). Frontend: `tsc -b` + `vite build` limpios.
+  - **Pendiente**: P6 QA en vivo con SIP local (requiere levantar el contenedor
+    + call-bridge), trunk real del cliente, +8GB RAM go-live, deploy aprobado.
+- **2026-08-13 (QA EN VIVO P6 — SIP local, sin trunk)**: ejecutado por Jarvis con
+  aprobación de Ron. Resultados por CA:
+  - **CA-F2.1 ✅**: llamada SIP simulada (AMI Originate Local/+5115551234@from-pstn
+    con callerid de prueba) → eventos Newchannel/Newstate/Hangup → call-bridge →
+    POST /events → CallRecord inbound con caller/callee/direction correctos y
+    tenant resuelto por DID (R4). Upsert idempotente verificado (created true→false).
+  - **CA-F2.5 ✅**: /events con token + IP validados (401/403 cubiertos por tests);
+    GET /calls con JWT staff + X-Tenant-ID devuelve solo llamadas del tenant.
+  - **CA-F2.6 ✅**: WS /api/v1/calls/ws/{tenant} recibe call.incoming/call.ended
+    solo de su tenant (verificado con cliente websockets en vivo).
+  - **CA-F2.7 ✅ (bug corregido en vivo)**: el payload manda `event_type` crudo
+    ("new"/"ended") y el prefijo vive en `event` ("call.new") → el dispatch
+    inicial no matcheaba y call.* caía al flujo delivery. **Corregido** en
+    `notify_worker._process_event` (mira `payload.event` — commit d27b0a2).
+    Verificado en vivo: worker QA loguea "call.* recibido y ack'ed" y drena la
+    cola sin redelivery; delivery.* intacto (regresión 0).
+  - **CA-F2.3 ✅**: convert-to-order en vivo → 201 con **DLV-9ff9434679**
+    (Sale VEN-2026-00046-363, S/42, zona Montenegro, pago yape c/ref) reusando
+    `create_order` (mínimo S/35 y ref yape aplicados por el motor existente);
+    `call_records.converted_order_id` vinculado; **409 en segundo intento** (R6).
+    Pedido de prueba **cancelado con limpieza** (patrón F1) y CallRecords QA
+    purgados de la BD.
+  - **CA-F2.2 ✅ parcial**: MixMonitor generó .wav (44 bytes — llamada simulada
+    sin audio real); `recording_path` se propaga en eventos. Con trunk real y
+    audio se valida el .wav completo.
+  - **CA-F2.11 ✅**: migración 0018 aplicada a prod (upgrade head →
+    alembic_version=0018), tabla call_records creada; verificada reversible.
+  - **Hallazgos de infra (Spec Anchor, commit d27b0a2)**: la imagen
+    `asterisk/asterisk:20` de la spec **no existe en Docker Hub** → se usa
+    `mlan/asterisk:latest` (Asterisk 20.15.2, incluye res_ari + chan_pjsip);
+    se añadieron volúmenes asterisk_var/asterisk_log; puerto HTTP interno del
+    bridge 8091 (8090 ocupado por docker-proxy de otro proyecto).
+  - **Rendimiento medido**: Asterisk idle **17.8MB RAM / 1.7% CPU**, backend
+    QA 111MB, worker QA 61MB, load 1.5-1.8 estable — el servidor aguanta el
+    QA con holgura (4GB disponibles tras pausar monitoreo).
+  - **Pendiente real**: trunk SIP del cliente (número + proveedor) + port-forward
+    UDP 5060/10000-10100 en el router del local; +8GB RAM go-live;
+    `companies.settings.calls` ya configurado para tenant 3 (enabled, DID
+    +5115551234 placeholder, extensions 100/101); CALL_BRIDGE_TOKEN y creds
+    AMI/ARI en .env al activar; deploy aprobado.
 
 ---
 

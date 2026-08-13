@@ -138,6 +138,25 @@ async def _process_event(payload: dict) -> None:
     sin destinatario) no reintentan: se loguean y se hace ack.
     """
     event_type = payload.get("event_type") or payload.get("event") or ""
+
+    # Spec 05 F2 (§3.5.4): dispatch explícito para eventos `call.*` — ANTES
+    # del flujo WhatsApp. El prefijo vive en el campo `event` ("call.new",
+    # "call.ended", "call.recording_ready" — §3.4 tabla D4), NO en
+    # `event_type` (crudo: "new"/"ended"/"recording_ready"). Detectado y
+    # corregido en QA en vivo 2026-08-13 (CA-F2.7).
+    if event_type.startswith("call.") or str(payload.get("event") or "").startswith("call."):
+        logger.info(
+            "call.* recibido y ack'ed (sin acción en F2): event=%s tenant=%s "
+            "external=%s caller=%s status=%s duration=%s",
+            event_type,
+            payload.get("tenant_id") or "?",
+            payload.get("external_call_id") or "?",
+            payload.get("caller") or "?",
+            payload.get("status") or "?",
+            payload.get("duration") or 0,
+        )
+        return
+
     event_type = event_type.removeprefix("delivery.")
     if not event_type:
         raise ValueError("evento sin event_type")

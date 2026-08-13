@@ -13,6 +13,13 @@ from app.adapters.db.models.accounting import (  # noqa: F401
     ProductCategory,
     ProductUnit,
 )
+from app.adapters.db.models.calls import (  # noqa: F401
+    ACTIVE_STATUSES,
+    CALL_DIRECTIONS,
+    CALL_STATUSES,
+    CallRecord,
+    TERMINAL_STATUSES,
+)
 from app.adapters.db.models.delivery import (  # noqa: F401
     Courier,
     DeliveryOrder,

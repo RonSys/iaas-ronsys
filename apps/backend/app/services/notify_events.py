@@ -198,6 +198,117 @@ async def publish_status_event(
         await publish_delivery_event("cancelled", **kwargs)
 
 
+# ═══════════════════════════════════════════════════════════════
+# Eventos de la Central Telefónica (Spec 05 F2, §3.4/D4)
+# ═══════════════════════════════════════════════════════════════
+
+
+def build_call_event_payload(
+    *,
+    event_type: str,
+    tenant_id: int,
+    external_call_id: str,
+    caller: str | None = None,
+    callee: str | None = None,
+    direction: str | None = None,
+    status: str | None = None,
+    started_at: str | None = None,
+    answered_at: str | None = None,
+    ended_at: str | None = None,
+    duration: int | None = None,
+    recording_path: str | None = None,
+    hangup_cause: str | None = None,
+) -> dict:
+    """Payload de un evento `call.<event_type>` (Spec 05 §3.4, tabla D4).
+
+    Mismo contrato que Fase B: `event` = `call.<event_type>`, `event_type`
+    crudo, `tenant_id`, `timestamp` ISO. Campos mínimos: tenant_id +
+    external_call_id (los demás opcionales — el worker `call.*` solo loguea
+    y hace ack; consumidores futuros: transcripción/métricas).
+    """
+    return {
+        "event": f"call.{event_type}",
+        "event_type": event_type,
+        "tenant_id": tenant_id,
+        "external_call_id": external_call_id,
+        "caller": caller,
+        "callee": callee,
+        "direction": direction,
+        "status": status,
+        "started_at": started_at,
+        "answered_at": answered_at,
+        "ended_at": ended_at,
+        "duration": duration,
+        "recording_path": recording_path,
+        "hangup_cause": hangup_cause,
+        "timestamp": _iso_now(),
+    }
+
+
+async def publish_call_event(
+    event_type: str,
+    *,
+    tenant_id: int,
+    external_call_id: str,
+    caller: str | None = None,
+    callee: str | None = None,
+    direction: str | None = None,
+    status: str | None = None,
+    started_at: str | None = None,
+    answered_at: str | None = None,
+    ended_at: str | None = None,
+    duration: int | None = None,
+    recording_path: str | None = None,
+    hangup_cause: str | None = None,
+) -> bool:
+    """Publica `call.<event_type>` en la cola `iaas-tasks` (fire-and-forget, R3).
+
+    Espejo exacto de `publish_delivery_event`: RabbitMQ caído → warning y
+    `False`; el flujo de la llamada/pedido NUNCA depende del evento (CA-F2.1
+    sigue verde sin RabbitMQ). El worker `notify_worker` despacha `call.*`
+    con log + ack (dispatch del subagente del bridge — no tocar aquí).
+    """
+    payload = build_call_event_payload(
+        event_type=event_type,
+        tenant_id=tenant_id,
+        external_call_id=external_call_id,
+        caller=caller,
+        callee=callee,
+        direction=direction,
+        status=status,
+        started_at=started_at,
+        answered_at=answered_at,
+        ended_at=ended_at,
+        duration=duration,
+        recording_path=recording_path,
+        hangup_cause=hangup_cause,
+    )
+    try:
+        connection = await aio_pika.connect(settings.rabbitmq_url, timeout=5)
+        async with connection:
+            channel = await connection.channel()
+            await channel.declare_queue(settings.rabbitmq_queue, durable=True)
+            message = aio_pika.Message(
+                body=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                content_type="application/json",
+                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+            )
+            await channel.default_exchange.publish(
+                message, routing_key=settings.rabbitmq_queue,
+            )
+        logger.info(
+            "evento publicado: call.%s external=%s tenant=%s",
+            event_type, external_call_id, tenant_id,
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001 — fire-and-forget: nunca romper la llamada
+        logger.warning(
+            "RabbitMQ no disponible — evento call.%s (external=%s) descartado: %s",
+            event_type, external_call_id, exc,
+        )
+        return False
+
+
 # Re-export para compatibilidad con imports de tests/futuros usos
 __all__: list[str] = [
     "CUSTOMER_EVENTS",
@@ -208,4 +319,6 @@ __all__: list[str] = [
     "publish_delivery_event",
     "publish_checkout_events",
     "publish_status_event",
+    "build_call_event_payload",
+    "publish_call_event",
 ]

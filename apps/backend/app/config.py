@@ -54,6 +54,22 @@ class Settings(BaseSettings):
     otel_service_name: str = "iaas-ronsys-backend"
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
 
+    # ─── Central Telefónica (Spec 05 F2, §3.4/§3.5.2) ────────
+    # Punto de integración con el adapter call-bridge (servicio AMI/ARI).
+    # El bridge corre en la misma máquina (AMI/ARI bind 127.0.0.1, D3) y
+    # habla con el backend por HTTP interno. Valores default SOLO para dev;
+    # en producción se configuran vía .env (nunca hardcodear tokens reales).
+    call_bridge_url: str = "http://127.0.0.1:8090"
+    # Token interno del call-bridge → POST /api/v1/calls/events (§3.5.2).
+    # ⚠️  Default SEGURO = vacío: mientras no se configure en .env el endpoint
+    # de eventos responde 401 (CA-F2.5) — nunca un placeholder aceptado.
+    # Generar en .env con: openssl rand -hex 32
+    call_bridge_token: str = ""
+    # Allowlist de IPs del call-bridge (coma-separada, soporta CIDR).
+    # En docker-compose el bridge llega por la red interna (172.x) → el deploy
+    # configura la subred real del bridge aquí.
+    call_events_allowed_ips: str = "127.0.0.1,::1"
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Convierte el string de CORS a lista."""

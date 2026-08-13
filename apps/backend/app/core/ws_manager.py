@@ -1,13 +1,15 @@
 """
-📡 WebSocket Manager — Cocina + Meseros (F0-006).
+📡 WebSocket Manager — Cocina + Meseros + Central Telefónica (F0-006 / F2).
 
 Gestiona conexiones WebSocket para:
   - Pantalla de cocina (kitchen): recibe nuevas comandas en tiempo real
   - Notificaciones a meseros (waiter): comandas listas
+  - Panel Central Telefónica (calls): llamadas en vivo (Spec 05 F2 §3.5.3)
 
 Uso:
     from app.core.ws_manager import manager
     await manager.broadcast_to_kitchen(tenant_id, event_type, data)
+    await manager.broadcast_to_calls(tenant_id, event_type, data)
 """
 
 import json
@@ -24,6 +26,8 @@ class WsManager:
         self._kitchen: dict[int, list[WebSocket]] = {}
         # {tenant_id: [WebSocket, ...]}
         self._waiters: dict[int, list[WebSocket]] = {}
+        # {tenant_id: [WebSocket, ...]} — Spec 05 F2 §3.5.3: panel de llamadas en vivo
+        self._calls: dict[int, list[WebSocket]] = {}
 
     # ─── Conexión / Desconexión ──────────────────────────────
 
@@ -42,6 +46,15 @@ class WsManager:
     def disconnect_waiter(self, tenant_id: int, ws: WebSocket):
         if tenant_id in self._waiters and ws in self._waiters[tenant_id]:
             self._waiters[tenant_id].remove(ws)
+
+    async def connect_calls(self, tenant_id: int, ws: WebSocket):
+        """Spec 05 F2 §3.5.3: panel de llamadas en vivo (WS /ws/calls/{tenant})."""
+        await ws.accept()
+        self._calls.setdefault(tenant_id, []).append(ws)
+
+    def disconnect_calls(self, tenant_id: int, ws: WebSocket):
+        if tenant_id in self._calls and ws in self._calls[tenant_id]:
+            self._calls[tenant_id].remove(ws)
 
     # ─── Broadcast ───────────────────────────────────────────
 
@@ -68,6 +81,23 @@ class WsManager:
                 dead.append(ws)
         for ws in dead:
             self.disconnect_waiter(tenant_id, ws)
+
+    async def broadcast_to_calls(self, tenant_id: int, event: str, data: Any):
+        """Spec 05 F2 §3.5.3: eventos del panel de llamadas en vivo.
+
+        call.incoming / call.answered / call.ended / call.recording_ready /
+        call.converted. Clon del patrón `_kitchen`/`_waiters`, incl. purga de
+        sockets muertos (CA-F2.6: solo llega a los WS del tenant).
+        """
+        payload = json.dumps({"event": event, "data": data})
+        dead: list[WebSocket] = []
+        for ws in self._calls.get(tenant_id, []):
+            try:
+                await ws.send_text(payload)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect_calls(tenant_id, ws)
 
 
 # Singleton
