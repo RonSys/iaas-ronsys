@@ -1,0 +1,63 @@
+{
+  "modo": "fallback",
+  "golden": [
+    {
+      "id": "G1",
+      "pregunta": "¿cuánto vendió hoy en delivery?",
+      "tool_esperada": "ventas_del_dia",
+      "tool_usada": "ventas_del_dia",
+      "tool_ok": true,
+      "data_ok": true,
+      "ms": 52,
+      "modo": "fallback",
+      "resumen": "📊 Ventas delivery del hoy: **S/ 205.00** en 6 pedidos (S/ 58.00 entregados)."
+    },
+    {
+      "id": "G2",
+      "pregunta": "¿qué producto se vendió más hoy?",
+      "tool_esperada": "top_productos_dia",
+      "tool_usada": "top_productos_dia",
+      "tool_ok": true,
+      "data_ok": true,
+      "ms": 34,
+      "modo": "fallback",
+      "resumen": "🏆 Top 5 productos delivery del hoy:\n  1. Arroz con Mariscos — 2 und en 2 ventas (S/ 64.00)\n  2. Ceviche Mixto — 2 und en 2 ventas (S/ 72.00)\n  3. Inca Kola 500ml — 2 und en 2 ventas (S/ 10.00)\n  4. Lomo Saltado — 2 und en 2 ventas (S/ 31.00)\n  5. Ceviche Clásico — 1 und en 1 ventas (S/ 28.00)"
+    },
+    {
+      "id": "G3",
+      "pregunta": "¿cuál es el top 3 de productos hoy?",
+      "tool_esperada": "top_productos_dia",
+      "tool_usada": "top_productos_dia",
+      "tool_ok": true,
+      "data_ok": true,
+      "ms": 36,
+      "modo": "fallback",
+      "resumen": "🏆 Top 3 productos delivery del hoy:\n  1. Arroz con Mariscos — 2 und en 2 ventas (S/ 64.00)\n  2. Ceviche Mixto — 2 und en 2 ventas (S/ 72.00)\n  3. Inca Kola 500ml — 2 und en 2 ventas (S/ 10.00)"
+    },
+    {
+      "id": "G4",
+      "pregunta": "¿cuánto vendió la zona de Montenegro hoy?",
+      "tool_esperada": "ventas_por_zona_dia",
+      "tool_usada": "ventas_por_zona_dia",
+      "tool_ok": true,
+      "data_ok": true,
+      "ms": 33,
+      "modo": "fallback",
+      "resumen": "🗺️ Ventas por zona del hoy:\n  • Montenegro: 3 pedidos — S/ 95.00\n  • Canto Grande: 2 pedidos — S/ 68.00\n  • Motupe: 1 pedidos — S/ 42.00"
+    },
+    {
+      "id": "G5",
+      "pregunta": "¿cuánto vendimos ayer?",
+      "tool_esperada": "ventas_del_dia",
+      "tool_usada": "ventas_del_dia",
+      "tool_ok": true,
+      "data_ok": true,
+      "ms": 35,
+      "modo": "fallback",
+      "resumen": "📊 Ventas delivery del 2026-08-12: **S/ 28.00** en 1 pedidos (S/ 28.00 entregados)."
+    }
+  ],
+  "tool_accuracy": 1.0,
+  "data_accuracy": 1.0,
+  "avg_ms": 38
+}
