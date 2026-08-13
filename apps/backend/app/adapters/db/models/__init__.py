@@ -15,9 +15,12 @@ from app.adapters.db.models.accounting import (  # noqa: F401
 )
 from app.adapters.db.models.calls import (  # noqa: F401
     ACTIVE_STATUSES,
+    AI_STATES,
     CALL_DIRECTIONS,
     CALL_STATUSES,
+    TRANSFER_REASONS,
     CallRecord,
+    CallTranscription,
     TERMINAL_STATUSES,
 )
 from app.adapters.db.models.delivery import (  # noqa: F401

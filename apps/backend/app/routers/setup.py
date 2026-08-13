@@ -113,9 +113,16 @@ async def update_settings(
 
     # Copia nueva del dict (SQLAlchemy JSON: asignar el mismo objeto no marca dirty)
     stored = dict(company.settings or {})
-    stored["branding"] = {k: v for k, v in current.items() if k not in ("delivery", "whatsapp")}
-    stored["delivery"] = current.get("delivery") or {}
-    stored["whatsapp"] = current.get("whatsapp") or {}
+    # Solo branding va bajo "branding"; el resto (delivery, whatsapp, voice_ai, calls,
+    # features, tax_config...) se guarda en su propia clave — evita que el PATCH
+    # colapse sub-configs ajenas dentro de branding (bug QA 2026-08-13).
+    for key, value in current.items():
+        if key == "branding":
+            stored["branding"] = value
+        elif key in ("delivery", "whatsapp"):
+            stored[key] = value
+        else:
+            stored[key] = value
     company.settings = stored
     await db.commit()
 

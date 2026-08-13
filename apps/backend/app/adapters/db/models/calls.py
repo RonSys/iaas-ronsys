@@ -23,6 +23,7 @@ Diseño (Spec 05 §3.2):
 """
 
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     CheckConstraint,
@@ -30,6 +31,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -47,6 +49,19 @@ CALL_DIRECTIONS = ("inbound", "outbound")
 TERMINAL_STATUSES = ("missed", "completed", "failed")
 # Estados "activos" (una llamada en curso — 1 línea activa por operador)
 ACTIVE_STATUSES = ("ringing", "in_progress", "answered")
+
+# Estados conversacionales de la Recepcionista IA (Spec 06 F3 §3.6) — espejo
+# del CHECK en BD (0019_voice_ai). `completed|failed` son los estados de
+# cierre del POST /complete (contrato §3.5.1), añadidos al CHECK de la spec
+# (ver bitácora Spec Anchor 2026-08-13).
+AI_STATES = (
+    "greeting", "taking_order", "clarifying", "confirming",
+    "transfer", "hangup", "completed", "failed",
+)
+# Motivos de transferencia a humano (D9) — espejo del CHECK en BD
+TRANSFER_REASONS = (
+    "complaint", "out_of_domain", "low_confidence", "user_requested", "budget",
+)
 
 
 class CallRecord(Base):
@@ -84,8 +99,23 @@ class CallRecord(Base):
     duration: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     # Ruta/alias de la grabación MixMonitor (R1) — null hasta call.recording_ready
     recording_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # RESERVADO F2: transcripción futura (fuera de alcance; sin FK aún)
+    # RESERVADO F2: transcripción futura (fuera de alcance; sin FK aún).
+    # F3 (0019_voice_ai) lo llena al persistir `call_transcriptions` (D8/R3).
     transcription_fk: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # ── Columnas IA (Spec 06 F3 §3.2, migración 0019_voice_ai) ──────────
+    # Máquina de estados conversacional (§3.6): greeting|taking_order|
+    # clarifying|confirming|transfer|hangup + cierre completed|failed.
+    ai_state: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Motivo de transferencia a humano (D9): complaint|out_of_domain|
+    # low_confidence|user_requested|budget.
+    transfer_reason: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Resumen incremental para el operador (D9): items capturados,
+    # dirección/zona, nombre/teléfono — actualizado vía PATCH ai-context.
+    context_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Costo acumulado STT+TTS+LLM de la llamada en USD (R4, CHECK >= 0).
+    cost_usd: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), nullable=False, default=Decimal("0"), server_default="0",
+    )
     # Contexto Asterisk crudo: channel, hangup_cause, did_resuelto, extension,
     # trunk, provider, recording_failed (R1)...
     # `metadata_` (atributo Python) → columna `metadata` (BD): "metadata" es
@@ -116,7 +146,67 @@ class CallRecord(Base):
             name="ck_call_records_status",
         ),
         CheckConstraint("duration >= 0", name="ck_call_records_duration"),
+        # Spec 06 §3.2 (0019_voice_ai): dominio blindado a nivel de datos
+        CheckConstraint(
+            "ai_state IN ('greeting','taking_order','clarifying','confirming',"
+            "'transfer','hangup','completed','failed')",
+            name="ck_call_records_ai_state",
+        ),
+        CheckConstraint(
+            "transfer_reason IN ('complaint','out_of_domain','low_confidence',"
+            "'user_requested','budget')",
+            name="ck_call_records_transfer_reason",
+        ),
+        CheckConstraint("cost_usd >= 0", name="ck_call_records_cost_usd"),
     )
 
     def __repr__(self) -> str:
         return f"<CallRecord #{self.id}: {self.caller}→{self.callee} [{self.status}]>"
+
+
+class CallTranscription(Base):
+    """Transcripción de una llamada (Spec 06 F3 §3.2 — D8/R3, 0019_voice_ai).
+
+    `call_id` = `call_records.external_call_id` (Uniqueid de Asterisk, UNIQUE
+    en F2) → una transcripción por llamada; `call_records.transcription_fk`
+    (columna reservada por F2) se actualiza al persistirla — el detalle de la
+    llamada en F2 la muestra sin cambio de contrato (CA-F3-3).
+
+    Reglas:
+      - R8: todo filtrado por tenant (tenant_id FK companies CASCADE).
+      - R4: `cost_estimate` = costo STT estimado de la transcripción.
+      - R3: retención hereda `calls.retention_days` de F2 (purga en cascada
+        con la llamada).
+    """
+
+    __tablename__ = "call_transcriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # = call_records.external_call_id (Uniqueid Asterisk / ORIGINATE_ID)
+    call_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider: Mapped[str] = mapped_column(String(30), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    # [{start, end, speaker, text, confidence}] — crudo del proveedor STT
+    segments: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    lang: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="es-PE", server_default="es-PE",
+    )
+    duration_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Costo STT estimado en USD (R4/CA-F3-8)
+    cost_estimate: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), nullable=False, default=Decimal("0"), server_default="0",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        Index("ix_call_transcriptions_call_id", "call_id"),
+        Index("ix_call_transcriptions_tenant_id", "tenant_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<CallTranscription #{self.id}: call={self.call_id} [{self.provider}]>"

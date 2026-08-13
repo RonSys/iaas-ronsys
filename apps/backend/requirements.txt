@@ -41,3 +41,12 @@ pytest-asyncio==0.24.0
 pytest-cov==6.0.0
 httpx==0.28.1
 psycopg[binary]==3.2.3
+
+# ─── F3 Recepcionista IA — bridge de voz (Spec 06) ────────────────
+# Import lazy: el backend arranca sin estas libs; voice_bridge las carga al usarlas.
+websockets==14.1        # WS ARI events + External Media RTP→WS
+# Nota: ari-py (0.0.2) no está en PyPI actual; voice_bridge usa cliente REST HTTP
+# mínimo propio (PoC). Si se quiere ari-py real, instalar desde GitHub en imagen custom.
+# faster-whisper / piper-tts: OPCIONALES (PoC local sin keys). Se instalan a demanda:
+#   pip install faster-whisper silero-vad piper-tts
+# No van en requirements base para no inflar la imagen; documentado en deploy/asterisk/README.md

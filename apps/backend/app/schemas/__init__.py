@@ -9,6 +9,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.schemas.voice_ai import VoiceAiSettings  # noqa: E402 — F3 (Spec 06 §3.3): config voz por tenant
+
 # ═══════════════════════════════════════════════════════════════
 # Setup / Inversión
 # ═══════════════════════════════════════════════════════════════
@@ -311,6 +313,8 @@ class CompanySettings(BaseModel):
     whatsapp: WhatsAppSettings = Field(default_factory=WhatsAppSettings)
     # Spec 05 (F2): central telefónica persistida en companies.settings.calls (D-03)
     calls: CallSettings = Field(default_factory=CallSettings)
+    # Spec 06 (F3): recepcionista IA por voz persistida en companies.settings.voice_ai (§3.3)
+    voice_ai: VoiceAiSettings = Field(default_factory=VoiceAiSettings)
 
 
 # ═══════════════════════════════════════════════════════════════
