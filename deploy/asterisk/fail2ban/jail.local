@@ -1,0 +1,25 @@
+# ═══════════════════════════════════════════════════════════════
+#  jail.local — fail2ban para Asterisk (D3, Spec 05 §3.3)
+#  IaaS-RonSys Central Telefónica (F2)
+#
+#  ⚠️ NO se instala en el host en esta fase (sin trunk, sin exposición).
+#  Instalación documentada en deploy/asterisk/README.md (§ fail2ban).
+#  ⚠️ Los logs de Asterisk viven DENTRO del contenedor: para que fail2ban
+#  del host los lea, añadir el volumen opcional documentado en el README
+#  (./deploy/asterisk/log:/var/log/asterisk) — NO tocar fail2ban del host.
+# ═══════════════════════════════════════════════════════════════
+
+[DEFAULT]
+# Whitelist de IPs del proveedor (D3) — descomentar con las IPs reales
+# antes del go-live (mismo rango que permit= en pjsip.conf):
+# ignoreip = 203.0.113.10 203.0.113.11
+
+# Ruta estándar de instalación (Debian): /etc/fail2ban/jail.local
+[asterisk-sip]
+enabled = true
+filter  = asterisk-sip
+action  = iptables-allports[name=ASTERISK-SIP]
+logpath = /var/log/asterisk/security
+maxretry = 5
+findtime = 600
+bantime  = 900        # 15 min (D3)
