@@ -575,6 +575,18 @@ WS /ws/calls/{tenant_id}         (mismo mecanismo que /ws/kitchen: tenant en pat
     Kola S/5 = S/37) → **DLV-9ff99d6a00 creado** → **kárdex con delta real**
     (Arroz -0.20, Mariscos -0.15, Cebolla -0.05, Ají -0.02) → pedido cancelado
     + CallRecords purgados. Script: `apps/web/scripts/e2e-hot-f2-kardex.cjs`.
+  - **Feedback Ron E2E modal (2026-08-13, commit `756343a`)**: Ron no veía en
+    el monitor la selección de zona/pago (el modal tiene `max-h-[85vh]
+    overflow-y-auto` y los selectores quedaban fuera del viewport; el script
+    interactuaba sin scroll visible). Fix: el script E2E ahora hace
+    `scrollIntoViewIfNeeded` a CADA sección (zona → items → pago → guardar)
+    con screenshot + delay por paso (11 pasos). **Además, bug real de UX**: el
+    backend exige `reference` para yape/plin (delivery_service L445) pero el
+    modal no tenía el campo → yape/plin inusables desde el panel. Se añadió
+    el campo "Referencia (Yape/Plin)" al modal (visible solo si pago != cash)
+    y el payload manda `payment.reference`. Verificado en vivo: E2E completa
+    con **DLV-9ff9a33eb2** (yape + referencia) y delta kárdex
+    (Arroz -0.20, Mariscos -0.15, Cebolla -0.05, Ají -0.02); limpieza OK.
 
 ---
 
