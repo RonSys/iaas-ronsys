@@ -140,12 +140,11 @@ async def _process_event(payload: dict) -> None:
     event_type = payload.get("event_type") or payload.get("event") or ""
 
     # Spec 05 F2 (§3.5.4): dispatch explícito para eventos `call.*` — ANTES
-    # del flujo WhatsApp. Los eventos de llamadas (call.new / call.ended /
-    # call.recording_ready) se consumen y se hace ack: son el punto de anclaje
-    # para consumidores futuros (transcripción, métricas, CRM). NUNCA entran a
-    # `_recipient_and_template` (CA-F2.7: delivery.* intacto). Un call.*
-    # malformado no puede crashear el worker (validación defensiva con defaults).
-    if event_type.startswith("call."):
+    # del flujo WhatsApp. El prefijo vive en el campo `event` ("call.new",
+    # "call.ended", "call.recording_ready" — §3.4 tabla D4), NO en
+    # `event_type` (crudo: "new"/"ended"/"recording_ready"). Detectado y
+    # corregido en QA en vivo 2026-08-13 (CA-F2.7).
+    if event_type.startswith("call.") or str(payload.get("event") or "").startswith("call."):
         logger.info(
             "call.* recibido y ack'ed (sin acción en F2): event=%s tenant=%s "
             "external=%s caller=%s status=%s duration=%s",

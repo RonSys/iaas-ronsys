@@ -369,8 +369,8 @@ async def _ari_originate_http() -> None:
                 logger.warning("Originate ARI falló (%s): %s", target, exc)
                 self._send(502, {"error": f"ari originate falló: {exc}"})
 
-    server = ThreadingHTTPServer(("127.0.0.1", 8090), Handler)
-    logger.info("call-bridge HTTP interno escuchando en 127.0.0.1:8090")
+    server = ThreadingHTTPServer(("127.0.0.1", 8091), Handler)
+    logger.info("call-bridge HTTP interno escuchando en 127.0.0.1:8091")
     await asyncio.to_thread(server.serve_forever)
 
 

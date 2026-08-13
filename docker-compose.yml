@@ -66,13 +66,15 @@ services:
   # del host directamente (SIP/UDP 5060, RTP/UDP 10000-10100, AMI 5038 y ARI
   # 8088 bind 127.0.0.1 — nunca expuestos, D3).
   asterisk:
-    image: asterisk/asterisk:20            # A20 LTS, incluye AMI + ARI
+    image: mlan/asterisk:latest            # A20 LTS 20.15.2 (AMI + ARI); asterisk/asterisk no existe en Docker Hub
     container_name: iaas-asterisk
     network_mode: host                     # D1
     restart: unless-stopped
     volumes:
       - ./deploy/asterisk/conf:/etc/asterisk:ro   # config inmutable (credenciales por secret, D3)
       - asterisk_recordings:/var/spool/asterisk/monitor   # grabaciones MixMonitor (R1)
+      - asterisk_var:/var/lib/asterisk                   # astdb/keys/agi (persistencia runtime)
+      - asterisk_log:/var/log/asterisk                   # full.log + security.log (fail2ban)
     environment:
       ASTERISK_USER: asterisk
       ASTERISK_GROUP: asterisk
@@ -86,3 +88,5 @@ services:
 volumes:
   postgres_data:
   asterisk_recordings:
+  asterisk_var:
+  asterisk_log:
