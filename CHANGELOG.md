@@ -4,6 +4,39 @@
 
 ---
 
+## [0.7.0] — 2026-08-13
+
+### Added
+
+#### 📞 F2 — Central que No Pierde Llamadas (Spec 05 — Central Telefónica con Asterisk)
+- **Infraestructura**: contenedor `iaas-asterisk` (imagen `mlan/asterisk:20.15.2` A20 LTS, Docker host network) + config pjsip (trunk G.711, extensions QA 100/101/102) + AMI/ARI bind 127.0.0.1 + fail2ban + volúmenes de grabaciones. `docker-compose.yml` servicio `asterisk`.
+- **Backend** (migración `0018_call_records`): modelo `CallRecord` (caller/callee/direction/status/timestamps/recording/metadata), `CallSettings` en `companies.settings.calls` (D-03), `CallService` con upsert idempotente por `external_call_id` (R8), resolución de tenant por DID (R4), `convert_to_order` reusa `DeliveryService.create_order` (R7 — zona explícita o sugerida por distrito, mínimo S/35, kárdex+asiento automáticos), originate (CA-F2.8).
+- **Routers** `/api/v1/calls*`: GET list (staff tenant-scoped), GET detail, POST `/events` (token de servicio + allowlist IPs — CA-F2.5), POST `/originate` (click-to-call), POST `/{id}/convert-to-order` (201/409/422), WS `/api/v1/calls/ws/{tenant_id}` (eventos call.incoming/answered/ended/recording_ready/converted, broadcast por tenant — CA-F2.6).
+- **Call-bridge** (`app/services/call_bridge.py`): socket AMI + control ARI + HTTP interno 8091, publica `call.*` a RabbitMQ `iaas-tasks` (fire-and-forget). Worker `notify_worker` con dispatch `call.*` explícito (log+ack, `delivery.*` intacto — CA-F2.7).
+- **Frontend** (`CallCenterPage.tsx`, ruta `/restaurante/central` + Sidebar): tab En vivo (WS, tarjetas de llamada con timer, click-to-call por extensión), tab Historial (filtros por estado/dirección/fecha), modal **Convertir a pedido** (zona + items + pago yape/plin/cash + referencia + dirección — reusa flujo delivery) y link a grabación.
+- **QA**: 20 tests nuevos F2 + 62 regresión delivery/WhatsApp → suite 424 passed. E2E en caliente en prod (ronsyserp.com) con llamada simulada → panel en vivo → convertir → DLV- → **kárdex con descuento de insumos** (Arroz -0.20, Mariscos -0.15, Cebolla -0.05, Ají -0.02). Scripts permanentes: `apps/web/scripts/e2e-hot-f2-central.cjs` y `e2e-hot-f2-kardex.cjs`.
+
+### Fixed
+- **UX panel Central**: botón "Convertir a pedido" oculto en estado `answered` (flujo principal) → ahora visible en ringing/in_progress/answered (oculto solo en estados terminales o ya convertida). Timer continuo desde `started_at` (sin reset al contestar).
+- **UX modal Convertir**: faltaba el campo "Referencia (Yape/Plin)" que el backend exige → añadido (visible cuando pago != cash) + payload `payment.reference`.
+- **WS call.***: eventos no incluían el `id` del CallRecord → card con id=0 → convert-to-order 404 "Llamada no encontrada". Fix en 3 capas (backend manda `id`+`direction`, tipos, parse aplanado del envelope).
+- **Doble JSON.parse** en `parseWs` rompía el WS (TypeError → panel sin eventos) → se pasa el string crudo.
+- **E2E**: scripts con flags anti-caché (bundle viejo cacheado causaba 404) + inyección con tenant del usuario logueado (CA-F2.6) + scroll visible por paso en el modal (scroll interno `max-h-85vh`).
+
+---
+
+## [0.6.0] — 2026-08-12
+
+### Added
+
+#### 💬 F1 — "WhatsApp en Vivo" (Spec 04 — activación del canal WhatsApp real)
+- **Botones en landing pública** (`PublicMenuPage.tsx`): "Pedir por WhatsApp" (wa.me con items del carrito URL-encoded) + "Llamar" (tel:) en hero; "Ver mi pedido por WhatsApp" en pantalla de éxito (wa.me con tracking DLV-); botones "Abrir en WhatsApp"/"Llamar" en pestaña Campañas (`DeliveryPage.tsx`). Fuente: bloque `contact` de `GET /api/public/{slug}/menu` (null → botones ocultos, CA-F1.14).
+- **Backend**: migración `0017_whatsapp_bsuid` (`delivery_orders.whatsapp_bsuid varchar(64)` nullable — cumplimiento BSUID/usernames Meta D3), campo `bsuid` opcional en payload de eventos (sin romper contrato Spec 03 §7.4), worker persiste BSUID (fire-and-forget, R-F1.6), `PublicMenuResponse.contact` (whatsapp_link/phone/whatsapp_message).
+- **QA**: 16 tests nuevos F1 + 62 regresión (suite 424 passed). E2E en caliente en prod (checkout real DLV- con limpieza).
+- **Docs**: manual del servicio Meta (`docs/manuales/manual-servicio-meta-whatsapp-f1.md` — trámite cuenta Meta Cloud API + 7 plantillas Utility + carga de config), simulación con datos ficticios (`docs/reports/simulacion-f1-datos-ficticios-2026-08-13.md`), informe de tablas/esquemas (`docs/reports/informe-tablas-esquemas-f1-2026-08-13.md`).
+
+---
+
 ## [0.5.0] — 2026-08-11
 
 ### Added
