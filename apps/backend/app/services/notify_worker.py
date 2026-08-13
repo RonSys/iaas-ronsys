@@ -138,6 +138,26 @@ async def _process_event(payload: dict) -> None:
     sin destinatario) no reintentan: se loguean y se hace ack.
     """
     event_type = payload.get("event_type") or payload.get("event") or ""
+
+    # Spec 05 F2 (§3.5.4): dispatch explícito para eventos `call.*` — ANTES
+    # del flujo WhatsApp. Los eventos de llamadas (call.new / call.ended /
+    # call.recording_ready) se consumen y se hace ack: son el punto de anclaje
+    # para consumidores futuros (transcripción, métricas, CRM). NUNCA entran a
+    # `_recipient_and_template` (CA-F2.7: delivery.* intacto). Un call.*
+    # malformado no puede crashear el worker (validación defensiva con defaults).
+    if event_type.startswith("call."):
+        logger.info(
+            "call.* recibido y ack'ed (sin acción en F2): event=%s tenant=%s "
+            "external=%s caller=%s status=%s duration=%s",
+            event_type,
+            payload.get("tenant_id") or "?",
+            payload.get("external_call_id") or "?",
+            payload.get("caller") or "?",
+            payload.get("status") or "?",
+            payload.get("duration") or 0,
+        )
+        return
+
     event_type = event_type.removeprefix("delivery.")
     if not event_type:
         raise ValueError("evento sin event_type")

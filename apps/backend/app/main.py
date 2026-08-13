@@ -20,6 +20,7 @@ from app.routers.accounting import kardex_router
 from app.routers.accounting import router as accounting_router
 from app.routers.admin import router as admin_router
 from app.routers.auth import router as auth_router
+from app.routers.calls import router as calls_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.delivery import router as delivery_router
 from app.routers.health import router as health_router
@@ -97,6 +98,7 @@ app.include_router(investment_router)
 app.include_router(superadmin_router)
 app.include_router(public_router)
 app.include_router(delivery_router)
+app.include_router(calls_router)
 app.include_router(dashboard_router)
 
 

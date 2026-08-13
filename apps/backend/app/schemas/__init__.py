@@ -268,6 +268,35 @@ class WhatsAppSettings(BaseModel):
     )
 
 
+class CallSettings(BaseModel):
+    """Configuración de la Central Telefónica (Spec 05 F2, §3.2 — D-03).
+
+    Persistida en `companies.settings.calls` (JSONB, patrón D-03, igual que
+    delivery/whatsapp) — SIN migración de tabla. El DID del tenant resuelve
+    el tenant en llamadas entrantes (R4); las extensiones son los operadores
+    del contexto from-internal (click-to-call).
+    """
+
+    enabled: bool = Field(False, description="Activa la central telefónica del tenant")
+    dids: list[str] = Field(
+        default_factory=list,
+        description="DID(s) del tenant → resolución de tenant en inbound (R4)",
+    )
+    extensions: list[str] = Field(
+        default_factory=list,
+        description="Extensiones del operador (contexto from-internal)",
+    )
+    recording: bool = Field(
+        True, description="R1: grabación obligatoria (MixMonitor)"
+    )
+    retention_days: int = Field(
+        90, ge=1, description="R2: retención de registros/grabaciones en días"
+    )
+    inbound_behavior: str = Field(
+        "ring_operator", description="MVP: ring al operador; cola real en versión futura"
+    )
+
+
 class CompanySettings(BaseModel):
     """Configuración de empresa (branding, preferencias, delivery, whatsapp)."""
     palette: ColorPalette = Field(default_factory=ColorPalette)
@@ -280,6 +309,8 @@ class CompanySettings(BaseModel):
     delivery: DeliverySettings = Field(default_factory=DeliverySettings)
     # Spec 03 (§7 Fase B): notificaciones WhatsApp persistidas en companies.settings.whatsapp
     whatsapp: WhatsAppSettings = Field(default_factory=WhatsAppSettings)
+    # Spec 05 (F2): central telefónica persistida en companies.settings.calls (D-03)
+    calls: CallSettings = Field(default_factory=CallSettings)
 
 
 # ═══════════════════════════════════════════════════════════════
