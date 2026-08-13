@@ -110,6 +110,41 @@ swap → jitter de audio).
    `AMI_USER/AMI_PASS`, `ARI_USER/ARI_PASS`, `SERVICE_TOKEN`, `BACKEND_INTERNAL_URL`.
 7. Prueba real: llamada → panel en vivo → convertir a pedido (DLV-).
 
+## 7.5 F3 — Recepcionista IA (Stasis + External Media, PoC sin trunk)
+
+F3 (spec 06) añade una app ARI Stasis `voice-receptionist` que atiende llamadas
+entrantes cuando `companies.settings.calls.inbound_behavior='ai_receptionist'`
+(y el kill-switch/budget de `voice_ai` lo permite; si no, cae a `ring_operator`).
+
+**Config Asterisk requerida (pendiente de implementación en `conf/`)**:
+
+1. `ari.conf`: la app Stasis se registra desde el bridge (no requiere contexto estático;
+   el bridge hace `POST /ari/channels/{id}/answer` + External Media al contestar).
+2. `extensions.conf` — rama condicional en `from-pstn`:
+   ```
+   ; F3: si el tenant usa IA, saltar a Stasis; si no, ring normal (F2)
+   exten => s,n,Set(INBOUND_BEHAVIOR=${...})   ; se resuelve por DID via HTTP/AGI del bridge
+   exten => s,n,GotoIf($[${INBOUND_BEHAVIOR} = ai_receptionist]?stasis-ai,1)
+   exten => s,n(stasis-ai),Stasis(voice-receptionist)
+   ```
+   El detalle fino del branch se resuelve en implementación (el bridge puede
+   consultar `GET /api/v1/settings` del backend por DID antes de contestar).
+3. `rtp.conf`: External Media usa RTP → el rango 10000–10100 ya cubre el tráfico
+   (F3 añade el WebSocket del bridge, no puertos RTP nuevos).
+4. `external_media_address` ya está en `pjsip.conf` (F2) — el WS del bridge recibe
+   el audio en signed linear 8 kHz (o transcoding según códec del canal).
+
+**Dependencias del bridge (Python, import lazy)**: `websockets`, `ari-py`;
+PoC local sin keys: `faster-whisper` (STT es) + `silero-vad`, `piper-tts` (TTS es_PE)
+o `edge-tts`. Proveedores pagos (Deepgram/Google/ElevenLabs) conmutables por config
+(D2/D3 de la spec) — sin cambios de código.
+
+**Simulador sin trunk**: `apps/backend/scripts/simulate_voice_call.py` crea un
+`call_record` de prueba (`f3-sim-<ts>`) y ejecuta el flujo del bridge en modo
+simulado (STT echo, LLM determinista, TTS stub) hasta `POST /complete`.
+Validación con trunk real: pendiente del proveedor SIP + port-forward
+(§7 — bloqueante externo).
+
 ## 8. Archivos
 
 ```

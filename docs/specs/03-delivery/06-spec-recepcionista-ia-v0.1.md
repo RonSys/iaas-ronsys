@@ -1,25 +1,25 @@
 # SPEC 06 — Recepcionista IA por Voz (F3 — Pedidos telefónicos automáticos)
 
-- **Estado**: 🟡 **PROPUESTA (2026-08-12)** — spec creada, decisiones D1-D10 pendientes de aprobación por Ron; NO implementar hasta aprobación
+- **Estado**: 🟢 **APROBADA PARA IMPLEMENTACIÓN (2026-08-13)** — decisiones D1-D10 aprobadas por Ron al arrancar F3 (ajuste comercial D5 reportado: costo realista S/500-900/mes)
 - **Proyecto**: IaaS-RonSys — Cliente "El Segoviano"
 - **Alcance**: tenant 1 (El Segoviano); diseño multi-tenant por construcción
-- **Fecha**: 2026-08-12
+- **Fecha**: 2026-08-12 (actualizada 2026-08-13 — reconciliación con F2 implementada)
 - **Framework**: SDD / Spec Anchor — esta spec está sincronizada con el código (specs 01/02/03/05 como referencia de formato)
-- **Depende de**: **F2 (spec 05 — Central Telefónica, 🟡 PROPUESTA 2026-08-12)** — F3 construye sobre su infraestructura Asterisk + `call-bridge` + tabla `call_records`
+- **Depende de**: **F2 (spec 05 — Central Telefónica, 🟢 IMPLEMENTADA Y DEPLOYADA en prod 2026-08-13)** — F3 construye sobre su infraestructura Asterisk + `call-bridge` + tabla `call_records` (migración 0018)
 
 ---
 
-## 0. Decisiones (D1-D10 — PROPUESTAS, pendientes de aprobación)
+## 0. Decisiones (D1-D10 — APROBADAS por Ron 2026-08-13)
 
 | # | Decisión | Acuerdo propuesto |
 |---|---|---|
 | D1 | Arquitectura de voz | **Asterisk ARI (Stasis) + External Media (RTP→WebSocket) → bridge Python → proveedores de voz** (STT/TTS/LLM). Construye **sobre F2** (spec 05: Asterisk A20 en Docker, trunk pjsip, `call-bridge` AMI/ARI, `call_records`, panel Central Telefónica). F3 añade la capa de IA conversacional y reutiliza la infra F2 tal cual. Alternativa llave en mano (Vapi/Retell) documentada como **Opción B** con trade-offs (§2.4) — no elegida por costo variable por minuto + dependencia de tercero + datos del cliente en plataforma externa. |
-| D2 | STT (español) | **Deepgram Nova-3 streaming (es)** default (~$0.007–0.02/min); **Google STT** (~$0.016/min) como fallback configurable por tenant. |
-| D3 | TTS (es-PE) | **Google Chirp3 HD o Azure Neural (es-PE)** default (~$0.04–0.06/min); **ElevenLabs** (~$0.10–0.30/min) como premium opcional por tenant. |
-| D4 | Pipeline LLM | **STT → LLM texto → TTS** con Groq/DeepSeek (~$0.001/min en tokens). **NO** audio-to-audio (OpenAI Realtime ~$0.06–0.24/min): para tomar un pedido estructurado con el menú real como contexto/tool basta el pipeline de texto; más barato, más controlable y auditable. |
-| D5 | Costo mensual realista | **S/ 500–900/mes** (≈$150–280 USD + trunk SIP): 2.700 min/mes = 30 llamadas/noche × 3 min × 30 días. **Ajuste formal al plan comercial que decía S/100–300** (§1.3). |
+| D2 | STT (español) | **Deepgram Nova-3 streaming (es)** default (~$0.007–0.02/min); **Google STT** (~$0.016/min) como fallback configurable por tenant. **PoC interno sin keys: `faster-whisper` (es) local** vía puerto `VoiceProvider` conmutable (validado 2026-08-13). |
+| D3 | TTS (es-PE) | **Google Chirp3 HD o Azure Neural (es-PE)** default (~$0.04–0.06/min); **ElevenLabs** (~$0.10–0.30/min) como premium opcional por tenant. **PoC interno sin keys: `piper-tts` (100% local, voces es_PE/es_ES)** vía puerto conmutable; `edge-tts` como alternativa si hay red estable a MS (validado 2026-08-13). |
+| D4 | Pipeline LLM | **STT → LLM texto → TTS** con Groq/DeepSeek (~$0.001/min en tokens). **NO** audio-to-audio (OpenAI Realtime ~$0.06–0.24/min): para tomar un pedido estructurado con el menú real como contexto/tool basta el pipeline de texto; más barato, más controlable y auditable. **PoC: DeepSeek `deepseek-v4-flash` ya validado en spike F5 (function calling + fallback determinista).** |
+| D5 | Costo mensual realista | **S/ 500–900/mes** (≈$150–280 USD + trunk SIP): 2.700 min/mes = 30 llamadas/noche × 3 min × 30 días. **Ajuste formal al plan comercial que decía S/100–300** (§1.3). ⚠️ **Aprobado explícitamente por Ron 2026-08-13** (confirmación vía Asistente) con mitigaciones: presupuesto diario + kill-switch (D10) + PoC 2 semanas antes de fijar precio. |
 | D6 | Agente de dominio acotado | La IA **solo** toma pedidos del menú real, consulta estado y confirma. No es chatbot de propósito general. Conoce precios/modificadores/disponibilidad/horarios reales vía `get_public_menu` — **no inventa**. Cumplimiento Meta 15-ene-2026 + BSUID (§3.7). |
-| D7 | Resolución de zona de entrega | La dirección dicha por el cliente se resuelve por **match de distrito contra `delivery_zones.districts` (jsonb)**; si no resuelve con confianza → repregunta 1 vez → transferencia a humano. |
+| D7 | Resolución de zona de entrega | La dirección dicha por el cliente se resuelve por **match de distrito contra `delivery_zones.districts` (jsonb)**; si no resuelve con confianza → repregunta 1 vez → transferencia a humano. **Base real: `suggest_zone_by_address` (F2, `call_service.py`) — match substring sobre districts; F3 añade normalización de alias ("Canto Grande", "Montenegro").** |
 | D8 | Grabación + transcripción | **Siempre** (R3): grabación la hace F2 (MixMonitor); transcripción nueva en `call_transcriptions` + `transcription_fk` **reservada por F2** (DDL §3.2); retención configurable (`calls.retention_days`, F2 R2). |
 | D9 | Transferencia a humano | **Obligatoria** ante queja, solicitud fuera de dominio, baja confianza (umbral configurable) o pedido del cliente — con contexto completo (resumen + transcripción + datos capturados) al operador (extensión SIP de F2 / panel). |
 | D10 | Gobernanza de costo | Presupuesto por minuto + tope diario por tenant + **kill-switch** (R4/R5): al agotar presupuesto o activar kill-switch, `inbound_behavior` de F2 cae a `ring_operator` (llamadas al humano, sin IA). |
@@ -149,7 +149,7 @@ se diseña **agnóstica al transporte de voz** para que el switch A→B no toque
 **INCLUYE (F3 MVP):**
 - Capa IA sobre F2: Stasis app + External Media (RTP→WS) + pipeline STT→LLM→TTS (D2/D3/D4) con proveedores conmutables por settings.
 - Agente de dominio acotado (D6): flujo conversacional §3.6 + menú real como contexto/tool (R1).
-- Migración `0017_voice_ai` (DDL §3.2): `call_transcriptions` + columnas IA en `call_records`.
+- Migración `0019_voice_ai` (DDL §3.2; la `0017`=whatsapp_bsuid y `0018`=call_records ya existen — corregido 2026-08-13): `call_transcriptions` + columnas IA en `call_records`.
 - Resolución de zona por distrito (D7) + creación de pedido vía `create_order` (pago contraentrega default, R7) + eventos Fase B (WhatsApp confirmación automática) + `converted_order_id` (F2).
 - Transferencia a humano con contexto (D9): endpoint + ring a extensión operador (F2) + evento WS al panel.
 - Panel "Central Telefónica" (F2) extendido: estado IA en vivo, transcripción, botón transferir con contexto.
@@ -161,19 +161,19 @@ se diseña **agnóstica al transporte de voz** para que el switch A→B no toque
 referencia hablada), chatbot WhatsApp conversacional, agentes de propósito general, integración
 Vapi/Retell (solo PoC fallback), multi-idioma (es-PE únicamente).
 
-### 3.2 Modelo de datos (migración `0017_voice_ai` — borrador, SIN commitear)
+### 3.2 Modelo de datos (migración `0019_voice_ai` — down_revision=`0018_call_records`; borrador, SIN commitear)
 
 **Reutiliza la tabla `call_records` de F2 (§3.2 spec 05) — NO se crea otra.** Esta migración:
 
 ```sql
 -- 1) Columnas IA en call_records (F2 ya definió transcription_fk RESERVADA y converted_order_id)
 ALTER TABLE call_records
-  ADD COLUMN ai_state varchar(20),                 -- greeting|taking_order|clarifying|confirming|transfer|hangup
+  ADD COLUMN ai_state varchar(20),                 -- greeting|taking_order|clarifying|confirming|transfer|hangup|completed|failed (8 estados — corregido 2026-08-13)
   ADD COLUMN transfer_reason varchar(50),          -- complaint|out_of_domain|low_confidence|user_requested|budget
   ADD COLUMN context_summary text,                 -- resumen para el operador (D9)
   ADD COLUMN cost_usd numeric(10,4) NOT NULL DEFAULT 0,  -- STT+TTS+LLM de la llamada (R4)
   ADD CONSTRAINT call_records_ai_state_check
-    CHECK (ai_state IN ('greeting','taking_order','clarifying','confirming','transfer','hangup')),
+    CHECK (ai_state IN ('greeting','taking_order','clarifying','confirming','transfer','hangup','completed','failed')),
   ADD CONSTRAINT call_records_transfer_reason_check
     CHECK (transfer_reason IN
       ('complaint','out_of_domain','low_confidence','user_requested','budget')),
@@ -408,7 +408,7 @@ cliente habla ──► STT (Deepgram streaming) ──► LLM (Groq; contexto =
 | CA-F3-10 | `kill_switch: true` en settings | Siguiente llamada rutea `ring_operator` (F2) sin pasar por la IA (sin deploy); `ai_state` nunca arranca |
 | CA-F3-11 | Presupuesto agotado o config `enabled: false` | Llamadas entran directo al operador; la IA jamás arranca (R4/R5) |
 | CA-F3-12 | R1 (anti-alucinación) | En N=50 llamadas de prueba, el LLM nunca emite un precio/ítem/promo fuera del contexto de `get_public_menu` (validación por diff del log de intents) |
-| CA-F3-13 | `alembic upgrade head` (BD con `call_records` de F2 aplicada) | `call_transcriptions` creada + columnas IA en `call_records`; head = `0017_voice_ai`; `downgrade 0016` revierte todo |
+| CA-F3-13 | `alembic upgrade head` (BD con `call_records` de F2 aplicada) | `call_transcriptions` creada + columnas IA en `call_records`; head = `0019_voice_ai`; `downgrade 0018` revierte todo |
 
 ---
 
@@ -449,6 +449,149 @@ F3 y F2 comparten tabla y contratos; secuenciar F2 antes de F3.
 ---
 
 ## 5. Bitácora Spec Anchor (sync spec ↔ código)
+
+- **2026-08-13 (FRONTEND — panel IA)** 🟢: frontend-dev extendió `CallCenterPage` + `callsApi.ts`.
+  - **Entregado**: tipos F3 + parseo WS `ai_call_state`/`call.transferred`, `getAiState`/`patchAiState`/
+    `transferCall`/`getTranscript`/`getVoiceAiSettings`/`patchVoiceAiSettings`, badge estado IA por color +
+    motivo + costo en tarjetas, filtro IA en vivo (in-memory), panel lateral `AiTranscriptPanel`
+    (transcripción polling 5s + botón "Transferir a humano" con confirmación), badge forward-compat en
+    histórico. Build tsc+vite OK, 163 tests (8 nuevos `callsApiWs.test.ts`). Lógica F2 intacta.
+  - **Desviaciones registradas (verificadas en código real)**:
+    1. **Auth**: los endpoints IA (transcript POST, ai-state GET/PATCH, ai-context, transfer, complete)
+       son **bridge-only** (`_authorize_bridge`: X-Service-Token + allowlist IP, CA-F2.5), NO staff.
+       Único endpoint staff: `GET /{call_ref}/transcript` (CA-F3-3). El UI se alimenta por WS en vivo;
+       el botón Transferir ante 401/403 muestra mensaje claro (la IA transfiere sola ante
+       user_requested/low_confidence — D9). Spec §3.5 debe reflejar esta separación staff vs bridge.
+    2. **No hay evento WS de transcripción**: no existe `ai.transcript` (spec lo sugería); el panel hace
+       polling de `GET /transcript` cada 5s. Alternativa futura: evento `ai.transcript` en ws_manager.
+    3. **`cost_usd` no se expone al staff**: ni payload WS ni `CallRecordOut`/GET /calls lo incluyen
+       (spec §3.5.2 lo contempla). El indicador de costo es forward-compat; el panel usa `cost_estimate`
+       (STT) de la transcripción. Pendiente: exponer cost_usd en GET /calls o WS si Ron lo pide.
+    4. **Filtro ai_state**: GET staff no acepta `ai_state=` (spec §3.5.1 lo listaba) → filtro in-memory.
+    5. **Ajustes voice_ai**: sin drawer de ajustes en CallCenterPage (no se inventó UI); API
+       GET/PATCH /api/settings devuelve `body.voice_ai` (PATCH merge shallow 1 nivel; api_key nunca
+       renderizar). UI de ajustes queda como trabajo opcional.
+
+- **2026-08-13 (QA en vivo — E2E llamada simulada)** 🟢: E2E completo validado en QA
+  (`iaas_ronsys_qa`, backend 8002, migración 0019 aplicada).
+  - **Flujo completo OK**: llamada simulada `f3-sim-*` → registro (POST /events) → gobernanza
+    budget → saludo TTS → 3 turnos (STT echo → LLM determinista → TTS stub) → transcripción (201) →
+    ai-state (200) → POST /complete → **create_order** → `DLV-9ffd51c75a` / `VEN-2026-00008-422`
+    (converted_order_id=8, sale_id=9, cost_usd=0.0105, cash R7). Persistencia verificada en BD
+    (call_record completed + transcripciones + delivery_order received).
+  - **Transferencia D9 validada**: queja "quiero hablar con alguien" → `transfer_reason=user_requested`,
+    `ai_state=transfer`, POST /transfer 200, context_summary persistido.
+  - **Kill-switch R5 validado**: sin presupuesto configurado (daily_limit=0) → `can_start=false` →
+    ring_operator (no atiende, libera al operador).
+  - **BUGS CORREGIDOS en QA** (hallazgos → fix):
+    1. **`_bridge_tenant` sin await en 6 handlers** (ai_calls.py): coroutine pasado como tenant_id →
+       asyncpg DataError 500 en POST /complete (el E2E no persistía). Fix: `await` en los 6 +
+       test de regresión `test_router_handlers_await_bridge_tenant` (grep estático).
+    2. **Harness del simulador**: usaba menú DEMO (ids 10-12) que no existen en QA → 422 en
+       create_order. Fix: `simulate_voice_call.py` ahora carga el **menú real** vía
+       `get_public_menu/get_public_zones` (R1 — nunca datos inventados, ni en el simulador) +
+       fix `await _session_factory()`.
+    3. **Data QA**: settings calls en formato legacy (`did` string, extensions ints) rompía
+       `CallSettings` (F2) → corregido a `dids: [str]`, `extensions: [str]`; menú real sembrado
+       (5 menu_items + 2 restaurant_sections) y plan de cuentas mínimo (14 cuentas: 10/20/40/42/
+       60/61/69/201...) — el seed QA anterior no incluía inventario/contabilidad.
+  - **Nota kárdex QA**: los kárdex se validan en prod (el motor F2 los generó en el E2E prod;
+    QA no tiene inventario vinculado a menu_items → 0 kárdex, entorno, no bug F3).
+  - **Tests**: F3+F2 66/66 ✓ (test_f3_voice_ai + test_f3_voice_bridge + test_f2_calls).
+
+- **2026-08-13 (DEPLOY PROD + E2E en caliente en el monitor)** 🟢: deploy final a producción
+  (imágenes Docker rebuild: backend/frontend/worker) + migración **0019_voice_ai aplicada en
+  `iaas_ronsys`** (verificada: alembic_version=0019_voice_ai, columnas IA + tabla
+  call_transcriptions + 3 CHECKs) + E2E visible en el monitor (DISPLAY :0, Chromium anti-caché,
+  patrón e2e-hot-f2-central.cjs).
+  - **Flujo E2E prod OK** (`f3-e2e-*`): login staff → panel Central (WS 🟢) → llamada simulada
+    → IA contesta (greeting TTS stub) → 3 turnos (STT echo → LLM determinista → TTS stub) →
+    confirmación → **create_order real**: `DLV-9ffd79f212` / `VEN-2026-00053-055` (S/40,
+    Lomo Saltado ×1, cash R7) → call_record `completed` cost_usd=0.0105 → transferencia D9
+    (`user_requested`, contexto persistido) → verificación API ai_state → **limpieza completa**
+    (pedidos cancelados, call_records=0, transcripciones=0). Evidencias:
+    `docs/reports/evidencias-f3-e2e-prod/` (12 screenshots del monitor).
+  - **HALLAZGOS DE DEPLOY (bugs reales encontrados y corregidos en prod)**:
+    1. **`ari-py==1.0.2` no existe en PyPI** (el paquete real es 0.0.2, no publicable) → se quitó
+       de requirements; voice_bridge usa su cliente REST HTTP mínimo propio (PoC) — sin cambio de
+       contrato. Documentado en requirements.txt + deploy/asterisk/README.md.
+    2. **BUG `setup.py::update_settings` (PATCH /api/settings)**: colapsaba TODO lo que no era
+       delivery/whatsapp dentro de `settings.branding` (incl. voice_ai, calls, features…) →
+       PATCH voice_ai devolvía OK pero guardaba en el sitio equivocado y `budget_status` leía
+       vacío → la IA nunca atendía (can_start=false silencioso). Fix: guardar cada clave en su
+       lugar (branding solo branding; el resto en su propia clave). Dato prod corregido con SQL.
+    3. **Simulador sin `DATABASE_URL` en env** → usaba DEMO_CONTEXT (menú inventado) → LLM decía
+       "no le entendí" para items reales. Fix: el simulador carga menú real cuando DATABASE_URL
+       está presente (ya documentado en el script).
+    4. **Tenant por DID vs zona**: el evento simulado sin `tenant_id` resuelve por DID
+       (+5115551234 → tenant 3, sin zona) mientras menú/zona viven en tenant 1 → complete fallaba
+       con 404 "Zona de delivery no encontrada". Fix: `tenant_id` explícito en el payload del
+       bridge simulado (contrato F2 lo acepta).
+    5. **404 transitorio en POST /complete** durante el rebuild (backend inicializándose):
+       resuelto con reintento; no es bug de código.
+  - **VoiceAiSettings sembrado en prod** (vía SQL, no PATCH — ver hallazgo 2): enabled=true,
+    kill_switch=false, budget daily_budget_usd=5.0, proveedores PoC echo/local/deterministic,
+    greeting oficial §3.7, payment_method=cash. El switch a proveedores pagos es solo config (D2/D3).
+  - **Kill-switch R5 en prod**: validado en QA (budget 0 → ring_operator); en el E2E prod la
+    tercera llamada (`-k`) se atendió porque el presupuesto diario ($5) NO estaba agotado —
+    comportamiento correcto (el kill-switch actúa cuando el budget se agota, no por defecto).
+  - **Tests**: 66/66 ✓ antes del deploy (test_f3_voice_ai + test_f3_voice_bridge + test_f2_calls)
+    + suite completa 451 passed. `--delay` añadido al simulador para demo visible en monitor.
+  - **Pendiente para demo real**: trunk SIP + audio real (STT/TTS reales, External Media) — el
+    PoC QA valida contratos/estados/gobernanza, no la latencia <2s con audio (CA-F3-5).
+
+- **2026-08-13 (IMPLEMENTACIÓN Fase 1 — backend)** 🟢: backend-dev implementó migración `0019_voice_ai` + módulos IA.
+  - **Entregado**: `0019_voice_ai.py` (tabla `call_transcriptions` + 4 columnas IA en `call_records` +
+    3 CHECKs, down_revision `0018_call_records`), `schemas/voice_ai.py` (incl. `VoiceAiSettings` en
+    `CompanySettings` → PATCH /api/settings lo acepta), `services/voice_ai_service.py` (máquina de
+    estados §3.6, gobernanza R4/R5, `complete_call` → `create_order` patrón F2, D7 zona),
+    `services/voice_providers.py` (puertos ABC STT/TTS/LLM + impls deterministas PoC),
+    `routers/ai_calls.py` (transcript/ai-state/ai-context/transfer/complete + alias `/api/v1/ai-calls`,
+    misma protección CALL_BRIDGE_TOKEN/ALLOWED_IPS que `/events`), `tests/test_f3_voice_ai.py` (37 tests).
+  - **Tests**: F3 37/37 ✓; F2+F3 57/57 ✓ (regresión F2 cero); suite 451 passed + 2 deselected
+    (fallos preexistentes de recetas, NO tocados). BD prod NO tocada (sigue en 0018; la 0019 se
+    aplica en el próximo deploy — lifespan corre `alembic upgrade head`).
+  - **Desviaciones registradas (sync spec↔código)**:
+    1. **CHECK `ai_state` → 8 estados** (spec decía 6): el contrato POST /complete exige
+       `completed|failed` → añadidos al CHECK (§3.2 y Gherkin HU-F3-10 corregidos).
+    2. **`ai_state='transfer'`** (no 'transferring'): coincide con el CHECK y el WS de la Gherkin.
+    3. **`call_transcriptions.call_id` = varchar(64) sin FK real** (es `external_call_id`; idempotencia
+       por upsert a nivel servicio — la spec no define UNIQUE).
+    4. **Guard de status de F2 no aplicado en /complete**: `convert_to_order` exige status
+       answered/completed; en voz el cierre IA es autoritativo (estado AMI llega por su cuenta) —
+       documentado en docstring del servicio.
+    5. **Migración test**: el árbol alembic del repo NO permite `upgrade head` desde BD vacía por bugs
+       PREEXISTENTES (seed admin sin company en 0002; revision_id de 0010 = 36 chars >
+       alembic_version varchar(32); baseline 0000 con conexión propia → lock-timeout). El test
+       replica fielmente "BD con 0018 aplicada" (HU-F3-10).
+
+- **2026-08-13 (APROBACIÓN + RECONCILIACIÓN con F2 implementada)**: Ron aprobó F3 (D1-D10) al arrancar
+  la fase. Reconciliación verificado en código (architecture-agent, 2026-08-13):
+  - **Migración**: F2 dejó head `0018_call_records` → la nueva es **`0019_voice_ai`** (down_revision
+    `0018_call_records`), no `0017` como decía el borrador. CA-F3-13 corregido.
+  - **`call_records` real**: `transcription_fk` int nullable sin FK (reservada) ✅ + `converted_order_id`
+    FK → `delivery_orders.id` (SET NULL) ✅ — la spec 06 adopta estas columnas tal cual.
+  - **Contratos reales F2**: `GET /calls`, `GET /calls/{id}`, `POST /calls/{id}/convert-to-order`,
+    `POST /calls/originate`, `POST /calls/events` (bridge), `WS /api/v1/calls/ws/{tenant_id}`.
+    Los 4 endpoints de F3 (`transcript`, `ai-state`, `transfer`, `complete`) + `ai-context` son
+    **trabajo nuevo** sobre esa superficie (antes la spec los asumía como extensión directa).
+  - **Ruteo `ai_receptionist`**: F2 solo expone `inbound_behavior` como dato (schema, default
+    `ring_operator`); el branch Stasis vs ring **no existe** — F3 lo implementa (dialplan/bridge).
+  - **D7**: `suggest_zone_by_address(db, tenant_id, address)` YA existe en `call_service.py` (match
+    substring sobre districts, de F2) → base para la resolución de zona; falta normalización de alias.
+  - **PoC sin keys externas**: no hay Deepgram/Google/Eleven en .env. Stack PoC recomendado:
+    STT `faster-whisper` (es) + VAD Silero, TTS `piper-tts` (es_PE, 100% local) o `edge-tts`,
+    LLM DeepSeek (ya validado). Proveedores conmutables vía puerto `VoiceProvider` (D2/D3) — el
+    switch a Deepgram/Google con keys reales es solo configuración.
+  - **Asterisk**: imagen `mlan/asterisk:latest` 20.15.2 LTS, `network_mode: host`, AMI/ARI bind
+    localhost. **ARI `POST /channels/externalMedia` es API estable desde Asterisk 12.6** → 20.15
+    soporta External Media (RTP→WS) para el PoC. Riesgo: latencia <2s y audio path/NAT solo se
+    validan con trunk real (CA-F3-5 en PoC simulado es aproximado).
+  - **Dependencias**: requirements.txt no tiene ari-py/websockets/STT-TTS → añadir en Fase PoC.
+  - **Riesgo split-brain config**: `voice_ai` vs `calls.inbound_behavior` → single-source en
+    `companies.settings.calls` (F2); `voice_ai` complementa (keys/proveedores/budget), no duplica.
+  - **`create_order` es async y valida zona/items/horario** → el bridge lo ejecuta en el mismo
+    proceso backend (patrón F2 `convert_to_order`), nunca flujo paralelo (R7).
 
 - **2026-08-12 (v0.1)**: spec creada. Fase R verificada en código: `create_order`, `get_public_menu`,
   `get_public_zones` (districts jsonb), motor WhatsApp Fase B (`notify_events` + `whatsapp_notifier`),
