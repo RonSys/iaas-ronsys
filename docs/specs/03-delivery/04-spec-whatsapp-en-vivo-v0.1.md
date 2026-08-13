@@ -1,6 +1,6 @@
 # SPEC 04 — F1 "WhatsApp en Vivo" — Plan Integral de Canales (El Segoviano)
 
-- **Estado**: 🟡 **PROPUESTA (2026-08-12)** — pendiente aprobación de Ron y decisiones D1–D7 (§0). Se apoya sobre infraestructura **ya desplegada y verificada en producción** (Spec 03 §7 — motor WhatsApp dry-run).
+- **Estado**: 🟢 **APROBADA PARA IMPLEMENTACIÓN (2026-08-12)** — decisiones D1–D7 aprobadas por Ron. Se apoya sobre infraestructura **ya desplegada y verificada en producción** (Spec 03 §7 — motor WhatsApp dry-run).
 - **Proyecto**: IaaS-RonSys — Cliente "El Segoviano"
 - **Alcance**: Fase 1 "WhatsApp en Vivo" del Plan Integral de Canales (llamadas/atención 2026-08-12); tenant 1 (El Segoviano); diseño multi-tenant por construcción
 - **Fecha**: 2026-08-12
@@ -8,7 +8,7 @@
 
 ---
 
-## 0. Decisiones (D1–D7 — PROPUESTAS, pendientes de aprobación)
+## 0. Decisiones (D1–D7 — APROBADAS por Ron 2026-08-12)
 
 Complementan la decisión D-B1 ya aprobada en Spec 03 §7.3 (Meta Cloud API oficial + interfaz `Notifier` agnóstica).
 
@@ -241,6 +241,7 @@ ALTER TABLE delivery_orders ADD COLUMN whatsapp_bsuid varchar(64);
 ## 5. Bitácora Spec Anchor (sync spec ↔ código)
 
 - **2026-08-12 (v0.1)**: spec creada como F1 del Plan Integral de Canales. Fase R verificada en código (2026-08-12): motor WhatsApp desplegado en prod en modo dry-run (Spec 03 §7 — commits `415da23`→`8f3d5a9`, fix `a2287fb` routing_key, worker `iaas-worker-prod` + DLQ `iaas-tasks-dlq`, `WhatsAppSettings` en `CompanySettings.whatsapp` JSONB); gaps confirmados: 0 ocurrencias `wa.me`/`tel:` en `apps/web/src/`, sin columna BSUID, sin `contact` en `PublicMenuResponse`. D1–D7 **propuestas** — pendientes de aprobación de Ron. **Sin código implementado en esta iteración** (Spec Anchor: spec primero).
+- **2026-08-12 (v0.1 → APROBADA)**: Ron aprueba F1 para implementación (pipeline Asistente → Jarvis). Decisiones D1–D7 **aprobadas**: D1 cuenta Meta del cliente, D2 plantillas Utility, D3 BSUID desde el día 1, D4 números en settings (regla dura wacli +51 975 224 103), D5 botones wa.me/tel:, D6 activación por configuración, D7 límites F1 (sin webhook, sin telefonía). **Spec lista para implementar** — rama `feat/f1-whatsapp-en-vivo` (desde `feat/specs-plan-canales` 327ed3a). Implementación delegada: backend (migración 0017 + payload BSUID + contact público) y frontend (botones) en paralelo; QA posterior (CA-F1.1..CA-F1.15).
 
 ---
 
