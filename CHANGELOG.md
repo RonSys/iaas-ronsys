@@ -4,6 +4,20 @@
 
 ---
 
+## [0.7.1] — 2026-08-13
+
+### Added
+
+#### 🧪 SPIKE F5 — "Pregúntale al Sistema" (PoC validado, NO en el ERP aún)
+- `spikes/f5-preguntale-al-sistema/`: **VentasSkill** mínimo sobre el puerto hexagonal `BaseSkill` (deuda #8) con 3 tools SOLO LECTURA (ventas del día, top productos, ventas por zona) + catálogo cerrado con validación de args y tenant scope.
+- **Orquestador con function calling DeepSeek** (`deepseek-v4-flash`, API compatible OpenAI) + **fallback determinista** por palabras clave (35–44ms).
+- **Eval golden (Bloque C en miniatura)**: 5 golden queries con respuesta esperada calculada contra la BD real → **tool accuracy 100% + data accuracy 100%** en ambos modos.
+- **Demo read-only contra PROD** (SELECT puro): "¿cuánto vendimos hoy en el salón?" → S/ 494 en 12 ventas (restaurant 2026-08-13). Hallazgo: canal activo en prod es `restaurant`; delivery activo = 0 (E2E canceladas).
+- **Spec 08 actualizada** (`docs/specs/06-asistente-ia/08-spec-preguntale-al-sistema-v0.1.md`): bitácora con resultados del spike, migración corregida a `0019_assistant` (0017/0018 ya usadas), catálogo por canal (`business_type`).
+- Pendiente: aprobación de Ron (D1–D7) para implementar en el ERP (3–5 sem, S/ 5,000–8,000).
+
+---
+
 ## [0.7.0] — 2026-08-13
 
 ### Added

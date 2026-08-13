@@ -1,9 +1,9 @@
 # SPEC 08 — F5 "Pregúntale al Sistema" (NL2SQL controlado)
 
-- **Estado**: 🟡 **PROPUESTA (2026-08-12)** — pendiente de aprobación por Ron; sin código implementado
+- **Estado**: 🟡 **PROPUESTA (2026-08-12)** — pendiente de aprobación por Ron; sin código en el ERP. **PoC validado (SPIKE, 2026-08-13):** `spikes/f5-preguntale-al-sistema/` — VentasSkill sobre `BaseSkill` con function calling DeepSeek, **eval golden 5/5 (tool + data accuracy)**, fallback determinista 100%, demo read-only contra prod (S/494 de hoy).
 - **Proyecto**: IaaS-RonSys — Cliente "El Segoviano"
 - **Alcance**: tenant 1 (El Segoviano); diseño multi-tenant por construcción
-- **Fecha**: 2026-08-12
+- **Fecha**: 2026-08-12 (actualizada 2026-08-13 con resultados del spike)
 - **Framework**: SDD / Spec Anchor — esta spec está sincronizada con el código (specs 03/04 como referencia de formato)
 - **Esfuerzo estimado**: 3–5 semanas (MVP delivery: ~2–3 semanas; replicación a otros dominios: post-MVP)
 - **Dependencia**: ninguna de telefonía — **puede ir en paralelo con F4**
@@ -125,7 +125,7 @@ independiente en la misma ruta) sin tocar el resto del panel.
 ### 3.1 Alcance
 
 **INCLUYE (MVP delivery):**
-- Migración `0017_assistant`: tablas `query_catalog` + `query_logs` + seed del catálogo delivery (≥8 consultas, §3.4).
+- **Migración `0019_assistant`** (la `0017` ya es `whatsapp_bsuid` y la `0018` `call_records` — corregido 2026-08-13): tablas `query_catalog` + `query_logs` + seed del catálogo delivery (≥8 consultas, §3.4).
 - Revivir `app/core/agents/`: `SkillLoader` (registro declarativo) + `DeliverySkill` (implementa `BaseSkill` sobre `delivery_service`/`owner_dashboard_service`).
 - `AssistantService` (pipeline: LLM intención → selección de catálogo → ejecución tenant-scoped → respuesta en español → auditoría) + `LLMClient` (tool calling, proveedor OpenAI/DeepSeek-compatible).
 - Router `/api/v1/assistant`: `POST /ask`, `GET /catalog`, `GET /logs` (admin) + rate limit Redis por tenant.
@@ -292,6 +292,27 @@ question ─► 1. sanitize (límite de chars, idioma es)
 ---
 
 ## 5. Bitácora Spec Anchor (sync spec ↔ código)
+
+- **2026-08-13 (SPIKE PoC — validación de arquitectura, aprobado por Ron)**: se ejecutó el spike
+  `spikes/f5-preguntale-al-sistema/` (commiteado a main `ac13d31`) con resultados que **confirman
+  las decisiones D1–D7**:
+  - **VentasSkill mínimo implementado** sobre `BaseSkill` (sin tocar `app/core/agents/base.py`):
+    3 tools SOLO LECTURA (`ventas_del_dia`, `top_productos_dia`, `ventas_por_zona_dia`), catálogo
+    cerrado con validación de args (solo keys del schema, strings vacíos → None).
+  - **Function calling con DeepSeek real** (`deepseek-v4-flash`, API compatible OpenAI): eligió la
+    tool correcta **5/5** solo con las descripciones (~2.4s). **Fallback determinista por palabras
+    clave: 100% (5/5) a 35–44ms** → respaldo de degradación elegante confirmado (R5/CA-F5.8).
+  - **Eval golden (Bloque C en miniatura)**: 5 golden queries con respuesta esperada calculada
+    contra la BD real → **tool accuracy 100% + data accuracy 100%** en ambos modos (fallback y LLM).
+  - **Demo read-only contra PROD**: "¿cuánto vendimos hoy en el salón?" → S/ 494 en 12 ventas
+    (restaurant, 2026-08-13); "¿qué plato se vendió más?" → top real con fees; "¿ayer?" → delivery
+    S/ 0 (correcto). Confirma que las tools SELECT puro son seguras contra prod.
+  - **Hallazgo de canal**: en prod el canal activo es `restaurant` (salón); delivery activo = 0
+    (los DLV- son E2E canceladas). Las tools del MVP deben parametrizar `business_type`
+    (delivery|restaurant) — ver §3.4 (catálogo por canal).
+  - **Bug real corregido en el spike**: `fecha=None` no filtraba por CURRENT_DATE (devolvía todas
+    las ventas) → `sale_date = CURRENT_DATE`. El MVP debe incluir esta guarda en `sql_template`.
+  - **Pendiente**: aprobación de Ron (decisiones D1–D7) para implementar en el ERP.
 
 - **2026-08-12 (v0.1)**: spec creada por architecture-agent + backend-dev + qa (validación técnica
   JARVIS). Fase R completa — verificado en código:

@@ -53,7 +53,7 @@
 
 | Spec | Estado | Migraciones | Routers |
 |---|---|---|---|
-| [08-spec-preguntale-al-sistema-v0.1.md](06-asistente-ia/08-spec-preguntale-al-sistema-v0.1.md) — **F5 "Pregúntale al Sistema"**: NL2SQL controlado (tool calling sobre catálogo SQL seguro, delivery primero → todo el ERP) | 🟡 PROPUESTA (pendiente análisis) | — | — |
+| [08-spec-preguntale-al-sistema-v0.1.md](06-asistente-ia/08-spec-preguntale-al-sistema-v0.1.md) — **F5 "Pregúntale al Sistema"**: NL2SQL controlado (tool calling sobre catálogo SQL seguro, delivery primero → todo el ERP). **PoC validado (spike `spikes/f5-preguntale-al-sistema/`, 2026-08-13): eval golden 5/5, DeepSeek + fallback determinista** | 🟡 PROPUESTA (pendiente análisis) | 0019_assistant (plan) | `POST /api/v1/assistant/*` (plan) |
 
 ### Fase 04 — Panel del Dueño (dashboard ejecutivo)
 
