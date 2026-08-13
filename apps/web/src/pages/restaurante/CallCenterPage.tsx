@@ -248,13 +248,17 @@ function LiveCallsTab() {
 
 function LiveCallCard({ call, onConvert }: { call: CallRecord; onConvert: () => void }) {
   const [elapsed, setElapsed] = useState(0);
+  // Timer continuo desde started_at (duración total de la llamada) — no se
+  // "resetea" al pasar de ringing → answered (fix UX 2026-08-13: el salto
+  // a 0 al cambiar answered_at se percibía como glitch; la duración de
+  // conversación real queda en el detalle/historial).
   useEffect(() => {
     const t = window.setInterval(() => {
-      const start = call.answered_at ?? call.started_at;
+      const start = call.started_at;
       setElapsed(Math.max(0, Math.floor((Date.now() - new Date(start).getTime()) / 1000)));
     }, 1000);
     return () => window.clearInterval(t);
-  }, [call.answered_at, call.started_at]);
+  }, [call.started_at]);
 
   const recording = call.recording_path ? recordingHref(call.recording_path) : null;
   return (
@@ -287,7 +291,11 @@ function LiveCallCard({ call, onConvert }: { call: CallRecord; onConvert: () => 
         </p>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
-        {call.status !== "answered" && call.status !== "completed" && call.converted_order_id == null && (
+        {/* Fix UX 2026-08-13: el botón debe aparecer en answered (el operador
+            contestó y QUIERE convertir) — antes se ocultaba con status==="answered"
+            que es justo el flujo principal. Solo se oculta en estados terminales
+            (completed/missed/failed) o si ya fue convertida (R6). */}
+        {call.status !== "completed" && call.status !== "missed" && call.status !== "failed" && call.converted_order_id == null && (
           <button
             onClick={onConvert}
             className="rounded-lg bg-brand-primary px-3 py-1.5 text-xs font-medium text-white"
