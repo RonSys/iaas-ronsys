@@ -236,15 +236,35 @@ async function main() {
       // (El modal tiene max-h-[85vh] overflow-y-auto: sin scroll los
       // selectores de zona/pago quedan fuera del viewport y Ron no los ve.)
       const scrollModalTo = async (locator) => {
-        await locator.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
-        await page.waitForTimeout(600);
+        await locator.scrollIntoViewIfNeeded({ timeout: 4000 }).catch(() => {});
+        // Ajuste fino: si el elemento sigue fuera del área visible del modal,
+        // scrollear el contenedor (max-h-[85vh] overflow-y-auto) hasta verlo.
+        const box = await locator.boundingBox().catch(() => null);
+        if (box) {
+          await page.evaluate((targetY) => {
+            const el = document.querySelector(".max-h-\[85vh\]");
+            if (!el) return;
+            const r = el.getBoundingClientRect();
+            if (targetY < r.top || targetY > r.bottom - 80) {
+              el.scrollTop += targetY - r.top - 40;
+            }
+          }, box.y).catch(() => {});
+          await locator.scrollIntoViewIfNeeded({ timeout: 4000 }).catch(() => {});
+        }
+        await page.waitForTimeout(700);
       };
 
       // 5. Scroll a Zona + seleccionar (Montenegro / Motupe / Canto Grande = id 1)
+      // La zona está ARRIBA del modal → forzar scrollTop=0 del contenedor primero.
       await page.getByText("Zona de delivery").first().waitFor({ timeout: 10000 }).catch(() => {});
+      await page.evaluate(() => {
+        const el = document.querySelector(".max-h-\[85vh\]");
+        if (el) el.scrollTop = 0;
+      }).catch(() => {});
+      await page.waitForTimeout(500);
       const zonaSelect = page.getByLabel(/Zona de delivery/).first();
       await scrollModalTo(zonaSelect);
-      await demoStep(page, "6/11 Scroll dentro del modal → selector ZONA visible");
+      await demoStep(page, "6/11 Scroll → selector ZONA visible en pantalla");
       await zonaSelect.selectOption({ index: 1 }).catch(async () => {
         await zonaSelect.selectOption("1").catch(() => {});
       });

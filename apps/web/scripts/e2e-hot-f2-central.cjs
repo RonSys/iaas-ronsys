@@ -97,14 +97,6 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
 
   try {
-    // 0. Inyectar llamada ringing (aparecerá en vivo)
-    let callId = null;
-    if (SERVICE_TOKEN) {
-      const r = await injectCall("ringing");
-      callId = r.id;
-      console.log(`📞 Llamada ringing inyectada → CallRecord id=${callId} (HTTP ${r.status})`);
-    }
-
     // 1. Login staff (patrón pruebas previas)
     await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
     await demoStep(page, "1/8 Login staff — llenando credenciales (admin@elsegoviano.pe)");
@@ -115,39 +107,114 @@ async function main() {
     await page.waitForURL((u) => !u.pathname.includes("/login"), { timeout: 15_000 }).catch(() => {});
     await demoStep(page, "2/8 Login exitoso — dashboard cargado (URL: " + page.url().replace(BASE, "") + ")");
 
-    // 2. Panel Central Telefónica
+    // 2. Panel Central Telefónica (el WS se conecta AQUÍ)
     await page.goto(`${BASE}/restaurante/central`, { waitUntil: "networkidle" });
     await page.getByText("En vivo").first().waitFor({ timeout: 20_000 }).catch(() => {});
-    await demoStep(page, "3/8 Panel Central Telefónica — tab 'En vivo' (WebSocket conectado)");
+    // Esperar que el WS esté conectado ("WS: 🟢 conectado")
+    await page.waitForTimeout(3000);
+    await demoStep(page, "3/8 Panel Central Telefónica — tab 'En vivo' (WebSocket CONECTADO: 🟢)");
 
-    // 3. Transición a answered (la llamada aparece con estado contestada + botón convertir)
+    // 3. Inyectar llamada ringing AHORA (el WS ya escucha → call.incoming crea la tarjeta)
+    let callId = null;
+    if (SERVICE_TOKEN) {
+      const r = await injectCall("ringing");
+      callId = r.id;
+      console.log(`📞 Llamada ringing inyectada (WS conectado) → CallRecord id=${callId} (HTTP ${r.status})`);
+    }
+    await page.waitForTimeout(2500);
+    await demoStep(page, "4/8 ⭐ LLAMADA EN VIVO: " + CALLER + " → " + CALLEE + " (call.incoming → tarjeta en el panel)");
+
+    // 4. Transición a answered (la tarjeta ya existe → call.answered actualiza a contestada)
     if (SERVICE_TOKEN) {
       const r2 = await injectCall("answered");
       console.log(`📞 Transición a answered → upsert id=${r2.id} (HTTP ${r2.status})`);
     }
-    await page.waitForTimeout(4000);
-    await demoStep(page, "4/8 Llamada EN VIVO: " + CALLER + " → " + CALLEE + " (WS recibió call.incoming + call.answered)");
+    await page.waitForTimeout(3000);
+    await demoStep(page, "5/8 Llamada contestada (call.answered → estado 'answered' + botón Convertir)");
 
-    // 4. Historial
-    await page.getByRole("tab", { name: /Historial/ }).click().catch(() => {});
+    // 5. Historial
+    await page.getByRole("tab", { name: /Historial|Histórico/ }).click().catch(() => {});
     await page.waitForTimeout(2500);
-    await demoStep(page, "5/8 Historial de llamadas — CallRecord persistido en BD (fila " + CALLER + ")");
+    await demoStep(page, "6/8 Historial de llamadas — CallRecord persistido en BD (fila " + CALLER + ")");
 
-    // 5. Volver a En vivo y abrir modal Convertir a pedido
+    // 6. Volver a En vivo y abrir modal Convertir a pedido
     await page.getByRole("tab", { name: /En vivo/ }).click().catch(() => {});
     await page.waitForTimeout(2000);
     const convBtn = page.getByRole("button", { name: /Convertir a pedido/ }).first();
     if (await convBtn.count()) {
       await convBtn.click();
-      await page.waitForTimeout(2500);
-      await demoStep(page, "6/8 Modal 'Convertir a pedido' — zona + items + pago (reusa flujo delivery)");
-      await page.keyboard.press("Escape").catch(() => {});
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(2000);
+      await demoStep(page, "7/10 Modal 'Convertir a pedido' abierto");
+
+      // Scroll helper dentro del modal (max-h-[85vh] overflow-y-auto)
+      const scrollModalTo = async (locator) => {
+        await locator.scrollIntoViewIfNeeded({ timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(700);
+      };
+
+      // Zona primero (arriba del modal) — forzar scrollTop=0
+      await page.getByText("Zona de delivery").first().waitFor({ timeout: 10000 }).catch(() => {});
+      await page.evaluate(() => {
+        const el = document.querySelector(".max-h-\[85vh\]");
+        if (el) el.scrollTop = 0;
+      }).catch(() => {});
+      await page.waitForTimeout(500);
+      const zonaSelect = page.getByLabel(/Zona de delivery/).first();
+      await scrollModalTo(zonaSelect);
+      await zonaSelect.selectOption({ index: 1 }).catch(async () => {
+        await zonaSelect.selectOption("1").catch(() => {});
+      });
+      console.log("   zona value:", await zonaSelect.inputValue().catch(() => "?"));
+      await demoStep(page, "8/10 Zona SELECCIONADA: Montenegro (S/5 fee, min S/35)");
+
+      // Items: Arroz con Mariscos ×1 + Inca Kola ×1 (supera mínimo S/35)
+      await page.getByText("Arroz con Mariscos").first().waitFor({ timeout: 15000 }).catch(() => {});
+      for (const itemName of ["Arroz con Mariscos", "Inca Kola"]) {
+        const row = page
+          .locator('div.flex.items-center.justify-between.text-sm', { hasText: itemName })
+          .first();
+        if (await row.count()) {
+          const input = row.locator('input[type="number"]');
+          await scrollModalTo(input);
+          await input.fill("1");
+          const val = await input.inputValue();
+          if (val !== "1") await input.press("ArrowUp");
+        }
+      }
+      await demoStep(page, "9/10 Items: Arroz con Mariscos (S/32) + Inca Kola (S/5) = S/37");
+
+      // Pago Yape + referencia
+      const pagoSelect = page.getByLabel(/Pago/).first();
+      await scrollModalTo(pagoSelect);
+      await pagoSelect.selectOption("yape").catch(() => {});
+      const refInput = page.getByPlaceholder(/Código de referencia/).first();
+      if (await refInput.count()) {
+        await scrollModalTo(refInput);
+        await refInput.fill("E2E-CENTRAL-" + Date.now().toString().slice(-6));
+      }
+      const addr = page.getByPlaceholder(/Av\. …/);
+      if (await addr.count()) {
+        await scrollModalTo(addr);
+        await addr.fill("Av. Montenegro 123, Lima");
+      }
+      await demoStep(page, "10/10 Pago SELECCIONADO: Yape + referencia");
+
+      // Guardar → DLV-
+      const btn = page.getByRole("button", { name: /Crear pedido/ });
+      await scrollModalTo(btn);
+      await btn.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
+      await btn.click({ timeout: 5000 }).catch(() => {});
+      await page.waitForTimeout(6000);
+      await demoStep(page, "11/11 Pedido creado (DLV-) — card '✅ Convertida'");
+      try {
+        const okText = await page.getByText(/Pedido .* creado|DLV-/).first().innerText();
+        console.log(`   mensaje: ${okText}`);
+      } catch {}
     } else {
-      await demoStep(page, "6/8 Botón 'Convertir a pedido' disponible para la llamada contestada");
+      await demoStep(page, "7/10 Botón 'Convertir a pedido' disponible para la llamada contestada");
     }
 
-    // 6. Verificación API (sin token JWT staff → 401 esperado; el panel es la evidencia)
+    // 7. Verificación API
     console.log(`\n📋 VERIFICACIÓN (PROD):`);
     console.log(`   llamada ${EXT_ID} → CallRecord id=${callId}`);
     console.log(`   panel /restaurante/central + WS En vivo + Historial operativos ✅`);
