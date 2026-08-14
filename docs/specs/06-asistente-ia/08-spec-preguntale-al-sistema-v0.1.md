@@ -309,6 +309,14 @@ question ─► 1. sanitize (límite de chars, idioma es)
 
 ## 5. Bitácora Spec Anchor (sync spec ↔ código)
 
+- **2026-08-14 (OBSERVABILIDAD IA + LLM REAL — F5.1/F5.2/F5.3)**: Ron aprobó la §6 del doc de arquitectura. Implementado y verificado en PROD:
+  - **F5.1 LangSmith**: `langsmith>=0.1.0` + `LLMClient.select_query` con `@traceable(run_type="llm")`. Tras diagnóstico (Service Key `lsv2_sk_` → 403 en plan free; PAT `lsv2_pt_` → OK), Ron creó PAT personal → trazas verificadas end-to-end en proyecto `ronsys-backend` (runs `assistant_select_query`, cero errores de ingesta).
+  - **F5.2 Grafana/Prometheus**: `docker-compose.monitoring.yml` → `iaas-prometheus` :9090 + `iaas-grafana` :3000 Up healthy; target `iaas-backend` UP; dashboard "IA Infra — Observabilidad (F5.2)"; evidencia `docs/reports/grafana-dashboard-ia-infra-2026-08.json`.
+  - **F5.3 API de costos**: `GET /api/v1/assistant/costs?from=&to=` — unifica `query_logs` (asistente, costo estimado por tokens) + `call_records.cost_usd` (F3 voice_ai, costo real). Solo admin, rango 30d (R9), 422 si from>to. Verificado: $0.001358 (2716 tokens). 4 tests nuevos.
+  - **3 bugs reales corregidos en caliente**: (1) `max_tokens` 400→1200 (deepseek-v4-flash es modelo de razonamiento: con 400/800 se quedaba en `finish=length` sin emitir tool_call → F5 caía al fallback silencioso); (2) fechas relativas — el LLM usaba su fecha de entrenamiento (2025-06-29), el system prompt ahora inyecta `date.today()` real → 2026-07-30/2026-08-14; (3) `query_logs.tokens_used` persistía NULL → ahora guarda los tokens reales del usage.
+  - **LLM real activo**: DeepSeek `deepseek-v4-flash` con tool calling verificado en prod (top_products_delivery + comparison_week, tokens 2619/2403, ~2-5s). Suite backend 521 passed (2 pre-existentes `test_caso6_recipes`). Commit `7be24dc`.
+  - Estado: 🟢 APROBADA E IMPLEMENTADA + OBSERVABILIDAD (spec ↔ código sincronizadas).
+
 - **2026-08-14 (DEPLOY PROD + E2E EN CALIENTE + QA real)**: implementación completa desplegada.
   - **QA real en `iaas-backend-qa`** (migración 0020 + seed 10 consultas): smoke de las 10
     consultas → **3 bugs reales de ejecución detectados y corregidos**: (1) fechas ISO pasaban

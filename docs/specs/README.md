@@ -53,7 +53,7 @@
 
 | Spec | Estado | Migraciones | Routers |
 |---|---|---|---|
-| [08-spec-preguntale-al-sistema-v0.1.md](06-asistente-ia/08-spec-preguntale-al-sistema-v0.1.md) — **F5 "Pregúntale al Sistema"**: NL2SQL controlado (tool calling sobre catálogo SQL seguro, delivery primero → todo el ERP). **IMPLEMENTADA Y DEPLOYADA (2026-08-14)**: chat flotante en Panel del Dueño, 10 consultas delivery, E2E 6/6 en prod | 🟢 APROBADA/IMPLEMENTADA | 0020 (assistant) | `/api/v1/assistant/*` |
+| [08-spec-preguntale-al-sistema-v0.1.md](06-asistente-ia/08-spec-preguntale-al-sistema-v0.1.md) — **F5 "Pregúntale al Sistema"**: NL2SQL controlado (tool calling sobre catálogo SQL seguro, delivery primero → todo el ERP). **IMPLEMENTADA Y DEPLOYADA (2026-08-14) + OBSERVABILIDAD IA**: chat flotante en Panel del Dueño, 10 consultas delivery, E2E 6/6, + LangSmith (trazas/costo por run), Grafana/Prometheus (dashboard IA Infra) y API de costos `/assistant/costs` | 🟢 APROBADA/IMPLEMENTADA | 0020 (assistant) | `/api/v1/assistant/*` |
 
 ### Fase 04 — Panel del Dueño (dashboard ejecutivo)
 
@@ -88,7 +88,7 @@
 | Delivery | 03-delivery | `routers/delivery.py`, `routers/public.py`, `services/delivery_service.py`, `services/whatsapp_notifier.py`, `services/notify_events.py`, `services/notify_worker.py` (worker `iaas-worker-prod`) | 0016 | DeliveryPage, PublicMenuPage | delivery-landing, delivery-staff, e2e-demo-delivery-whatsapp.cjs |
 | Recepcionista IA (F3) | 06 | `routers/ai_calls.py`, `services/voice_ai_service.py`, `services/voice_bridge.py` | 0019 | CallCenterPage (tab IA) | e2e-hot-f3-recepcionista.cjs |
 | Panel Dueño | 04-panel | `routers/dashboard.py`, `services/owner_dashboard_service.py` | — | DashboardOwner (`/panel`) | panel (13 tests, e2e — incl. dropdown CSV/PDF) |
-| Asistente IA (F5) | 08 | `routers/assistant.py`, `services/assistant_service.py` | 0020 | AssistantChat (DashboardOwner) | e2e-hot-f5-asistente.cjs |
+| Asistente IA (F5) | 08 | `routers/assistant.py`, `services/assistant_service.py` | 0020 | AssistantChat (DashboardOwner) | e2e-hot-f5-asistente.cjs + observabilidad (LangSmith/Grafana/costs) |
 
 > **Fase B (Spec 03 §7, 2026-08-11)**: notificaciones WhatsApp — motor de eventos desplegado en prod en modo dry-run (Notifier MetaCloud/DryRun + cola RabbitMQ `iaas-tasks` + worker con reintentos/DLQ; verificado en vivo: confirmed/new_order/status_changed/cancelled, cero HTTP). Fix métricas delivery con rango de fechas también desplegado (2026-08-11, antes 500 → 200).
 | Infra/CI | 99-infra | compose, deploy.sh, `.github/workflows/`, `routers/health.py` | — | — | configs prod |

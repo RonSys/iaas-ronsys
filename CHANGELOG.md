@@ -4,6 +4,20 @@
 
 ---
 
+## [0.9.1] — 2026-08-14
+
+### Added
+
+#### 🧭 Observabilidad IA completa — LangSmith + Grafana/Prometheus + API de costos (F5.1/F5.2/F5.3)
+- **F5.1 LangSmith**: SDK `langsmith>=0.1.0` + `LLMClient.select_query` decorada con `@traceable(run_type="llm")` — trazas en árbol + costo por run. Activado en prod con PAT personal de Ron (proyecto `ronsys-backend`): trazas verificadas end-to-end (runs `assistant_select_query` visibles, cero errores de ingesta). Diagnóstico: Service Keys (lsv2_sk_) → 403 en plan free; PAT (lsv2_pt_) → funciona.
+- **F5.2 Grafana + Prometheus** (`docker-compose.monitoring.yml`): `iaas-prometheus` :9090 + `iaas-grafana` :3000 (v11.1) Up healthy; target `iaas-backend` **up** (scrapea /metrics); data source + dashboard "IA Infra — Observabilidad (F5.2)" (rate requests por endpoint + contador); evidencia reproducible `docs/reports/grafana-dashboard-ia-infra-2026-08.json`.
+- **F5.3 API de costos**: `GET /api/v1/assistant/costs?from=&to=` unifica `query_logs` (asistente, costo estimado por tokens) + `call_records.cost_usd` (F3 voice_ai, costo real). Solo admin. Rango default 30 días (R9), 422 si from>to. Verificado en prod: $0.001358 (2716 tokens). 4 tests nuevos.
+
+### Fixed
+- **Bug crítico tool calling (prod)**: deepseek-v4-flash es modelo de razonamiento — con `max_tokens=400/800` se quedaba en `finish=length` tras `reasoning_content` sin emitir el tool_call (F5 caía al fallback silenciosamente). Subido a `max_tokens=1200` → tool_call verificado.
+- **Fechas relativas**: el LLM resolvía "últimos 15 días" a su fecha de entrenamiento (2025-06-29). El system prompt ahora inyecta la **fecha real de hoy** (`date.today()`) → resuelve 2026-07-30 → 2026-08-14.
+- **Tokens en auditoría**: `query_logs.tokens_used` siempre NULL → ahora persiste los tokens reales del usage (2716/2011/2403 según consulta) → la API de costos tiene data real.
+
 ## [0.9.0] — 2026-08-14
 
 ### Added

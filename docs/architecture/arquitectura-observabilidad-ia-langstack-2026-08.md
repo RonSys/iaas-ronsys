@@ -1,6 +1,6 @@
 # 🧭 Arquitectura de Observabilidad IA — LangChain + LangGraph + LangSmith (F5 y plataforma)
 
-> **Autor:** Jarvis (orquestador) · **Fecha:** 2026-08-14 · **Estado:** 🟡 PROPUESTA (para validación de Ron)
+> **Autor:** Jarvis (orquestador) · **Fecha:** 2026-08-14 · **Estado:** 🟢 PARCIALMENTE IMPLEMENTADA (2026-08-14) — F5.1 LangSmith ✅ activo (trazas verificadas), F5.2 Grafana/Prometheus ✅ en prod, F5.3 API costs ✅; pendientes según roadmap: LangChain con RAG (Bloque B) y LangGraph (multi-agente)
 > **Base:** investigación de Ron (`~/investigacion/07-varios/20260808_LangChain-vs-LangGraph-vs-LangSmith-Cual-Usar-en-2.md`)
 > **Alcance:** preparar la arquitectura de F5 (y futuros agentes IA: F3 voz, RAG Bloque B) para los 3 frameworks, con **observabilidad total** y **mapeo de costos por agente**.
 
@@ -111,9 +111,9 @@ Grafana ── dashboard unificado: $/día por agente (suma query_logs/F3) + sal
 
 | Fase | Qué | Esfuerzo | Cuándo |
 |---|---|---|---|
-| **F5.1 — LangSmith YA** | Instalar `langsmith` + 2 env vars en F5 (y F3 voice_ai). Trazas + costo por run desde el día 1. Verificar con 1 consulta real | ~0.5–1 día | **Ahora** (valor inmediato, responde la duda de costos de Ron) |
-| **F5.2 — Grafana on** | Añadir `prometheus` + `grafana` al docker-compose (config ya existe), dashboard "Costo IA por agente/tenant/día" (fuente: query_logs + F3) + alertas | ~1–2 días | Próximo sprint devops |
-| **F5.3 — Costo unificado** | Vista en el backend: `GET /api/v1/assistant/costs?from=&to=&agent=` (agrega query_logs + F3 cost_usd + tarifas) → API lista para Grafana o para el panel | ~1 día | Con F5.2 |
+| **F5.1 — LangSmith YA** | Instalar `langsmith` + 2 env vars en F5 (y F3 voice_ai). Trazas + costo por run desde el día 1. Verificar con 1 consulta real | ~0.5–1 día | ✅ **HECHO (2026-08-14)** — PAT activo, trazas verificadas en prod (proyecto ronsys-backend) |
+| **F5.2 — Grafana on** | Añadir `prometheus` + `grafana` al docker-compose (config ya existe), dashboard "Costo IA por agente/tenant/día" (fuente: query_logs + F3) + alertas | ~1–2 días | ✅ **HECHO (2026-08-14)** — contenedores Up healthy, dashboard IA Infra |
+| **F5.3 — Costo unificado** | Vista en el backend: `GET /api/v1/assistant/costs?from=&to=&agent=` (agrega query_logs + F3 cost_usd + tarifas) → API lista para Grafana o para el panel | ~1 día | ✅ **HECHO (2026-08-14)** — GET /assistant/costs verificado con $ real |
 | **RAG (Bloque B)** | Implementar con **LangChain** (tubería RAG: embeddings + pgvector ya disponible) — primera pieza real de LangChain | 2–4 sem (proyecto aparte) | Cuando Ron apruebe Bloque B |
 | **F5 Multi-agente** | Si F5 crece a chat + voz + RAG coordinados o necesita retry/self-eval → migrar el pipeline de 8 pasos a **LangGraph** (checkpoints, interrupt) | Solo cuando haya caso real | Futuro |
 | **LangSmith Fleet** | Evaluar despliegue/operación de agentes cuando haya varios en producción | — | Futuro |
@@ -122,11 +122,12 @@ Grafana ── dashboard unificado: $/día por agente (suma query_logs/F3) + sal
 
 ---
 
-## 6. Decisión pedida a Ron
+## 6. Decisión pedida a Ron — RESUELTA (2026-08-14)
 
-1. ✅ **¿Autorizas LangSmith (plan free, ~5k trazas/mes) para F5 y F3?** — costo $0 para empezar, 2 env vars, sin tocar código de negocio.
-2. ✅ **¿Autorizas levantar Grafana/Prometheus en el compose** (config ya lista) con dashboard de costos por agente?
-3. 📌 F4 queda **pendiente para el domingo 16/08** (confirmado por Ron, 2026-08-14).
+1. ✅ **LangSmith activado (F5.1)**: Ron creó PAT personal (`lsv2_pt_...`) → trazas verificadas en prod (proyecto `ronsys-backend`, runs `assistant_select_query`, cero errores de ingesta).
+2. ✅ **Grafana/Prometheus levantados (F5.2)**: `iaas-prometheus` :9090 + `iaas-grafana` :3000 Up healthy, target backend UP, dashboard "IA Infra — Observabilidad (F5.2)".
+3. ✅ **F5.3 API de costos**: `GET /api/v1/assistant/costs?from=&to=` verificado con data real ($0.001358, 2716 tokens).
+4. 📌 F4 pendiente para el domingo 16/08 (confirmado por Ron, 2026-08-14).
 
 ---
 
