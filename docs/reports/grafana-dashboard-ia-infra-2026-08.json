@@ -1,0 +1,54 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "ia-infra-2026-08",
+    "title": "IA Infra — Observabilidad (F5.2)",
+    "tags": ["iaas", "infra", "f5.2"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 0,
+    "refresh": "30s",
+    "time": { "from": "now-6h", "to": "now" },
+    "panels": [
+      {
+        "id": 1,
+        "type": "timeseries",
+        "title": "Requests HTTP por endpoint (rate 5m)",
+        "datasource": { "type": "prometheus", "uid": "cfv4gr5ivplhcf" },
+        "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps",
+            "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "stacking": { "mode": "none" }, "showPoints": "never" }
+          },
+          "overrides": []
+        },
+        "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last"] }, "tooltip": { "mode": "multi" } },
+        "targets": [
+          {
+            "expr": "sum by (endpoint) (rate(iaas_http_requests_total[5m]))",
+            "legendFormat": "{{endpoint}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "type": "stat",
+        "title": "Total requests (contador)",
+        "datasource": { "type": "prometheus", "uid": "cfv4gr5ivplhcf" },
+        "gridPos": { "h": 5, "w": 24, "x": 0, "y": 9 },
+        "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+        "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+        "targets": [
+          {
+            "expr": "sum(iaas_http_requests_total)",
+            "legendFormat": "total",
+            "refId": "A"
+          }
+        ]
+      }
+    ]
+  },
+  "overwrite": true
+}

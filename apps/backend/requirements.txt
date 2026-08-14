@@ -50,3 +50,6 @@ websockets==14.1        # WS ARI events + External Media RTP→WS
 # faster-whisper / piper-tts: OPCIONALES (PoC local sin keys). Se instalan a demanda:
 #   pip install faster-whisper silero-vad piper-tts
 # No van en requirements base para no inflar la imagen; documentado en deploy/asterisk/README.md
+
+# ─── F5.1 Observabilidad LLM — LangSmith (Spec 08, aprobado 2026-08-14) ──
+langsmith>=0.1.0          # trazas + costo por run; no-op si no hay API key

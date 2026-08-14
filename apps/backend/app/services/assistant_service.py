@@ -45,6 +45,14 @@ from app.schemas.assistant import AskResponse, CatalogQueryUsed
 
 logger = logging.getLogger(__name__)
 
+# ─── F5.1: LangSmith — tracing opcional (no-op sin API key, aprobado 2026-08-14) ──
+try:
+    from langsmith import traceable
+    _LANGSMITH_OK = True
+except Exception:  # noqa: BLE001 — ausencia de langsmith no debe romper nada
+    _LANGSMITH_OK = False
+    traceable = lambda **kw: (lambda f: f)  # no-op
+
 # Límite de caracteres de la pregunta (sanitize, R5/CA-F5.7)
 MAX_QUESTION_CHARS = 500
 # Default de rango de fechas (R9 — patrón _resolve_dates de Spec 04)
@@ -186,6 +194,8 @@ class LLMClient:
         self.model = model or settings.llm_model or "gpt-4o"
         self.provider = provider or settings.llm_provider or "openai"
         self.timeout_s = timeout_s
+        # F5.1: LangSmith activo solo si hay API key (no-op en dev/qa sin key)
+        self.langsmith_key = self.api_key and settings.langsmith_api_key
         # DeepSeek usa la misma API de OpenAI con base_url distinto
         self.base_url = os.getenv(
             "LLM_BASE_URL",
@@ -224,6 +234,7 @@ class LLMClient:
             })
         return out
 
+    @traceable(run_type="llm", name="assistant_select_query")
     async def select_query(self, question: str, catalog: list[QueryCatalog]) -> dict | None:
         """
         LLM elige query_catalog.name + params vía tool calling (D1).
@@ -264,6 +275,15 @@ class LLMClient:
                 if resp.status_code != 200:
                     logger.warning("LLM %s → HTTP %s: %s", self.provider, resp.status_code, resp.text[:200])
                     return None
+                # F5.1: costo/tokens a la traza LangSmith (si hay key)
+                try:
+                    usage = resp.json().get("usage") or {}
+                    if usage and self.langsmith_key:
+                        import os
+                        os.environ.setdefault("LANGSMITH_TRACING", "true")
+                        os.environ.setdefault("LANGSMITH_PROJECT", settings.langsmith_project)
+                except Exception:  # noqa: BLE001
+                    pass
                 msg = resp.json()["choices"][0]["message"]
         except Exception as exc:  # noqa: BLE001 — degradación elegante R5
             logger.warning("LLM tool calling falló (%s) → fallback determinista", exc)

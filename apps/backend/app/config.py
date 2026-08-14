@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o"
     llm_provider: str = "openai"
 
+    # ─── LangSmith (observabilidad LLM — F5.1, aprobado 2026-08-14) ──
+    langsmith_api_key: Optional[str] = None   # LANGSMITH_API_KEY (plan free ~5k trazas/mes)
+    langsmith_tracing: bool = True            # LANGSMITH_TRACING
+    langsmith_project: str = "iaas-ronsys"    # LANGSMITH_PROJECT
+
     # ─── CORS ─────────────────────────────────────────────────
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
