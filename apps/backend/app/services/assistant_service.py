@@ -249,8 +249,12 @@ class LLMClient:
             "Eres el asistente de datos de El Segoviano (restaurante con delivery). "
             "El usuario pregunta en lenguaje natural sobre ventas/delivery. "
             "Usa SIEMPRE las herramientas disponibles (catálogo cerrado — nunca "
-            "inventes SQL ni datos). Resuelve fechas relativas ('hoy', 'esta semana', "
-            "'el mes pasado') a YYYY-MM-DD en los argumentos. Si no hay pista de "
+            "inventes SQL ni datos). "
+            f"La fecha de HOY es {date.today().isoformat()} (usa esta fecha como "
+            "referencia para resolver fechas relativas: 'hoy', 'esta semana', "
+            "'el mes pasado' → YYYY-MM-DD en los argumentos; NUNCA uses fechas de "
+            "tu conocimiento de entrenamiento). "
+            "Si no hay pista de "
             "fecha, omite date_from/date_to (el sistema usa los últimos 30 días). "
             "Responde eligiendo UNA herramienta con sus argumentos tipados."
         )
@@ -263,7 +267,10 @@ class LLMClient:
             "tools": self._tools_schema(catalog),
             "tool_choice": "auto",
             "temperature": 0.1,
-            "max_tokens": 400,
+            # F5.3 (bug real QA/prod): deepseek-v4-flash es modelo de razonamiento;
+            # con max_tokens bajos se queda en finish=length tras reasoning_content
+            # sin emitir el tool_call (verificado: 400/800 → 0 tool_calls, 1200 → OK).
+            "max_tokens": 1200,
         }
         headers = {
             "Content-Type": "application/json",
@@ -297,8 +304,15 @@ class LLMClient:
             raw_args = json.loads(tc.get("arguments") or "{}")
         except json.JSONDecodeError:
             raw_args = {}
+        # F5.3: tokens reales del usage → query_logs.tokens_used (costo por tenant)
+        try:
+            usage = resp.json().get("usage") or {}
+            total_tokens = int(usage.get("total_tokens") or 0)
+        except Exception:  # noqa: BLE001
+            total_tokens = 0
         # Sanear: strings vacíos → None (bug del spike) + solo keys del schema
-        return {"name": tc.get("name", ""), "params": raw_args or {}}
+        return {"name": tc.get("name", ""), "params": raw_args or {},
+                "tokens_used": total_tokens or None}
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -614,7 +628,9 @@ class AssistantService:
                     summary["total"] = round(float(first[k] or 0), 2)
                     break
         await self._log(pregunta=question, catalog_id=q.id, params=clean_params,
-                        summary=summary, tokens_used=None, rejected=False,
+                        summary=summary,
+                        tokens_used=selection.get("tokens_used"),
+                        rejected=False,
                         latency_ms=int((time.time() - started) * 1000))
 
         return AskResponse(

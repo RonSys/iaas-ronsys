@@ -13,7 +13,7 @@ Diseño (Spec 08 §3.3):
   - `result_summary` en logs = SOLO resumen (rows/total), nunca data completa.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
@@ -85,3 +85,28 @@ class QueryLogOut(BaseModel):
     tokens_used: Optional[int]
     latency_ms: Optional[int]
     rejected: bool
+
+
+# ═══════════════════════════════════════════════════════════════
+# GET /costs (F5.3 — solo admin; unifica query_logs + call_records)
+# ═══════════════════════════════════════════════════════════════
+
+class AssistantCostItem(BaseModel):
+    """Costo de IA por fuente (F5.3 — unifica query_logs + call_records)."""
+
+    date: date
+    source: str  # "assistant" | "voice_ai"
+    requests: int
+    tokens_used: Optional[int] = None
+    cost_usd: float
+
+
+class AssistantCostsOut(BaseModel):
+    """Resumen de costos IA por tenant y rango (F5.3)."""
+
+    tenant_id: int
+    date_from: date
+    date_to: date
+    total_cost_usd: float
+    by_source: dict[str, float]
+    items: list[AssistantCostItem]
