@@ -309,6 +309,31 @@ question ─► 1. sanitize (límite de chars, idioma es)
 
 ## 5. Bitácora Spec Anchor (sync spec ↔ código)
 
+- **2026-08-14 (DEPLOY PROD + E2E EN CALIENTE + QA real)**: implementación completa desplegada.
+  - **QA real en `iaas-backend-qa`** (migración 0020 + seed 10 consultas): smoke de las 10
+    consultas → **3 bugs reales de ejecución detectados y corregidos**: (1) fechas ISO pasaban
+    como `str` y asyncpg las rechazaba (`DataError: 'str' object has no attribute 'toordinal'`)
+    → `DeliverySkill.execute` normaliza ISO → `date` objects; (2) `text()` no definía los bind
+    params del template (`This text() construct doesn't define a bound parameter`) → binding
+    vía `db.execute(stmt, params=bind)`; (3) fallback greedy: "resumen... GMV" matcheaba
+    `campaign_roas` por la keyword "gmv" → matcher por **score** (gana la regla con más
+    keywords, desempate por orden) + keywords específicas en `delivery_overview`. Smoke QA
+    final: **10/10 OK**. Rate limit verificado en caliente (429 con Retry-After a la 11ª
+    consulta en la ventana). Auditoría R4 verificada: 1 log por consulta con params JSONB.
+  - **Deploy PROD**: backup previo obligatorio (`backup_f5_20260814.dump`, 294 KB) →
+    `iaas-backend-prod` :8000 healthy con `alembic upgrade head` (0020 aplicada, 10 consultas
+    seedeadas) → `iaas-frontend-prod` :8081 con AssistantChat en `DashboardOwner-*.js`.
+  - **E2E en caliente PROD** (`apps/web/scripts/e2e-hot-f5-asistente.cjs`, evidencias en
+    `docs/reports/evidencias-f5-e2e-prod/`): login API + login UI + `/panel` + FAB del
+    asistente + pregunta real → **respuesta renderizada con datos reales** ("Ticket promedio
+    de delivery (2026-07-31 a 2026-08-14): S/ 47.92 en 38 pedidos"). **6/6 OK**.
+  - **Smoke de las 10 consultas contra PROD con datos reales: 10/10 OK** (ticket S/ 47.92,
+    márgenes S/ 7,746, comparativa semanal, horas, canales).
+  - **Limpieza completa post-E2E**: `query_logs` PROD = 0 (patrón e2e-hot F2/F3).
+  - **Suites**: backend 517 passed (2 pre-existentes `test_caso6_recipes`, no regresión F5);
+    frontend 167 passed / 26 suites (jest) + TSC OK + `vite build` OK.
+  - Estado: 🟢 APROBADA + IMPLEMENTADA (spec ↔ código sincronizadas).
+
 - **2026-08-13 (APROBACIÓN RON + validación de implementación)**: spec aprobada por Ron
   (D1–D7 APROBADAS, presupuesto S/5,000–8,000) → estado 🟢 APROBADA. Ajustes validados:
   - **Migración renombrada a `0020_assistant`**: la `0019` ya está tomada por F3

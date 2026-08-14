@@ -1,0 +1,35 @@
+{
+  "fecha": "2026-08-14T01:25:14.303Z",
+  "resultados": [
+    {
+      "name": "P0: login API",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "P1: login UI → panel",
+      "ok": true,
+      "detail": "http://localhost:8081/"
+    },
+    {
+      "name": "P2: DashboardOwner cargado",
+      "ok": true,
+      "detail": "http://localhost:8081/panel"
+    },
+    {
+      "name": "P3: botón flotante asistente visible",
+      "ok": true,
+      "detail": "encontrado"
+    },
+    {
+      "name": "P4: input del chat visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "P5: respuesta del asistente renderizada (datos reales)",
+      "ok": true,
+      "detail": "🤖 Pregúntale al Sistema  Datos reales del negocio · catálogo seguro  ¿cuál es el ticket promedio de delivery "
+    }
+  ]
+}
