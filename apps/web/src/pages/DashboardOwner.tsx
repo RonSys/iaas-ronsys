@@ -36,6 +36,7 @@ import {
   Legend,
 } from "recharts";
 import { KPICard, SectionHeader, Skeleton, fmtCurrency, fmtPct } from "@/components/dashboard/KPICard";
+import { AssistantChat } from "@/components/assistant/AssistantChat";
 import { exportOwnerDashboardCsv, exportOwnerDashboardPdf, getOwnerDashboard } from "@/services/dashboardApi";
 import type {
   AlertItem,
@@ -912,6 +913,9 @@ export function DashboardOwner() {
           <KPICard title="Pedidos delivery" value={String(data.kpis.orders_delivery)} icon="📦" subtitle={`${data.delivery.orders_by_zone.length} zona(s) activa(s)`} />
         </div>
       )}
+
+      {/* ─── F5: Asistente "Pregúntale al Sistema" (Spec 08) ── */}
+      <AssistantChat />
     </div>
   );
 }

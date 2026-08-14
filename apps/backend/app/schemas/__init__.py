@@ -10,6 +10,13 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from app.schemas.voice_ai import VoiceAiSettings  # noqa: E402 — F3 (Spec 06 §3.3): config voz por tenant
+from app.schemas.assistant import (  # noqa: E402 — F5 (Spec 08 §3.3): asistente "Pregúntale al Sistema"
+    AskRequest,
+    AskResponse,
+    CatalogItem,
+    CatalogQueryUsed,
+    QueryLogOut,
+)
 
 # ═══════════════════════════════════════════════════════════════
 # Setup / Inversión

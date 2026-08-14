@@ -362,7 +362,8 @@ class TestMigration0009:
                 or "0016_delivery" in result.stdout
                 or "0017_whatsapp_bsuid" in result.stdout
                 or "0018_call_records" in result.stdout  # Spec 05 F2: nueva head (call_records)
-                or "0019_voice_ai" in result.stdout)  # Spec 06 F3: nueva head (voice_ai)
+                or "0019_voice_ai" in result.stdout  # Spec 06 F3: nueva head (voice_ai)
+                or "0020_assistant" in result.stdout)  # Spec 08 F5: nueva head (assistant)
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -793,7 +793,7 @@ async def test_migration_0019_up_down():
         await _bootstrap_f2(engine)
 
         # 2) upgrade head → 0019_voice_ai
-        await asyncio.to_thread(_run_alembic, "upgrade", "head")
+        await asyncio.to_thread(_run_alembic, "upgrade", "0019_voice_ai")
         async with engine.connect() as conn:
             version = (await conn.execute(text("SELECT version_num FROM alembic_version"))).scalar()
             assert version == "0019_voice_ai"
@@ -862,7 +862,7 @@ async def test_migration_0019_up_down():
                 assert col in cols
 
         # 5) dejar la BD de test consistente en head
-        await asyncio.to_thread(_run_alembic, "upgrade", "head")
+        await asyncio.to_thread(_run_alembic, "upgrade", "0019_voice_ai")
     finally:
         await engine.dispose()
 

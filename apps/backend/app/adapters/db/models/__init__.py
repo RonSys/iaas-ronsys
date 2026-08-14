@@ -49,4 +49,8 @@ from app.adapters.db.models.sales import (  # noqa: F401
     SaleItem,
     SalePayment,
 )
+from app.adapters.db.models.assistant import (  # noqa: F401
+    QueryCatalog,
+    QueryLog,
+)
 from app.adapters.db.models.simulator import Scenario  # noqa: F401

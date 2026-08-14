@@ -1,18 +1,18 @@
 # SPEC 08 — F5 "Pregúntale al Sistema" (NL2SQL controlado)
 
-- **Estado**: 🟡 **PROPUESTA (2026-08-12)** — pendiente de aprobación por Ron; sin código en el ERP. **PoC validado (SPIKE, 2026-08-13):** `spikes/f5-preguntale-al-sistema/` — VentasSkill sobre `BaseSkill` con function calling DeepSeek, **eval golden 5/5 (tool + data accuracy)**, fallback determinista 100%, demo read-only contra prod (S/494 de hoy).
+- **Estado**: 🟢 **APROBADA (2026-08-13)** — aprobada por Ron para implementación (D1–D7 aprobadas, presupuesto S/5,000–8,000); sin código en el ERP aún. **PoC validado (SPIKE, 2026-08-13):** `spikes/f5-preguntale-al-sistema/` — VentasSkill sobre `BaseSkill` con function calling DeepSeek, **eval golden 5/5 (tool + data accuracy)**, fallback determinista 100%, demo read-only contra prod (S/494 de hoy).
 - **Proyecto**: IaaS-RonSys — Cliente "El Segoviano"
 - **Alcance**: tenant 1 (El Segoviano); diseño multi-tenant por construcción
-- **Fecha**: 2026-08-12 (actualizada 2026-08-13 con resultados del spike)
+- **Fecha**: 2026-08-12 (actualizada 2026-08-13: resultados del spike + aprobación Ron)
 - **Framework**: SDD / Spec Anchor — esta spec está sincronizada con el código (specs 03/04 como referencia de formato)
 - **Esfuerzo estimado**: 3–5 semanas (MVP delivery: ~2–3 semanas; replicación a otros dominios: post-MVP)
 - **Dependencia**: ninguna de telefonía — **puede ir en paralelo con F4**
 
 ---
 
-## 0. Decisiones (D1–D7 — PROPUESTAS, a aprobar por Ron)
+## 0. Decisiones (D1–D7 — APROBADAS por Ron, 2026-08-13)
 
-| # | Decisión | Propuesta |
+| # | Decisión | Acuerdo aprobado |
 |---|---|---|
 | D1 | Mecanismo de interpretación | **NL2SQL controlado vía tool calling**: el LLM recibe el catálogo como "tools" (id + descripción + esquema de params) y **elige** `query_catalog.id` + llena `params` tipados. **El LLM NUNCA escribe SQL.** Solo el motor ejecuta el `sql_template` del catálogo con parámetros vinculados. |
 | D2 | Proveedor LLM | Usar la config ya existente del proyecto: `llm_provider="openai"`, `llm_model="gpt-4o"`, `llm_api_key` desde `.env` (`app/config.py`). Compatible con DeepSeek (API compatible OpenAI) cambiando `llm_provider/llm_model`. **Texto, no realtime.** Sin key configurada → modo degradado: respuestas de sugerencia sin llamada al LLM (nunca 500). |
@@ -125,7 +125,7 @@ independiente en la misma ruta) sin tocar el resto del panel.
 ### 3.1 Alcance
 
 **INCLUYE (MVP delivery):**
-- **Migración `0019_assistant`** (la `0017` ya es `whatsapp_bsuid` y la `0018` `call_records` — corregido 2026-08-13): tablas `query_catalog` + `query_logs` + seed del catálogo delivery (≥8 consultas, §3.4).
+- **Migración `0020_assistant`** (cadena real verificada: `0017_whatsapp_bsuid` → `0018_call_records` → `0019_voice_ai` [F3, ya existe] → **`0020_assistant`** — la `0019` fue tomada por F3; corregido 2026-08-13): tablas `query_catalog` + `query_logs` + seed del catálogo delivery (≥8 consultas, §3.4).
 - Revivir `app/core/agents/`: `SkillLoader` (registro declarativo) + `DeliverySkill` (implementa `BaseSkill` sobre `delivery_service`/`owner_dashboard_service`).
 - `AssistantService` (pipeline: LLM intención → selección de catálogo → ejecución tenant-scoped → respuesta en español → auditoría) + `LLMClient` (tool calling, proveedor OpenAI/DeepSeek-compatible).
 - Router `/api/v1/assistant`: `POST /ask`, `GET /catalog`, `GET /logs` (admin) + rate limit Redis por tenant.
@@ -138,7 +138,7 @@ independiente en la misma ruta) sin tocar el resto del panel.
 - SQL libre / pregunta abierta sin catálogo.
 - Streaming WS, memoria multi-turno persistente, voz, WhatsApp (F4).
 
-### 3.2 Modelo de datos (migración `0017_assistant` — borrador redactado, SIN commitear)
+### 3.2 Modelo de datos (migración `0020_assistant` — borrador redactado, SIN commitear)
 
 ```sql
 query_catalog (
@@ -225,18 +225,18 @@ question ─► 1. sanitize (límite de chars, idioma es)
          ─► 8. responder {answer, data, catalog_query_used, params}
 ```
 
-### 3.4 Catálogo de consultas MVP (≥8, delivery — seed de `0017_assistant`)
+### 3.4 Catálogo de consultas MVP (≥8, delivery — seed de `0020_assistant`)
 
 | # | name (slug) | description_es (al LLM/dueño) | params | Fuente (función existente) |
 |---|---|---|---|---|
-| 1 | `top_products_delivery` | "Producto(s) más vendido(s) por delivery en un rango de fechas" | date_from, date_to, limit(int, default 5) | `_top_platos` filtrado canal delivery |
+| 1 | `top_products_delivery` | "Producto(s) más vendido(s) por delivery en un rango de fechas" | date_from, date_to, limit(int, default 5) | `_top_platos` ⚠️ sin filtro de canal hoy (ver nota delegación) |
 | 2 | `sales_by_zone` | "Ventas/pedidos por zona de delivery en un rango" | date_from, date_to | `_delivery_block.orders_by_zone` |
 | 3 | `campaign_roas` | "ROAS, AOV, GMV e inversión por campaña (canal opcional)" | date_from, date_to, channel(enum: meta\|google\|tiktok\|other, opcional) | `metrics_campaigns` |
 | 4 | `delivery_overview` | "Resumen delivery: pedidos, GMV, fees, tiempo medio de entrega" | date_from, date_to | `metrics_overview` |
 | 5 | `orders_by_status` | "Pedidos delivery por estado (embudo)" | date_from, date_to | `_delivery_block.funnel` |
 | 6 | `avg_ticket_delivery` | "Ticket promedio de delivery" | date_from, date_to | `_kpis`/`_avg_ticket_by` (canal delivery) |
 | 7 | `sales_by_hour_delivery` | "Ventas delivery por hora (0–23)" | date_from, date_to | `_sales_by_hour` (canal delivery) |
-| 8 | `comparison_week` | "Comparativa de ventas/pedidos/ticket/%delivery vs período previo" | date_from, date_to | `_comparison` |
+| 8 | `comparison_week` | "Comparativa de ventas/pedidos/ticket/%delivery vs período previo" | date_from, date_to | `_comparison` ⚠️ compara totales, no delivery-only (ver nota delegación) |
 | 9 | `delivery_margins` | "Ingresos, costo y margen % del canal delivery" | date_from, date_to | `_margins_by_channel` (canal delivery) |
 | 10 | `sales_by_channel` | "Ventas por canal (salón / para llevar / delivery)" | date_from, date_to | `_channels` |
 
@@ -244,6 +244,22 @@ question ─► 1. sanitize (límite de chars, idioma es)
 - Los `sql_template` equivalentes se escriben **solo si** no hay función existente que delegar;
   la implementación prioriza delegar en `delivery_service`/`owner_dashboard_service` (misma
   fórmula, cero divergencia) — decisión Spec Anchor.
+- **Canal explícito (hallazgo spike 2026-08-13)**: en PROD el canal activo es `restaurant`
+  (salón: S/ 494 en 12 ventas hoy); delivery real = 0 (los DLV- son E2E canceladas). Las 10
+  consultas del catálogo filtran **explícitamente el canal `delivery`**
+  (`RestaurantSale.order_type='delivery'` / `DeliveryOrder`), parametrizado en el seed — sin
+  ese filtro devolverían datos del salón. Si delivery es 0, la IA responde "0 ventas" (R1:
+  nunca inventa ni mezcla canales).
+- **Guarda `sale_date = CURRENT_DATE` (bug del spike, §5 README)**: fecha ausente
+  (`None`/`""` saneada por el LLM) NO debe omitir el filtro de fecha — el bug devolvía TODAS
+  las ventas. El motor fija `sale_date = CURRENT_DATE` cuando el rango no viene; guarda
+  obligatoria en todo `sql_template` con rango opcional.
+- **Delegación verificada (2026-08-13)**: 8/10 consultas delegan directo en funciones
+  existentes. Sin función delegable hoy: **#1 `top_products_delivery`** (`_top_platos` no
+  filtra `order_type`) y **#8 `comparison_week`** (`_comparison` compara totales; solo
+  `delivery_pct` es delta de share) → requieren `sql_template` nuevo con filtro
+  `order_type='delivery'` o variante en `owner_dashboard_service`. #9 `delivery_margins`
+  delega componiendo `_channels` + `_margins_by_channel` (2 llamadas).
 
 ### 3.5 Reglas de negocio
 
@@ -282,7 +298,7 @@ question ─► 1. sanitize (límite de chars, idioma es)
 
 ## 4. Plan de implementación sugerido (solo cuando la spec esté aprobada)
 
-1. **Fase 1 — Migración**: `0017_assistant` (query_catalog + query_logs) + seed catálogo delivery (10 consultas). `alembic upgrade head` en QA; verificar CA-F5.12 (catálogo).
+1. **Fase 1 — Migración**: `0020_assistant` (query_catalog + query_logs) + seed catálogo delivery (10 consultas). `alembic upgrade head` en QA; verificar CA-F5.12 (catálogo).
 2. **Fase 2 — Núcleo backend**: `SkillLoader` + `DeliverySkill` (sobre `delivery_service`/`owner_dashboard_service`); `AssistantService` pipeline (sanitize → LLM tool calling → validar params → inyectar tenant → ejecutar → formatear → auditar); `LLMClient` (OpenAI/DeepSeek-compatible, tool calling, timeout, sin key → fallback). Tests unitarios.
 3. **Fase 3 — Router + seguridad**: `POST /ask`, `GET /catalog`, `GET /logs` (admin); rate limit Redis por tenant (R6); roles (R8); validación 422/429. Tests de aislamiento (CA-F5.5) e inyección (CA-F5.7).
 4. **Fase 4 — Frontend**: `AssistantChat` en `/panel` (DashboardOwner) + `assistantApi.ts` + tipos; sugerencias desde `/catalog`; estados de carga/error; tests (jest + RTL).
@@ -292,6 +308,25 @@ question ─► 1. sanitize (límite de chars, idioma es)
 ---
 
 ## 5. Bitácora Spec Anchor (sync spec ↔ código)
+
+- **2026-08-13 (APROBACIÓN RON + validación de implementación)**: spec aprobada por Ron
+  (D1–D7 APROBADAS, presupuesto S/5,000–8,000) → estado 🟢 APROBADA. Ajustes validados:
+  - **Migración renombrada a `0020_assistant`**: la `0019` ya está tomada por F3
+    (`0019_voice_ai.py`, down_revision `0018_call_records`, verificada en código). Cadena:
+    `0018_call_records → 0019_voice_ai → 0020_assistant`.
+  - **Catálogo parametriza canal `delivery` explícitamente** (§3.4): en PROD el canal activo
+    es `restaurant` (salón); delivery real = 0 → sin filtro por canal, las 10 consultas
+    devolverían datos del salón. Seed con `order_type='delivery'` + filtro por estado.
+  - **Guarda `sale_date = CURRENT_DATE`** (bug del spike: `fecha=None` devolvía TODAS las
+    ventas) documentada en §3.4 — el motor fija CURRENT_DATE ante rango ausente.
+  - **Delegación verificada**: 8/10 consultas delegan en `delivery_service` /
+    `owner_dashboard_service`; **#1 `top_products_delivery` y #8 `comparison_week` NO tienen
+    función delegable delivery-only** (requieren `sql_template` nuevo o variante); #9
+    compone `_channels` + `_margins_by_channel`.
+  - **Tool calling**: 10 tools del catálogo caben holgadas en contexto (~2–3k tokens de
+    descripciones; DeepSeek/GPT-4o ≥ 8k) — descripciones de 1–2 frases, params tipados y
+    validación server-side; si el catálogo supera ~20–30 tools, chunking por skill
+    (selección en 2 etapas: skill → consulta).
 
 - **2026-08-13 (SPIKE PoC — validación de arquitectura, aprobado por Ron)**: se ejecutó el spike
   `spikes/f5-preguntale-al-sistema/` (commiteado a main `ac13d31`) con resultados que **confirman
