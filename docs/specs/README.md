@@ -3,7 +3,7 @@
 > **Framework**: SDD — **Spec Anchor**: la especificación está sincronizada con el código;
 > cualquier cambio en uno debe reflejarse en el otro.
 > **Guía base**: `~/investigacion/02-desarrollo-herramientas/20260730_Que-es-SDD-Spec-Driven-Development.md`
-> **Fecha de generación**: 2026-08-10 (última verificación 2026-08-13) · Verificadas contra código + BD prod (head `0018_call_records`)
+> **Fecha de generación**: 2026-08-10 (última verificación 2026-08-14) · Verificadas contra código + BD prod (head `0020_assistant`)
 
 ---
 
@@ -41,7 +41,7 @@
 | [03-spec-delivery-dark-kitchen-v0.1.md](03-delivery/03-spec-delivery-dark-kitchen-v0.1.md) — Delivery nocturno, zonas, repartidores, campañas, menú público + **Fase B WhatsApp** (§7, motor dry-run desplegado 2026-08-11) | 🟢 APROBADA/IMPLEMENTADA (Fase A + motor Fase B dry-run) | 0016 (+companies.slug) | `/api/v1/delivery`, `/api/public`, `/api/settings` |
 | [04-spec-whatsapp-en-vivo-v0.1.md](03-delivery/04-spec-whatsapp-en-vivo-v0.1.md) — **F1 "WhatsApp en Vivo"**: botones wa.me/tel en landing y campañas, BSUID, `contact` público — APROBADA y DEPLOYADA (2026-08-13) | 🟢 APROBADA/IMPLEMENTADA (2026-08-13) | 0017 (whatsapp_bsuid) | `GET /api/public/{slug}/menu` (contact) |
 | [05-spec-central-telefonica-v0.1.md](03-delivery/05-spec-central-telefonica-v0.1.md) — **F2 "Central que No Pierde Llamadas"**: Asterisk (Docker host, trunk SIP 4 canales G.711), call-bridge AMI/ARI, CallRecord, panel en vivo WS, convertir llamada→pedido — APROBADA, IMPLEMENTADA y DEPLOYADA (2026-08-13) | 🟢 APROBADA/IMPLEMENTADA (2026-08-13) | 0018 (call_records) | `/api/v1/calls*`, WS `/api/v1/calls/ws/{tenant}` |
-| [06-spec-recepcionista-ia-v0.1.md](03-delivery/06-spec-recepcionista-ia-v0.1.md) — **F3 "Recepcionista IA"** (por voz, agente task-bound Meta) | 🟡 PROPUESTA (pendiente análisis post-F1/F2) | — | — |
+| [06-spec-recepcionista-ia-v0.1.md](03-delivery/06-spec-recepcionista-ia-v0.1.md) — **F3 "Recepcionista IA"** (por voz, agente task-bound Meta) — IMPLEMENTADA Y DEPLOYADA (2026-08-13) | 🟢 APROBADA/IMPLEMENTADA | 0019 (voice_ai) | `/api/v1/calls*` (IA) + `/api/v1/ai-calls*` |
 
 ### Fase 05 — Franquicia Conectada (multi-sucursal / F4)
 
@@ -53,7 +53,7 @@
 
 | Spec | Estado | Migraciones | Routers |
 |---|---|---|---|
-| [08-spec-preguntale-al-sistema-v0.1.md](06-asistente-ia/08-spec-preguntale-al-sistema-v0.1.md) — **F5 "Pregúntale al Sistema"**: NL2SQL controlado (tool calling sobre catálogo SQL seguro, delivery primero → todo el ERP). **PoC validado (spike `spikes/f5-preguntale-al-sistema/`, 2026-08-13): eval golden 5/5, DeepSeek + fallback determinista** | 🟡 PROPUESTA (pendiente análisis) | 0019_assistant (plan) | `POST /api/v1/assistant/*` (plan) |
+| [08-spec-preguntale-al-sistema-v0.1.md](06-asistente-ia/08-spec-preguntale-al-sistema-v0.1.md) — **F5 "Pregúntale al Sistema"**: NL2SQL controlado (tool calling sobre catálogo SQL seguro, delivery primero → todo el ERP). **IMPLEMENTADA Y DEPLOYADA (2026-08-14)**: chat flotante en Panel del Dueño, 10 consultas delivery, E2E 6/6 en prod | 🟢 APROBADA/IMPLEMENTADA | 0020 (assistant) | `/api/v1/assistant/*` |
 
 ### Fase 04 — Panel del Dueño (dashboard ejecutivo)
 
@@ -72,7 +72,7 @@
 ## 🔗 Matriz Spec Anchor (spec ↔ código ↔ migración ↔ frontend)
 
 > **Regla**: si modificas código de un módulo, actualiza su spec; si modificas la spec, ajusta el código.
-> Estado verificado 2026-08-13 contra `main` + BD prod (head `0018_call_records`).
+> Estado verificado 2026-08-14 contra `main` + BD prod (head `0020_assistant`).
 
 | Dominio | Spec | Backend | Migración | Frontend | E2E |
 |---|---|---|---|---|---|
@@ -86,7 +86,9 @@
 | Inversiones | 01-inversiones | `routers/investment.py`, `services/investment_service.py` | 0013 | InvestmentPage, Reports | — |
 | Recetas | 02-recetas | `services/recipe_explosion.py`, `restaurant_service.py:1377` | 0012, 0015 | RecipeModal (MenuPage) | — |
 | Delivery | 03-delivery | `routers/delivery.py`, `routers/public.py`, `services/delivery_service.py`, `services/whatsapp_notifier.py`, `services/notify_events.py`, `services/notify_worker.py` (worker `iaas-worker-prod`) | 0016 | DeliveryPage, PublicMenuPage | delivery-landing, delivery-staff, e2e-demo-delivery-whatsapp.cjs |
+| Recepcionista IA (F3) | 06 | `routers/ai_calls.py`, `services/voice_ai_service.py`, `services/voice_bridge.py` | 0019 | CallCenterPage (tab IA) | e2e-hot-f3-recepcionista.cjs |
 | Panel Dueño | 04-panel | `routers/dashboard.py`, `services/owner_dashboard_service.py` | — | DashboardOwner (`/panel`) | panel (13 tests, e2e — incl. dropdown CSV/PDF) |
+| Asistente IA (F5) | 08 | `routers/assistant.py`, `services/assistant_service.py` | 0020 | AssistantChat (DashboardOwner) | e2e-hot-f5-asistente.cjs |
 
 > **Fase B (Spec 03 §7, 2026-08-11)**: notificaciones WhatsApp — motor de eventos desplegado en prod en modo dry-run (Notifier MetaCloud/DryRun + cola RabbitMQ `iaas-tasks` + worker con reintentos/DLQ; verificado en vivo: confirmed/new_order/status_changed/cancelled, cero HTTP). Fix métricas delivery con rango de fechas también desplegado (2026-08-11, antes 500 → 200).
 | Infra/CI | 99-infra | compose, deploy.sh, `.github/workflows/`, `routers/health.py` | — | — | configs prod |

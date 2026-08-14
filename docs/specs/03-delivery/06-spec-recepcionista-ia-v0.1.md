@@ -1,6 +1,6 @@
 # SPEC 06 — Recepcionista IA por Voz (F3 — Pedidos telefónicos automáticos)
 
-- **Estado**: 🟢 **APROBADA PARA IMPLEMENTACIÓN (2026-08-13)** — decisiones D1-D10 aprobadas por Ron al arrancar F3 (ajuste comercial D5 reportado: costo realista S/500-900/mes)
+- **Estado**: 🟢 **APROBADA E IMPLEMENTADA (2026-08-13/14)** — decisiones D1-D10 aprobadas por Ron; implementación completa desplegada en PROD (backend `0019_voice_ai` + `routers/ai_calls.py` + `voice_ai_service` + `voice_bridge` + panel IA en Central Telefónica; commits `4a1b02c`, `a761483`, `d738446`). **Pendiente externo**: proveedor de voz IA (STT/TTS) y PoC de 2 semanas con llamadas reales (ajuste comercial D5: costo realista S/500-900/mes)
 - **Proyecto**: IaaS-RonSys — Cliente "El Segoviano"
 - **Alcance**: tenant 1 (El Segoviano); diseño multi-tenant por construcción
 - **Fecha**: 2026-08-12 (actualizada 2026-08-13 — reconciliación con F2 implementada)
@@ -449,6 +449,8 @@ F3 y F2 comparten tabla y contratos; secuenciar F2 antes de F3.
 ---
 
 ## 5. Bitácora Spec Anchor (sync spec ↔ código)
+
+- **2026-08-14 (CIERRE — IMPLEMENTADA Y DEPLOYADA)**: backend F3 completo desplegado en PROD — migración `0019_voice_ai` aplicada (head verificado), `routers/ai_calls.py` con endpoints transcript/ai-state/ai-context/transfer/complete (+ alias `/api/v1/ai-calls/*`), `voice_ai_service` (máquina de estados), `voice_bridge` (Stasis app + External Media RTP→WS), simulador `scripts/simulate_voice_call.py`; frontend con panel IA en Central Telefónica (estado en vivo, transcripción, transferir con contexto). Suite backend 516 passed; E2E en caliente en prod con llamada simulada. Spec ↔ código sincronizados (Spec Anchor).
 
 - **2026-08-13 (FRONTEND — panel IA)** 🟢: frontend-dev extendió `CallCenterPage` + `callsApi.ts`.
   - **Entregado**: tipos F3 + parseo WS `ai_call_state`/`call.transferred`, `getAiState`/`patchAiState`/

@@ -1,6 +1,6 @@
 # SPEC 08 — F5 "Pregúntale al Sistema" (NL2SQL controlado)
 
-- **Estado**: 🟢 **APROBADA (2026-08-13)** — aprobada por Ron para implementación (D1–D7 aprobadas, presupuesto S/5,000–8,000); sin código en el ERP aún. **PoC validado (SPIKE, 2026-08-13):** `spikes/f5-preguntale-al-sistema/` — VentasSkill sobre `BaseSkill` con function calling DeepSeek, **eval golden 5/5 (tool + data accuracy)**, fallback determinista 100%, demo read-only contra prod (S/494 de hoy).
+- **Estado**: 🟢 **APROBADA E IMPLEMENTADA (2026-08-13/14)** — D1–D7 aprobadas por Ron (presupuesto S/5,000–8,000). **Implementación completa desplegada en PROD el 2026-08-14**: migración `0020_assistant` (query_catalog + query_logs + seed 10 consultas delivery), `assistant_service` (pipeline 8 pasos), router `/api/v1/assistant/{ask,catalog,logs}`, chat flotante 🤖 en Panel del Dueño; QA real (3 bugs de ejecución corregidos), E2E en caliente 6/6 y smoke 10/10 contra prod (commits `d46ab74`, `b75b5f0`). **PoC validado (SPIKE, 2026-08-13):** eval golden 5/5 (tool + data accuracy), fallback determinista 100%.
 - **Proyecto**: IaaS-RonSys — Cliente "El Segoviano"
 - **Alcance**: tenant 1 (El Segoviano); diseño multi-tenant por construcción
 - **Fecha**: 2026-08-12 (actualizada 2026-08-13: resultados del spike + aprobación Ron)

@@ -4,6 +4,28 @@
 
 ---
 
+## [0.9.0] — 2026-08-14
+
+### Added
+
+#### 🤖📊 F5 — "Pregúntale al Sistema" (Spec 08 — asistente IA en lenguaje natural)
+- **Backend** (migración `0020_assistant`): modelos `QueryCatalog` (catálogo SQL seguro, 10 consultas delivery seedeadas, allowed_roles, tenant_scope) + `QueryLog` (auditoría R4); `assistant_service.py` con pipeline de 8 pasos (NL2SQL controlado: el LLM NUNCA escribe SQL, solo elige query_catalog_id + params tipados), fallback determinista por keywords con matcher por score (35-44ms), anti-inyección, fechas relativas (hoy/ayer/semanas/meses), validación de params (R9, default 30 días), plantillas de respuesta en español.
+- **Router** `/api/v1/assistant/*`: POST `/ask` (rate limit 10 req/min/tenant con Retry-After, roles admin/manager/viewer), GET `/catalog` (R8), GET `/logs` (solo admin, R4).
+- **Frontend**: `AssistantChat.tsx` — chat flotante 🤖 en el Panel del Dueño (`/panel`) con sugerencias del catálogo real, historial en memoria, error 429 amigable, auto-scroll defensivo.
+- **QA**: 46 tests F5 (fallback, inyección, fechas, validación, pipeline, tenant scope, auditoría, skill) + 2 tests de mantenimiento de migraciones → suite backend **517 passed**; frontend **167 passed** + TSC + vite build OK.
+- **QA real en `iaas-backend-qa`**: 3 bugs de ejecución detectados y corregidos (fechas ISO→date objects para asyncpg, bind params en `text()`, fallback greedy → matcher por score). Smoke 10/10.
+- **Deploy PROD (2026-08-14)**: backup previo, backend :8000 healthy con migración 0020, frontend :8081 con el chat; **E2E en caliente 6/6** (login → /panel → FAB → pregunta real → respuesta con datos reales: ticket promedio S/ 47.92 en 38 pedidos); smoke de las 10 consultas contra prod **10/10 OK** (márgenes S/ 7,746, comparativa semanal, horas, canales); limpieza completa post-E2E (query_logs=0).
+
+## [0.8.0] — 2026-08-13
+
+### Added
+
+#### 🤖📞 F3 — "Recepcionista IA" (Spec 06 — agente por voz sobre la Central Telefónica)
+- **Backend** (migración `0019_voice_ai`): `call_transcriptions` + columnas IA en `call_records` (ai_state, transfer_reason, cost_usd, context_summary); `voice_ai_service.py` (máquina de estados de la llamada IA), `voice_bridge.py` (Stasis app + External Media RTP→WS para streaming STT), `routers/ai_calls.py` (endpoints `/api/v1/calls/{id}/transcript|ai-state|ai-context|transfer|complete` + alias `/api/v1/ai-calls/*`), `simulate_voice_call.py`.
+- **Frontend**: panel IA en Central Telefónica (estado del agente en vivo, transcripción, botón transferir con contexto).
+- **QA**: suite completa 462→516 passed; E2E en caliente en prod con llamada simulada (transcripción + transferencia con contexto).
+- **Deploy PROD (2026-08-13)**: backend + frontend desplegados, Asterisk Stasis verificado; 3 commits (`4a1b02c`, `a761483`, `d738446`).
+
 ## [0.7.1] — 2026-08-13
 
 ### Added
