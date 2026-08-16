@@ -541,23 +541,3 @@ PO ──→ Architecture ──→ PO ──→ Backend + Frontend ──→ QA
 
 ---
 
-## 🚦 CHECKPOINT DE PRODUCCIÓN (regla dura — creada 2026-08-16 tras incidente F6)
-
-> **Incidente que la origina:** el deploy de F6 (2026-08-16 ~00:23 UTC) se ejecutó a producción SIN el OK explícito de Ron: DevOps arrancó antes del checkpoint, Jarvis dio un OK condicionado que no correspondía, y el HOLD llegó a la sesión ejecutora cuando el deploy ya había terminado. Ron ratificó el deploy (para no perder avance), pero el proceso falló y esto ya se había repetido.
-
-### Reglas duras (no negociables)
-
-1. **Solo Ron aprueba producción.** Ningún agente —incluido Jarvis— puede auto-autorizar un deploy, migración o rebuild en producción. La spec aprobada + QA aprobado NO constituyen OK de producción: es un checkpoint separado.
-2. **DevOps no arranca sin el OK explícito de Ron.** No basta un "procede" de Jarvis ni de otro agente. La orden de deploy debe contener la confirmación de Ron (mensaje directo o vía el flujo del dashboard).
-3. **Pausas/HOLD van DIRECTAMENTE a la sesión ejecutora** (DevOps), no solo al orquestador. Si hay duda, parar y escalar a Ron antes de cualquier acción sobre prod.
-4. **Cualquier despliegue sin OK es un incidente de proceso**: se documenta (bitácora spec + memoria), se analiza la causa y se actualiza esta sección con las lecciones.
-5. **Post-deploy sin OK**: si el hecho está consumado, congelar (sin commits), verificar estado de forma independiente (backup, limpieza, datos residuales) y escalar a Ron la decisión RATIFICAR vs ROLLBACK antes de continuar con docs/commit.
-
-### Checklist del checkpoint (previo a tocar prod)
-
-- [ ] ¿Ron dio el OK explícito en esta iteración? (mensaje visible, no inferido)
-- [ ] ¿El HOLD/silencio de Ron se interpreta como "esperar", nunca como "aprobar"?
-- [ ] ¿Backup verificado (tamaño > 0, exit 0) antes de migrar?
-- [ ] ¿La sesión ejecutora (DevOps) recibió la orden directamente?
-
-*Sección de proceso — aplica a todos los agentes del pipeline (Jarvis, DevOps, Backend, Frontend, QA).*
