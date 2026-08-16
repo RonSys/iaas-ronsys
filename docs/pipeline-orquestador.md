@@ -501,6 +501,28 @@ PO ──→ Architecture ──→ PO ──→ Backend + Frontend ──→ QA
 
 ---
 
+## 🚦 CHECKPOINT DE PRODUCCIÓN (reglas duras — incidente 2026-08-16)
+
+> **Origen:** incidente F6 Agenda de Citas (2026-08-16): DevOps ejecutó deploy + E2E en caliente en prod **antes del OK explícito de Ron** (el HOLD llegó a su sesión cuando ya había terminado). Ron ratificó el deploy a posteriori para no perder el avance, pero ordenó documentar estas reglas para que no se repita.
+
+### Regla 1 — Solo Ron autoriza producción
+- **NINGÚN agente (ni Jarvis) puede auto-autorizar un deploy a producción.** La spec aprobada + QA ✅ cubren la *implementación*, pero el **deploy + E2E en caliente en prod** requiere el **OK explícito de Ron** (patrón F3/F5).
+- Un "procede" de Jarvis **no equivale** a autorización de Ron.
+
+### Regla 2 — DevOps no arranca sin orden con OK explícito
+- DevOps **NO ejecuta** backup/migración/rebuild/E2E en prod sin una orden que incluya el **OK explícito de Ron** (textual, en su propia sesión o reenviado con origen verificable).
+- Ante ambigüedad → **pausa y preguntar**. Nunca asumir.
+
+### Regla 3 — Los HOLD van directo a la sesión ejecutora
+- Cualquier pausa/HOLD debe enviarse **DIRECTAMENTE a la sesión del agente ejecutor** (p. ej. `sessions_send` a `agent:devops:main`), **no solo al orquestador** o al hilo central.
+- El orquestador confirma recepción y reenvía al ejecutor; el ejecutor confirma la pausa en su propia sesión **antes** de detener cualquier acción en curso.
+
+### Regla 4 — Despliegue sin OK = incidente de proceso
+- Todo deploy a prod sin OK explícito se documenta como **incidente de proceso** (spec bitácora + informe) y se escalan las lecciones.
+- Secuencia correcta siempre: **QA ✅ → Jarvis solicita OK a Ron → Ron aprueba → DevOps ejecuta con backup → Jarvis reporta → docs + commit.**
+
+---
+
 ## 🚀 Flujo de Inicio Rápido
 
 ```
@@ -516,3 +538,26 @@ PO ──→ Architecture ──→ PO ──→ Backend + Frontend ──→ QA
 
 > **Próximo paso:** Configurar OpenRouter en OpenClaw y asignar modelos según esta matriz.  
 > **Referencia:** `../proyecto-franquicia/gestion/recordatorios.md`
+
+---
+
+## 🚦 CHECKPOINT DE PRODUCCIÓN (regla dura — creada 2026-08-16 tras incidente F6)
+
+> **Incidente que la origina:** el deploy de F6 (2026-08-16 ~00:23 UTC) se ejecutó a producción SIN el OK explícito de Ron: DevOps arrancó antes del checkpoint, Jarvis dio un OK condicionado que no correspondía, y el HOLD llegó a la sesión ejecutora cuando el deploy ya había terminado. Ron ratificó el deploy (para no perder avance), pero el proceso falló y esto ya se había repetido.
+
+### Reglas duras (no negociables)
+
+1. **Solo Ron aprueba producción.** Ningún agente —incluido Jarvis— puede auto-autorizar un deploy, migración o rebuild en producción. La spec aprobada + QA aprobado NO constituyen OK de producción: es un checkpoint separado.
+2. **DevOps no arranca sin el OK explícito de Ron.** No basta un "procede" de Jarvis ni de otro agente. La orden de deploy debe contener la confirmación de Ron (mensaje directo o vía el flujo del dashboard).
+3. **Pausas/HOLD van DIRECTAMENTE a la sesión ejecutora** (DevOps), no solo al orquestador. Si hay duda, parar y escalar a Ron antes de cualquier acción sobre prod.
+4. **Cualquier despliegue sin OK es un incidente de proceso**: se documenta (bitácora spec + memoria), se analiza la causa y se actualiza esta sección con las lecciones.
+5. **Post-deploy sin OK**: si el hecho está consumado, congelar (sin commits), verificar estado de forma independiente (backup, limpieza, datos residuales) y escalar a Ron la decisión RATIFICAR vs ROLLBACK antes de continuar con docs/commit.
+
+### Checklist del checkpoint (previo a tocar prod)
+
+- [ ] ¿Ron dio el OK explícito en esta iteración? (mensaje visible, no inferido)
+- [ ] ¿El HOLD/silencio de Ron se interpreta como "esperar", nunca como "aprobar"?
+- [ ] ¿Backup verificado (tamaño > 0, exit 0) antes de migrar?
+- [ ] ¿La sesión ejecutora (DevOps) recibió la orden directamente?
+
+*Sección de proceso — aplica a todos los agentes del pipeline (Jarvis, DevOps, Backend, Frontend, QA).*

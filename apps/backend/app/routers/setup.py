@@ -62,19 +62,24 @@ def _merge_settings(company: Company) -> CompanySettings:
 
     Estructura de companies.settings:
       {branding: {palette, logo_url, ...}, delivery: {yape_phone, ...},
-       whatsapp: {enabled, token, templates, ...}}   (Spec 03 §7)
+       whatsapp: {enabled, token, templates, ...}, calls: {...},
+       voice_ai: {...}, appointments: {...}}   (Spec 03 §7 / D-03)
+
+    Cada sub-config (delivery, whatsapp, calls, voice_ai, appointments) vive
+    en su propia clave del JSONB — los persistidos reemplazan el default del
+    schema (patrón D-03; fix QA 2026-08-13: las claves ya no colapsan dentro
+    de branding).
     """
     raw = company.settings or {}
     raw = raw if isinstance(raw, dict) else {}
     branding = raw.get("branding", {}) if isinstance(raw.get("branding"), dict) else {}
-    delivery = raw.get("delivery", {}) if isinstance(raw.get("delivery"), dict) else {}
-    whatsapp = raw.get("whatsapp", {}) if isinstance(raw.get("whatsapp"), dict) else {}
     merged = _default_settings.model_dump()
     merged.update({k: v for k, v in branding.items() if v is not None})
-    if delivery:
-        merged["delivery"] = delivery
-    if whatsapp:
-        merged["whatsapp"] = whatsapp
+    # Sub-configs D-03: lo persistido gana al default del schema
+    for key in ("delivery", "whatsapp", "calls", "voice_ai", "appointments"):
+        value = raw.get(key)
+        if isinstance(value, dict):
+            merged[key] = value
     return CompanySettings(**merged)
 
 

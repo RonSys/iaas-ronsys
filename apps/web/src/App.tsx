@@ -78,6 +78,9 @@ const DeliveryPage = lazy(() =>
 const CallCenterPage = lazy(() =>
   import("@/pages/restaurante/CallCenterPage").then((m) => ({ default: m.CallCenterPage })),
 );
+const AgendaPage = lazy(() =>
+  import("@/pages/restaurante/AgendaPage").then((m) => ({ default: m.AgendaPage })),
+);
 const PromotionsPage = lazy(() =>
   import("@/pages/restaurante/PromotionsPage").then((m) => ({ default: m.PromotionsPage })),
 );
@@ -347,6 +350,16 @@ function AppRoutes() {
             <PrivateRoute>
               <SuspendedPage title="Central Telefónica">
                 <CallCenterPage />
+              </SuspendedPage>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/restaurante/agenda"
+          element={
+            <PrivateRoute>
+              <SuspendedPage title="Agenda de Citas">
+                <AgendaPage />
               </SuspendedPage>
             </PrivateRoute>
           }

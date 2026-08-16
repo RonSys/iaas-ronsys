@@ -9,14 +9,24 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from app.schemas.voice_ai import VoiceAiSettings  # noqa: E402 — F3 (Spec 06 §3.3): config voz por tenant
-from app.schemas.assistant import (  # noqa: E402 — F5 (Spec 08 §3.3): asistente "Pregúntale al Sistema"
+from app.schemas.appointments import (  # noqa: E402, F401 — F6 (Spec 07 §3.2/§3.3): agenda de citas
+    AppointmentCreateIn,
+    AppointmentHoursSettings,
+    AppointmentListOut,
+    AppointmentOut,
+    AppointmentPatchIn,
+    AppointmentSettings,
+    AvailabilityOut,
+    AvailabilitySlot,
+)
+from app.schemas.assistant import (  # noqa: E402, F401 — F5 (Spec 08 §3.3): asistente "Pregúntale al Sistema"
     AskRequest,
     AskResponse,
     CatalogItem,
     CatalogQueryUsed,
     QueryLogOut,
 )
+from app.schemas.voice_ai import VoiceAiSettings  # noqa: E402, F401 — F3 (Spec 06 §3.3): config voz por tenant
 
 # ═══════════════════════════════════════════════════════════════
 # Setup / Inversión
@@ -273,7 +283,8 @@ class WhatsAppSettings(BaseModel):
     templates: dict[str, str] = Field(
         default_factory=dict,
         description="Plantillas aprobadas por Meta: confirmed, preparing, ready, "
-        "delivered, cancelled, new_order, order_cancelled",
+        "delivered, cancelled, new_order, order_cancelled, "
+        "appointment_confirmed, appointment_reminder (Spec 07 F6 D6)",
     )
 
 
@@ -322,6 +333,8 @@ class CompanySettings(BaseModel):
     calls: CallSettings = Field(default_factory=CallSettings)
     # Spec 06 (F3): recepcionista IA por voz persistida en companies.settings.voice_ai (§3.3)
     voice_ai: VoiceAiSettings = Field(default_factory=VoiceAiSettings)
+    # Spec 07 (F6): agenda de citas persistida en companies.settings.appointments (§3.2, D-03)
+    appointments: AppointmentSettings = Field(default_factory=AppointmentSettings)
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -86,6 +86,16 @@ CREATE TABLE call_transcriptions (
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 CREATE INDEX ix_call_transcriptions_call_id ON call_transcriptions (call_id);
+-- tables (Spec 07 F6): la migración 0021_appointments referencía tables.id
+-- (FK ON DELETE SET NULL) — el upgrade head la necesita desde F6.
+CREATE TABLE tables (
+  id SERIAL PRIMARY KEY, tenant_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  number VARCHAR(10) NOT NULL, capacity INTEGER NOT NULL DEFAULT 4,
+  status VARCHAR(20) NOT NULL DEFAULT 'available', section VARCHAR(50),
+  created_at TIMESTAMPTZ DEFAULT now(), updated_at TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT uq_table_tenant_number UNIQUE (tenant_id, number),
+  CONSTRAINT ck_tables_status CHECK (status IN ('available','occupied','reserved','cleaning'))
+);
 INSERT INTO companies (name, ruc) VALUES ('El Segoviano Test','99999999999');
 INSERT INTO users (company_id, email, role) VALUES (1,'admin@test.local','admin');
 INSERT INTO call_records (tenant_id, external_call_id, caller, callee, direction, status,
@@ -144,7 +154,7 @@ async def _bootstrap_f3(engine) -> None:
 
 @pytest.mark.asyncio
 async def test_migration_0020_up_down():
-    """CA-F5.12: upgrade head → 0020_assistant (catálogo ≥8 + tablas); downgrade 0019 revierte.
+    """CA-F5.12: upgrade head (0021 desde F6 — F5 verificado por tablas/seed); downgrade 0019 revierte.
 
     Skip si la BD de test no está disponible o alembic no está instalado
     (la suite principal es mock-based; este test requiere Postgres real).
@@ -162,11 +172,12 @@ async def test_migration_0020_up_down():
         await _reset_schema(engine)
         await _bootstrap_f3(engine)
 
-        # 2) upgrade head → 0020_assistant
+        # 2) upgrade head → 0021_appointments (head actual; F5 = 0020 queda
+        #    verificado por las tablas/seed de abajo — CA-F5.12)
         await asyncio.to_thread(_run_alembic, "upgrade", "head")
         async with engine.connect() as conn:
             version = (await conn.execute(text("SELECT version_num FROM alembic_version"))).scalar()
-            assert version == "0020_assistant"
+            assert version == "0021_appointments"
 
             # tablas creadas
             for tbl in ("query_catalog", "query_logs"):

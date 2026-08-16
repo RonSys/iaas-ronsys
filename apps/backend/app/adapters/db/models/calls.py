@@ -54,9 +54,11 @@ ACTIVE_STATUSES = ("ringing", "in_progress", "answered")
 # del CHECK en BD (0019_voice_ai). `completed|failed` son los estados de
 # cierre del POST /complete (contrato §3.5.1), añadidos al CHECK de la spec
 # (ver bitácora Spec Anchor 2026-08-13).
+# `taking_reservation` (Spec 07 F6 D5) se añade en 0021_appointments — espejo
+# del CHECK extendido (máquina de estados con skill de agenda).
 AI_STATES = (
     "greeting", "taking_order", "clarifying", "confirming",
-    "transfer", "hangup", "completed", "failed",
+    "taking_reservation", "transfer", "hangup", "completed", "failed",
 )
 # Motivos de transferencia a humano (D9) — espejo del CHECK en BD
 TRANSFER_REASONS = (

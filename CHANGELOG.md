@@ -4,6 +4,22 @@
 
 ---
 
+## [0.10.0] — 2026-08-16
+
+### Added
+
+#### 📅 F6 — "Agenda de Citas" (Spec 07 — reservas por mesa y horario + integración Recepcionista IA)
+- **Backend** (migración `0021_appointments`): tabla `appointments` (tenant_id FK companies, table_id FK tables ON DELETE SET NULL, customer_name/phone, guests 1–50, starts_at TIMESTAMPTZ, duration_min 15–240 default 60, status `solicitada|confirmada|cumplida|cancelada|no_show`, source `voice_ai|whatsapp|web|in_person` D7, notes, call_id trazabilidad voz F3, created_by, reminded_at idempotencia R9); UNIQUE (tenant_id, table_id, starts_at) anti-doble-reserva D2 + índices tenant_date/tenant_state; grants defensivos dashboard_ro/dashboard_rw_revision.
+- **Servicio** `appointments_service.py`: disponibilidad por overlap atómico (R2), ventana por tenant (R3), espejo `tables.status='reserved'` (D1/R4), transiciones R5, recordatorio 24h idempotente (R9).
+- **Config por tenant** `companies.settings.appointments` (D-03): enabled (default false), hours.open/close (D3 — configurable desde la UI staff, default 12:00–23:00), duration_min_default (D4), slot_granularity_min, max_guests_per_table, reminder_hours_before, templates `appointment_confirmed`/`appointment_reminder` (D6).
+- **API** `/api/v1/appointments/*`: GET availability (rate-limit Redis 60 req/h/tenant R7), POST 201/409/422 (CA-F6-1/2/4), GET list (filtros date/status/source), PATCH transiciones (CA-F6-5/6 + espejo mesa), POST /{id}/remind 202 idempotente (CA-F6-7).
+- **Eventos WhatsApp (motor F1, dry-run sin Meta)**: `appointment.confirmed` / `appointment.reminder` → cola `iaas-tasks`.
+- **Frontend**: `AgendaPage.tsx` (ruta `/restaurante/agenda`, agenda del día + modal Nueva cita con slots reales) + `appointmentsApi.ts` + item sidebar + settings horarios D3.
+- **QA**: suite completa **551 passed / 2 pre-existentes** · F6 **30/30** · frontend **200 tests** · **0 divergencias spec↔código**.
+- **Deploy PROD (2026-08-16)**: backup previo `backups/iaas_ronsys_pre_f6_deploy_20260816.dump` → migración 0021 → rebuild backend/frontend/worker → healthchecks OK → **E2E en caliente 18/18** (tenant-id=3, espejo `reserved`/`available` verificado, limpieza completa: appointments=0, mesas fixture eliminadas) → evidencias `docs/reports/evidencias-f6-e2e-prod/`. ⚠️ Deploy ejecutado antes del OK explícito de Ron — **ratificado por Ron posteriormente** (incidente de proceso documentado en spec 07 bitácora y pipeline §checkpoint).
+
+---
+
 ## [0.9.1] — 2026-08-14
 
 ### Added

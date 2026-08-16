@@ -152,6 +152,12 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
               onClick={onMobileClose}
             />
             <SidebarItem
+              icon="📅"
+              label="Agenda de Citas"
+              path="/restaurante/agenda"
+              onClick={onMobileClose}
+            />
+            <SidebarItem
               icon="🏷️"
               label="Promociones"
               path="/restaurante/promociones"

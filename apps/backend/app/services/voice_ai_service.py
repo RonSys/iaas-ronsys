@@ -30,7 +30,7 @@ los dispara el motor existente), R10 (ai_state → WS calls).
 """
 
 import logging
-from datetime import UTC, datetime, time
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any
 
@@ -43,6 +43,15 @@ from app.adapters.db.models.calls import AI_STATES, TRANSFER_REASONS, CallRecord
 from app.core.ws_manager import manager
 from app.schemas import CallSettings  # noqa: E402 — definido en app/schemas/__init__.py (D-03)
 from app.schemas.voice_ai import VoiceAiSettings
+from app.services.appointments_service import (  # F6 (Spec 07 D5): skills de agenda
+    availability as appointments_availability,
+)
+from app.services.appointments_service import (
+    create_appointment as appointments_create,
+)
+from app.services.appointments_service import (
+    update_appointment as appointments_update,
+)
 from app.services.call_service import (
     _delivery_order_id_for_sale,
     call_settings_from_company,
@@ -50,9 +59,11 @@ from app.services.call_service import (
 )
 from app.services.delivery_service import (
     _LIMA,  # Zona horaria del negocio (Spec 03: America/Lima) — tope diario en hora local
-    create_order as delivery_create_order,
     get_public_menu,
     get_public_zones,
+)
+from app.services.delivery_service import (
+    create_order as delivery_create_order,
 )
 
 logger = logging.getLogger(__name__)
@@ -264,14 +275,19 @@ def detect_transfer_reason(text: str | None) -> str | None:
 # ═══════════════════════════════════════════════════════════════
 
 class ConversationStateMachine:
-    """Máquina de estados del agente de dominio (Spec 06 §3.6).
+    """Máquina de estados del agente de dominio (Spec 06 §3.6 + Spec 07 D5).
 
         greeting ──► taking_order ──► clarifying ──► confirming ──► hangup
                        ▲  ▲  │            │              │
                        │  │  └─ clarify_needed (máx N)   └─ confirmed=False
                        │  └──── clarify_resolved (sin items)
                        └─────── cualquier dato faltante
+        greeting ──► taking_reservation ──► confirming ──► hangup   (F6 D5)
         cualquier estado + transfer_reason ──► transfer (R2/D9)
+
+    `reservation_requested=True` desde `greeting` (el cliente pidió mesa/cita)
+    lleva a `taking_reservation` (Spec 07 D5): el agente consulta disponibilidad
+    real y captura fecha/hora/personas antes de confirmar.
 
     `max_clarify_attempts` (default 2) = 1ª captura fallida + 1 repregunta
     fallida → transfer con motivo low_confidence (HU-F3-02: repregunta 1 vez).
@@ -297,8 +313,9 @@ class ConversationStateMachine:
         confirmed: bool = False,
         clarify_needed: bool = False,
         clarify_resolved: bool = False,
+        reservation_requested: bool = False,
     ) -> str:
-        """Transición determinista; devuelve el siguiente estado (§3.6)."""
+        """Transición determinista; devuelve el siguiente estado (§3.6 + D5)."""
         if current in ("hangup", "transfer", "completed", "failed"):
             return current  # terminales — no transitan
         if transfer_reason:
@@ -309,7 +326,13 @@ class ConversationStateMachine:
                 return "transfer"  # R2: 2 intentos fallidos → humano
             return "clarifying"
         if current == "greeting":
+            # F6 D5: el cliente pide mesa/cita → flujo de reserva (no pedido)
+            if reservation_requested:
+                return "taking_reservation"
             return "taking_order"
+        if current == "taking_reservation":
+            # Datos de la reserva capturados (fecha/hora/personas) → confirmar
+            return "confirming"
         if current == "clarifying":
             # Resuelto: si ya hay items capturados → confirmar; si no → seguir tomando
             return "confirming" if clarify_resolved else "taking_order"
@@ -732,3 +755,128 @@ async def complete_call(
         "sale_id": order_result.get("sale_id") if order_result else None,
         "sale_number": order_result.get("sale_number") if order_result else None,
     }
+
+
+# ═══════════════════════════════════════════════════════════════
+# Skills de agenda (Spec 07 F6 D5 — dominio acotado, R1/R6/R10)
+# ═══════════════════════════════════════════════════════════════
+
+
+def _parse_skill_date(fecha: str | date) -> date:
+    """Acepta date o ISO 'YYYY-MM-DD' (el LLM/bridge habla en strings)."""
+    if isinstance(fecha, date):
+        return fecha
+    try:
+        return date.fromisoformat(str(fecha))
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Fecha '{fecha}' inválida (YYYY-MM-DD)")
+
+
+def _parse_skill_time(hora: str | time) -> time:
+    """Acepta time o ISO 'HH:MM'."""
+    if isinstance(hora, time):
+        return hora
+    try:
+        return time.fromisoformat(str(hora))
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Hora '{hora}' inválida (HH:MM)")
+
+
+class AppointmentSkills:
+    """Skills de agenda de la Recepcionista IA (Spec 07 D5).
+
+    Dominio acotado (R1 heredada de F3): la IA consulta SOLO disponibilidad
+    real del servicio y crea citas con datos mínimos (R10 — nombre, teléfono,
+    fecha, hora, personas). Nunca inventa mesas ni horarios.
+
+      - consultar_disponibilidad(fecha, personas) → mesas libres reales
+      - reservar(...)        → cita source='voice_ai' + call_id (R6 trazabilidad)
+      - confirmar(id)        → transición solicitada→confirmada (R5 + espejo D1)
+      - cancelar(id)         → transición →cancelada (R5)
+
+    Sin mesa libre en el rango pedido → `ok=False` con `alternatives` (slots
+    reales del día) para que la IA ofrezca otra hora/mesa o transfiera (R1).
+    """
+
+    @staticmethod
+    async def consultar_disponibilidad(
+        db: AsyncSession, tenant_id: int, fecha: str | date, personas: int,
+    ) -> dict:
+        """R1: disponibilidad REAL (misma función interna que la API staff)."""
+        day = _parse_skill_date(fecha)
+        result = await appointments_availability(db, tenant_id, day, int(personas))
+        return {
+            "ok": True,
+            "fecha": day.isoformat(),
+            "personas": int(personas),
+            "slots": result["slots"],
+        }
+
+    @staticmethod
+    async def reservar(
+        db: AsyncSession,
+        tenant_id: int,
+        *,
+        nombre: str,
+        telefono: str | None,
+        fecha: str | date,
+        hora: str | time,
+        personas: int,
+        call_id: str | None = None,
+        notes: str | None = None,
+    ) -> dict:
+        """Crea la cita con source='voice_ai' + call_id (R6, trazabilidad).
+
+        R1: sin mesa libre en el rango → `ok=False` + `alternatives` reales
+        (otra hora/mesa) para que la IA ofrezca o transfiera a humano.
+        """
+        day = _parse_skill_date(fecha)
+        hour = _parse_skill_time(hora)
+        try:
+            appointment = await appointments_create(
+                db, tenant_id,
+                {
+                    "date": day,
+                    "time": hour,
+                    "guests": int(personas),
+                    "customer_name": str(nombre).strip(),
+                    "customer_phone": telefono,
+                    "source": "voice_ai",
+                    "call_id": call_id,
+                    "notes": notes,
+                },
+            )
+        except HTTPException as exc:
+            if exc.status_code == 409:
+                # R1: nunca inventar — ofrecer alternativas REALES del día
+                alternatives = await appointments_availability(
+                    db, tenant_id, day, int(personas),
+                )
+                return {
+                    "ok": False,
+                    "reason": "no_disponible",
+                    "detail": exc.detail,
+                    "alternatives": alternatives["slots"],
+                }
+            return {"ok": False, "reason": "invalid", "detail": exc.detail}
+        return {"ok": True, "appointment": appointment}
+
+    @staticmethod
+    async def confirmar(
+        db: AsyncSession, tenant_id: int, appointment_id: int,
+    ) -> dict:
+        """solicitada→confirmada (R5): espejo reserved + evento F1 (D6)."""
+        updated = await appointments_update(
+            db, tenant_id, int(appointment_id), {"status": "confirmada"},
+        )
+        return {"ok": True, "appointment": updated}
+
+    @staticmethod
+    async def cancelar(
+        db: AsyncSession, tenant_id: int, appointment_id: int,
+    ) -> dict:
+        """→cancelada (R5): libera la mesa si no hay otra cita activa (D1)."""
+        updated = await appointments_update(
+            db, tenant_id, int(appointment_id), {"status": "cancelada"},
+        )
+        return {"ok": True, "appointment": updated}

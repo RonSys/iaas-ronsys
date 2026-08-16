@@ -15,6 +15,12 @@
 import { useState, useEffect } from "react";
 import { getSettings } from "@/services";
 import { usePalette } from "@/hooks/usePalette";
+import { useCompanySettings } from "@/hooks/useCompanySettings";
+import {
+  getAppointmentSettings,
+  patchAppointmentSettings,
+  type AppointmentSettings,
+} from "@/services/appointmentsApi";
 import type { ColorPalette, CompanySettings } from "@/types";
 
 const PALETTE_KEYS: { key: keyof ColorPalette; label: string; cssVar: string }[] = [
@@ -32,9 +38,14 @@ const PALETTE_KEYS: { key: keyof ColorPalette; label: string; cssVar: string }[]
 
 export function Settings() {
   const { palette, changePalette } = usePalette();
+  const { businessType } = useCompanySettings();
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<"success" | "error">("success");
+
+  // ─── F6 (Spec 07): Agenda de Citas — companies.settings.appointments (D3) ───
+  const [apptSettings, setApptSettings] = useState<AppointmentSettings | null>(null);
+  const [apptSaving, setApptSaving] = useState(false);
 
   // Predefined palettes
   const presets = [
@@ -47,6 +58,12 @@ export function Settings() {
   useEffect(() => {
     getSettings().then(setSettings).catch(console.warn);
   }, []);
+
+  // D3: la ventana de reservas es configurable desde la UI staff (solo restaurante)
+  useEffect(() => {
+    if (businessType !== "restaurant") return;
+    getAppointmentSettings().then(setApptSettings).catch(console.warn);
+  }, [businessType]);
 
   const notify = (msg: string, type: "success" | "error" = "success") => {
     setMessage(msg);
@@ -71,6 +88,31 @@ export function Settings() {
       notify("Paleta predefinida aplicada");
     } catch {
       notify("Error al aplicar paleta", "error");
+    }
+  };
+
+  /** D3: persiste la config de agenda vía PATCH /api/settings (patrón voice_ai) */
+  const handleApptSave = async () => {
+    if (!apptSettings) return;
+    const { enabled, hours, duration_min_default, reminder_hours_before } = apptSettings;
+    if (hours.open >= hours.close) {
+      notify("La hora de apertura debe ser anterior al cierre", "error");
+      return;
+    }
+    setApptSaving(true);
+    try {
+      const saved = await patchAppointmentSettings({
+        enabled,
+        hours: { open: hours.open, close: hours.close },
+        duration_min_default,
+        reminder_hours_before,
+      });
+      setApptSettings(saved);
+      notify("Configuración de agenda guardada");
+    } catch {
+      notify("Error al guardar la agenda", "error");
+    } finally {
+      setApptSaving(false);
     }
   };
 
@@ -165,6 +207,117 @@ export function Settings() {
             <InfoRow label="Formato de Fecha" value={settings.date_format} />
             <InfoRow label="Logo" value={settings.logo_url ?? "No configurado"} />
           </div>
+        </div>
+      )}
+
+      {/* F6 (Spec 07 D3): Agenda de Citas — solo restaurante */}
+      {businessType === "restaurant" && (
+        <div className="card">
+          <h3 className="font-bold text-brand-text-primary mb-2">📅 Agenda de Citas</h3>
+          <p className="text-sm text-brand-text-secondary mb-4">
+            Configurá la ventana de reservas del local (D3 — independiente del horario del
+            salón y del delivery). Default: 12:00–23:00, duración 60 min, recordatorio 24h antes.
+          </p>
+
+          {!apptSettings ? (
+            <p className="text-xs text-gray-400">Cargando configuración…</p>
+          ) : (
+            <div className="space-y-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={apptSettings.enabled}
+                  onChange={(e) =>
+                    setApptSettings({ ...apptSettings, enabled: e.target.checked })
+                  }
+                  className="h-4 w-4 rounded border-gray-300 text-brand-primary"
+                />
+                <span className="font-medium text-brand-text-primary">
+                  Agenda de citas habilitada
+                </span>
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-xs text-gray-500">
+                  Apertura de reservas
+                  <input
+                    type="time"
+                    value={apptSettings.hours.open}
+                    onChange={(e) =>
+                      setApptSettings({
+                        ...apptSettings,
+                        hours: { ...apptSettings.hours, open: e.target.value },
+                      })
+                    }
+                    className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="block text-xs text-gray-500">
+                  Cierre de reservas
+                  <input
+                    type="time"
+                    value={apptSettings.hours.close}
+                    onChange={(e) =>
+                      setApptSettings({
+                        ...apptSettings,
+                        hours: { ...apptSettings.hours, close: e.target.value },
+                      })
+                    }
+                    className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-xs text-gray-500">
+                  Duración default (min)
+                  <input
+                    type="number"
+                    min={15}
+                    max={240}
+                    step={15}
+                    value={apptSettings.duration_min_default}
+                    onChange={(e) =>
+                      setApptSettings({
+                        ...apptSettings,
+                        duration_min_default: Math.max(15, Number(e.target.value) || 60),
+                      })
+                    }
+                    className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="block text-xs text-gray-500">
+                  Recordatorio (horas antes)
+                  <input
+                    type="number"
+                    min={1}
+                    max={72}
+                    value={apptSettings.reminder_hours_before}
+                    onChange={(e) =>
+                      setApptSettings({
+                        ...apptSettings,
+                        reminder_hours_before: Math.max(1, Number(e.target.value) || 24),
+                      })
+                    }
+                    className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleApptSave}
+                  disabled={apptSaving}
+                  className="rounded-lg bg-brand-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {apptSaving ? "Guardando…" : "Guardar agenda"}
+                </button>
+                <span className="text-xs text-gray-400">
+                  Se persiste en <code className="font-mono">companies.settings.appointments</code>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -309,15 +309,98 @@ class DeterministicLLMClient(LLMClient):
 
         Fase 2: llamada real al proveedor (DeepSeek/Groq) con el mismo
         messages (system = format_context_for_llm(build_conversation_context)).
+        F6 (Spec 07 D5): si el texto es de RESERVA (no de pedido), responde
+        con los datos extraídos — la disponibilidad real la valida el skill
+        `AppointmentSkills` (R1, nunca inventar mesas/horarios).
         """
         user_text = " ".join(
             str(m.get("content", "")) for m in messages if m.get("role") == "user"
         )
         order = self.parse_order(user_text)
         if not order["matched"]:
+            if _is_reservation_intent(user_text):
+                res = self.parse_reservation(user_text)
+                if res["fecha"] and res["hora"]:
+                    return (
+                        f"Perfecto, le reservo una mesa para {res['personas']} "
+                        f"personas el {res['fecha']} a las {res['hora']}. "
+                        "¿Confirma la reserva?"
+                    )
+                return "Claro, ¿para qué día y a qué hora desea la reserva?"
             return "Disculpe, no le entendí. ¿Podría repetir su pedido, por favor?"
         names = ", ".join(f"{i['quantity']} {i['name']}" for i in order["items"])
         return f"Perfecto, anoté: {names}. ¿Desea confirmar su pedido?"
+
+    # ── Parseo determinista de RESERVA (Spec 07 D5 — R10 datos mínimos) ──
+
+    _MONTHS_ES = {
+        "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5,
+        "junio": 6, "julio": 7, "agosto": 8, "septiembre": 9,
+        "setiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12,
+    }
+
+    def parse_reservation(self, text: str) -> dict:
+        """Extrae {fecha, hora, personas, nombre, telefono} de la frase (R10).
+
+        Determinista y tolerante al STT: fechas DD/MM/YYYY, DD/MM,
+        "20 de agosto"; horas HH:MM o "a las 7"; personas "para 4" /
+        "4 personas". Si falta algo → None (la IA repregunta; jamás inventa).
+        """
+        import re
+        text = text or ""
+
+        # ── fecha ──
+        fecha: str | None = None
+        m = re.search(r"(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?", text)
+        if m:
+            day, month = int(m.group(1)), int(m.group(2))
+            year = int(m.group(3)) if m.group(3) else 2026
+            if 1 <= day <= 31 and 1 <= month <= 12:
+                fecha = f"{year:04d}-{month:02d}-{day:02d}"
+        if not fecha:
+            m2 = re.search(r"(\d{1,2})\s+de\s+([a-záéíóúñ]+)", text, re.IGNORECASE)
+            if m2 and m2.group(2).lower() in self._MONTHS_ES:
+                day = int(m2.group(1))
+                month = self._MONTHS_ES[m2.group(2).lower()]
+                if 1 <= day <= 31:
+                    fecha = f"2026-{month:02d}-{day:02d}"
+
+        # ── hora ──
+        hora: str | None = None
+        m3 = re.search(r"(\d{1,2}):(\d{2})\s*(am|pm)?", text, re.IGNORECASE)
+        if m3:
+            hh, mm = int(m3.group(1)), int(m3.group(2))
+            if m3.group(3) and m3.group(3).lower() == "pm" and hh < 12:
+                hh += 12
+            if 0 <= hh <= 23 and 0 <= mm <= 59:
+                hora = f"{hh:02d}:{mm:02d}"
+        if not hora:
+            m4 = re.search(r"(?:a las|las)\s+(\d{1,2})\s*(am|pm)?", text, re.IGNORECASE)
+            if m4:
+                hh = int(m4.group(1))
+                if m4.group(2) and m4.group(2).lower() == "pm" and hh < 12:
+                    hh += 12
+                if 0 <= hh <= 23:
+                    hora = f"{hh:02d}:00"
+
+        # ── personas ──
+        personas: int | None = None
+        m5 = re.search(r"(?:para|por)\s+(\d{1,2})\s*(?:personas|persona|gente|comensales)", text, re.IGNORECASE)
+        if not m5:
+            m5 = re.search(r"(\d{1,2})\s*(?:personas|persona|gente|comensales)", text, re.IGNORECASE)
+        if m5:
+            n = int(m5.group(1))
+            if 1 <= n <= 50:
+                personas = n
+
+        customer = self._extract_customer(text)
+        return {
+            "fecha": fecha,
+            "hora": hora,
+            "personas": personas,
+            "nombre": customer["name"],
+            "telefono": customer["phone"],
+        }
 
 
 class DeterministicVoiceProvider(VoiceProvider):
@@ -371,12 +454,24 @@ def _context_prompt(context: dict | None) -> str:
     return format_context_for_llm(context)
 
 
+def _is_reservation_intent(text: str) -> bool:
+    """F6 D5: ¿el turno pide MESA/CITA (no un pedido)? Heurística determinista."""
+    from app.services.voice_ai_service import _normalize_text
+    norm = _normalize_text(text or "")
+    return any(h in norm for h in (
+        "reserv", "mesa para", "una mesa", "apartar", "agendar",
+        "hacer una cita", "quiero una cita",
+    ))
+
+
 def _state_for_transcript(text: str) -> str:
     """Estado sugerido para el PATCH /ai-state según el texto (heurística F1)."""
     reason = detect_transfer_reason(text)
     if reason:
         return "transfer"
     norm = text.lower()
+    if _is_reservation_intent(text):
+        return "taking_reservation"  # F6 D5: flujo de reserva (no pedido)
     if any(w in norm for w in ("si, confirma", "sí, confirma", "confirmo", "esta bien", "está bien", "dale", "ok")):
         return "confirming"
     if any(w in norm for w in ("quiero", "quisiera", "me da", "un ", "una ", "dos ")):

@@ -309,6 +309,100 @@ async def publish_call_event(
         return False
 
 
+# ═══════════════════════════════════════════════════════════════
+# Eventos de la Agenda de Citas (Spec 07 F6, §3.3/D6)
+# ═══════════════════════════════════════════════════════════════
+
+
+def build_appointment_event_payload(
+    *,
+    event_type: str,
+    tenant_id: int,
+    appointment_id: int,
+    table_id: int | None = None,
+    customer_name: str | None = None,
+    customer_phone: str | None = None,
+    starts_at: datetime | str | None = None,
+    duration_min: int | None = None,
+    guests: int | None = None,
+) -> dict:
+    """Payload de un evento `appointment.<event_type>` (Spec 07 §3.3, D6).
+
+    Mismo contrato que `delivery.*`/`call.*`: `event` = `appointment.<type>`,
+    `event_type` crudo, `tenant_id`, `timestamp` ISO. El worker `notify_worker`
+    lo despacha a WhatsApp con las plantillas `appointment_confirmed` /
+    `appointment_reminder` (dry-run sin cuenta Meta — CA-B5/CA-B7).
+    """
+    return {
+        "event": f"appointment.{event_type}",
+        "event_type": event_type,
+        "tenant_id": tenant_id,
+        "appointment_id": appointment_id,
+        "table_id": table_id,
+        "customer_name": customer_name,
+        "customer_phone": customer_phone,
+        "starts_at": starts_at.isoformat() if isinstance(starts_at, datetime) else starts_at,
+        "duration_min": duration_min,
+        "guests": guests,
+        "timestamp": _iso_now(),
+    }
+
+
+async def publish_appointment_event(
+    event_type: str,
+    *,
+    tenant_id: int,
+    appointment_id: int,
+    table_id: int | None = None,
+    customer_name: str | None = None,
+    customer_phone: str | None = None,
+    starts_at: datetime | str | None = None,
+    duration_min: int | None = None,
+    guests: int | None = None,
+) -> bool:
+    """Publica `appointment.{event_type}` en la cola `iaas-tasks` (R8).
+
+    Fire-and-forget exactamente igual que `publish_delivery_event`: RabbitMQ
+    caído → warning y `False`; la transición de la cita NUNCA depende del
+    evento (CA-F6-5/CA-F6-7 siguen verdes sin RabbitMQ).
+    """
+    payload = build_appointment_event_payload(
+        event_type=event_type,
+        tenant_id=tenant_id,
+        appointment_id=appointment_id,
+        table_id=table_id,
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        starts_at=starts_at,
+        duration_min=duration_min,
+        guests=guests,
+    )
+    try:
+        connection = await aio_pika.connect(settings.rabbitmq_url, timeout=5)
+        async with connection:
+            channel = await connection.channel()
+            await channel.declare_queue(settings.rabbitmq_queue, durable=True)
+            message = aio_pika.Message(
+                body=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                content_type="application/json",
+                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+            )
+            await channel.default_exchange.publish(
+                message, routing_key=settings.rabbitmq_queue,
+            )
+        logger.info(
+            "evento publicado: appointment.%s id=%s tenant=%s",
+            event_type, appointment_id, tenant_id,
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001 — fire-and-forget: nunca romper la cita
+        logger.warning(
+            "RabbitMQ no disponible — evento appointment.%s (id=%s) descartado: %s",
+            event_type, appointment_id, exc,
+        )
+        return False
+
+
 # Re-export para compatibilidad con imports de tests/futuros usos
 __all__: list[str] = [
     "CUSTOMER_EVENTS",
@@ -321,4 +415,6 @@ __all__: list[str] = [
     "publish_status_event",
     "build_call_event_payload",
     "publish_call_event",
+    "build_appointment_event_payload",
+    "publish_appointment_event",
 ]

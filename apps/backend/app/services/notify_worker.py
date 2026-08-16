@@ -130,6 +130,47 @@ async def _persist_bsuid(payload: dict) -> None:
         )
 
 
+async def _process_appointment_event(payload: dict) -> None:
+    """Spec 07 F6 (D6): despacha `appointment.confirmed` / `appointment.reminder`.
+
+    Mismo flujo que delivery.*: tenant → settings.whatsapp → plantilla
+    appointment_<event_type> → envío (dry-run logueado si no hay cuenta Meta
+    o falta plantilla — CA-B5/CA-B7). Los problemas de CONFIG no reintentan.
+    """
+    event_type = str(payload.get("event_type") or "").removeprefix("appointment.")
+    tenant_id = payload.get("tenant_id")
+    if not tenant_id:
+        raise ValueError("evento appointment sin tenant_id")
+
+    company = await _load_company(int(tenant_id))
+    if not company:
+        raise ValueError(f"tenant {tenant_id} no existe")
+
+    whatsapp = _whatsapp_from_raw(company.settings)
+    template_name = whatsapp.templates.get(f"appointment_{event_type}")
+    phone = payload.get("customer_phone")
+    if not phone or not template_name:
+        logger.info(
+            "whatsapp dry-run: evento appointment.%s sin destinatario/plantilla "
+            "(phone=%s template=%s)",
+            event_type, phone, template_name,
+        )
+        return
+
+    notifier: Notifier = build_notifier(whatsapp)
+    await notifier.send(
+        phone=phone,
+        template=template_name,
+        params={
+            "customer_name": payload.get("customer_name") or "",
+            "starts_at": payload.get("starts_at") or "",
+            "guests": payload.get("guests") or "",
+            "table_id": payload.get("table_id") or "",
+            "appointment_id": payload.get("appointment_id") or "",
+        },
+    )
+
+
 async def _process_event(payload: dict) -> None:
     """Procesa UN evento: tenant → config → notifier → envío.
 
@@ -155,6 +196,13 @@ async def _process_event(payload: dict) -> None:
             payload.get("status") or "?",
             payload.get("duration") or 0,
         )
+        return
+
+    # Spec 07 F6 (D6): eventos `appointment.*` → WhatsApp del cliente con las
+    # plantillas appointment_confirmed / appointment_reminder (mismo motor
+    # F1; dry-run si el tenant no tiene cuenta Meta — CA-B5/CA-B7).
+    if event_type.startswith("appointment.") or str(payload.get("event") or "").startswith("appointment."):
+        await _process_appointment_event(payload)
         return
 
     event_type = event_type.removeprefix("delivery.")

@@ -13,15 +13,27 @@ from app.adapters.db.models.accounting import (  # noqa: F401
     ProductCategory,
     ProductUnit,
 )
+from app.adapters.db.models.appointments import (  # noqa: F401
+    ACTIVE_APPOINTMENT_STATUSES,
+    APPOINTMENT_SOURCES,
+    APPOINTMENT_STATUSES,
+    APPOINTMENT_TRANSITIONS,
+    TERMINAL_APPOINTMENT_STATUSES,
+    Appointment,
+)
+from app.adapters.db.models.assistant import (  # noqa: F401
+    QueryCatalog,
+    QueryLog,
+)
 from app.adapters.db.models.calls import (  # noqa: F401
     ACTIVE_STATUSES,
     AI_STATES,
     CALL_DIRECTIONS,
     CALL_STATUSES,
+    TERMINAL_STATUSES,
     TRANSFER_REASONS,
     CallRecord,
     CallTranscription,
-    TERMINAL_STATUSES,
 )
 from app.adapters.db.models.delivery import (  # noqa: F401
     Courier,
@@ -48,9 +60,5 @@ from app.adapters.db.models.sales import (  # noqa: F401
     Sale,
     SaleItem,
     SalePayment,
-)
-from app.adapters.db.models.assistant import (  # noqa: F401
-    QueryCatalog,
-    QueryLog,
 )
 from app.adapters.db.models.simulator import Scenario  # noqa: F401

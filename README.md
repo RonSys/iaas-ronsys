@@ -136,6 +136,7 @@ IaaS-RonSys/
 | **Multi-tenant** | Aislamiento por `X-Tenant-ID` (fallback JWT) en todos los módulos | `docs/architecture/` |
 | **Panel del Dueño** | Dashboard ejecutivo: KPIs del día, canales, top platos, pagos, delivery (zonas/embudo/GMV) y ROAS por campaña — solo lectura, rango Hoy/7d/30d. **V2**: heatmap hora×día por canal, márgenes por canal con costeo, comparativa semana vs semana, **reporte descargable CSV + PDF** (dropdown), alertas vs promedio 7 días | Spec [`docs/specs/04-panel-indicadores/spec-panel-dueño.md`](docs/specs/04-panel-indicadores/spec-panel-dueño.md) · E2E `apps/web/e2e/panel.spec.ts` |
 | **Notificaciones WhatsApp del Delivery (Fase B)** | Avisos automáticos al cliente (confirmado/en cocina/en camino/entregado/cancelado) y alertas al local (pedido nuevo/cancelación) vía cola RabbitMQ + worker con reintentos/DLQ. Notifier agnóstico (Meta Cloud API / dry-run). Motor desplegado en producción (verificado en vivo); envío real al activar cuenta WhatsApp Business | Spec [`docs/specs/03-delivery/03-spec-delivery-dark-kitchen-v0.1.md`](docs/specs/03-delivery/03-spec-delivery-dark-kitchen-v0.1.md) §7 · Manual `docs/manuales/manual-delivery-dark-kitchen.md` |
+| **📅 Agenda de Citas (F6)** | Reservas por mesa y horario con disponibilidad en tiempo real (anti-doble-reserva), ventana configurable desde el frontend (D3), espejo `tables.status='reserved'` en el mapa del salón, integración Recepcionista IA (F3) y confirmación/recordatorio WhatsApp (motor F1, dry-run). **EN PROD (2026-08-16)** — QA 551 passed · E2E en caliente 18/18 | Spec [`docs/specs/03-delivery/07-spec-agenda-citas-v0.1.md`](docs/specs/03-delivery/07-spec-agenda-citas-v0.1.md) · Gherkin `docs/backlog/gherkin-f6-agenda-citas.md` · E2E `apps/web/scripts/e2e-hot-f6-agenda.cjs` |
 
 ---
 
@@ -412,6 +413,15 @@ Base URL: `http://localhost:8000`
 | `POST` | `/api/sections` | Crear nueva sección |
 | `PUT` | `/api/sections/{id}` | Actualizar sección |
 | `DELETE` | `/api/sections/{id}` | Eliminar sección (sin mesas asociadas) |
+
+### Agenda de Citas (F6)
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/api/v1/appointments/availability?date=&guests=&from=&to=` | Mesas libres por fecha/personas (rate-limit Redis, staff) |
+| `POST` | `/api/v1/appointments` | Crear cita (201 · 409 doble reserva · 422 fuera de ventana/capacidad) |
+| `GET` | `/api/v1/appointments?date=&status=&source=` | Agenda del día con filtros (staff) |
+| `PATCH` | `/api/v1/appointments/{id}` | Transición de estado (R5) + espejo `tables.status` (D1) |
+| `POST` | `/api/v1/appointments/{id}/remind` | Recordatorio manual (202, idempotente R9) |
 
 ### Menú / Modificadores / Área de Preparación
 | Método | Ruta | Descripción |

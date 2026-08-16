@@ -19,11 +19,12 @@ from app.monitoring import (
 from app.routers.accounting import kardex_router
 from app.routers.accounting import router as accounting_router
 from app.routers.admin import router as admin_router
-from app.routers.auth import router as auth_router
-from app.routers.calls import router as calls_router
 from app.routers.ai_calls import alias_router as ai_calls_alias_router
 from app.routers.ai_calls import router as ai_calls_router
+from app.routers.appointments import router as appointments_router
 from app.routers.assistant import router as assistant_router
+from app.routers.auth import router as auth_router
+from app.routers.calls import router as calls_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.delivery import router as delivery_router
 from app.routers.health import router as health_router
@@ -105,6 +106,7 @@ app.include_router(calls_router)
 app.include_router(ai_calls_router)
 app.include_router(ai_calls_alias_router)
 app.include_router(assistant_router)
+app.include_router(appointments_router)
 app.include_router(dashboard_router)
 
 

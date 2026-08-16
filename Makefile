@@ -33,6 +33,9 @@ migrate-new: ## Crea nueva migración (msg=descripción)
 migrate-rollback: ## Revierte última migración
 	cd apps/backend && alembic downgrade -1
 
+remind-appointments: ## Job recordatorio de citas 24h (Spec 07 F6 R9) — idempotente
+	cd apps/backend && .venv/bin/python -m scripts.appointment_reminders
+
 # ─── Docker ────────────────────────────────────────────────────
 
 build: ## Construye todas las imágenes

@@ -1,0 +1,98 @@
+{
+  "fecha": "2026-08-16T00:48:59.152Z",
+  "feature": "F6 Agenda de Citas (Spec 07)",
+  "tenant_id": 3,
+  "appointment_date": "2026-08-21",
+  "resultados": [
+    {
+      "name": "P0: login API staff",
+      "ok": true,
+      "detail": "company_id=3"
+    },
+    {
+      "name": "P0.1: tenant-id = 3 en payload JWT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "P1: mesas fixture tenant 3 creadas",
+      "ok": true,
+      "detail": "ids=33,34"
+    },
+    {
+      "name": "P1.1: availability devuelve mesas reales",
+      "ok": true,
+      "detail": "42 slot(s)"
+    },
+    {
+      "name": "P2: /restaurante/agenda cargado",
+      "ok": true,
+      "detail": "http://localhost:8081/restaurante/agenda"
+    },
+    {
+      "name": "P3: slots de mesas reales en el modal",
+      "ok": true,
+      "detail": "42 mesa(s)"
+    },
+    {
+      "name": "P4: cita creada (201 — mesa reservada)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "P5: cita en lista (solicitada)",
+      "ok": true,
+      "detail": "id=2 mesa=F6E2E-1 tenant=3"
+    },
+    {
+      "name": "P5.1: tenant_id=3 en la cita creada",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "P6: confirmar → confirmada",
+      "ok": true,
+      "detail": "status=confirmada"
+    },
+    {
+      "name": "P6.1: espejo mesa = reserved (D1)",
+      "ok": true,
+      "detail": "tables.status=reserved"
+    },
+    {
+      "name": "P6.2: UI muestra cita Confirmada",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "P7: cancelar → cancelada",
+      "ok": true,
+      "detail": "status=cancelada"
+    },
+    {
+      "name": "P7.1: espejo mesa liberada",
+      "ok": true,
+      "detail": "tables.status=available"
+    },
+    {
+      "name": "P7.2: UI muestra cita Cancelada",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "P8: limpieza completada",
+      "ok": true,
+      "detail": "2 mesa(s) + 1 cita"
+    },
+    {
+      "name": "P9: citas de prueba tenant 3 = 0",
+      "ok": true,
+      "detail": "appointments=0"
+    },
+    {
+      "name": "P9.1: mesas fixture eliminadas",
+      "ok": true,
+      "detail": "tables=0"
+    }
+  ]
+}
