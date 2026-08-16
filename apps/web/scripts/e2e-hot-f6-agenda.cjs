@@ -1,77 +1,94 @@
 #!/usr/bin/env node
 /**
- * E2E en caliente — F6 "Agenda de Citas" (Spec 07)
- * ==================================================
- * Monitor de producción: verifica el módulo de agenda contra el backend PROD real
- * (patrón e2e-hot-f3-recepcionista.cjs / e2e-hot-f5-asistente.cjs).
+ * E2E en caliente — F6 "Agenda de Citas" (Spec 07) + Spec 08 (siembra mesas)
+ * ================================================================
+ * Monitor de producción (patrón e2e-hot-f3-recepcionista.cjs --demo / e2e-hot-f5).
+ *
+ * REQUISITO D4 (Ron): navegador ABIERTO en el monitor del servidor (DISPLAY :0),
+ * modo --demo con pausas visibles. Evidencias en docs/reports/evidencias-f6-e2e-prod/.
  *
  * Flujo:
- *   P0 login API (staff tenant 3 — REQUISITO RON: tenant-id = 3)
- *   P1 fixtures: 2 mesas de prueba para tenant 3 (POST /restaurant/tables)
- *   P2 login UI → /restaurante/agenda
- *   P3 modal "＋ Nueva cita" → disponibilidad REAL (GET availability, tenant 3)
- *   P4 crear cita (source=in_person, mesa real desde availability) → 201
- *   P5 verificar en lista (estado Solicitada)
- *   P6 confirmar (PATCH → confirmada) → espejo tables.status='reserved' (D1)
- *   P7 cancelar (PATCH → cancelada) → espejo vuelve a 'available'
- *   P8 limpieza: borrar cita de prueba (SQL) + mesas fixture (API DELETE)
- *   P9 verificación final: appointments tenant 3 = 0 (BD limpia)
+ *   A) TENANT 1 (operativo, mesas reales normalizadas — spec 08 D2):
+ *      login staff → /restaurante/agenda → availability mesas reales →
+ *      crear cita (modal) → verificar lista → confirmar (espejo reserved D1) →
+ *      cancelar (espejo available) → limpieza.
+ *   B) TENANT 3 (desde cero — spec 08 D3):
+ *      login temp admin (creado para el E2E) → availability vacío (0 mesas) →
+ *      appointments vacío → limpieza (usuario temp eliminado).
  *
- * Evidencias: docs/reports/evidencias-f6-e2e-prod/*.png + resumen.json
+ * ⚠️ REQUISITO RON: fixtures/payloads con tenant-id = 3 (solo para el flujo B;
+ *    el flujo A usa el tenant operativo 1 con sus mesas reales).
  *
- * ⚠️ REQUISITO RON: fixtures/payloads con tenant-id = 3 (admincevicheria).
- *
- * Uso: node scripts/e2e-hot-f6-agenda.cjs
+ * Uso:
+ *   node scripts/e2e-hot-f6-agenda.cjs --demo   (navegador visible, pausas — MONITOR)
+ *   node scripts/e2e-hot-f6-agenda.cjs --fast   (headless, sin pausas — CI)
  */
 const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
 
+const args = process.argv.slice(2);
+const DEMO = !args.includes("--fast");
+const HEADLESS = args.includes("--fast") || process.env.E2E_HEADLESS === "1";
+const DELAY_MS = 2800;
+
 const BASE = process.env.E2E_BASE_URL || "http://localhost:8081";
 const API = process.env.E2E_API_URL || "http://localhost:8000";
-const EMAIL = "admincevicheria@elsegoviano.pe"; // tenant 3 (El Segoviano)
-const PASSWORD = "cevicheria123";
-const TENANT = 3; // ⚠️ REQUISITO RON
+
+// Tenant 1 — operativo (spec 08 D1: el negocio real vive en tenant 1)
+const EMAIL_T1 = "admin@elsegoviano.pe";
+const PW_T1 = process.env.E2E_PW_T1 || "admin123";
+
+// Tenant 3 — desde cero (spec 08 D3: entidad sin data; usuario temp para el E2E)
+const TENANT3 = 3;
+const EMAIL_T3 = "e2e-t3@elsegoviano.pe";
+const PW_T3 = "e2e-t3-pass-2026";
+const NAME_T3 = "E2E Tenant 3 Temp";
+
 const OUT_DIR = path.join(__dirname, "../../../docs/reports/evidencias-f6-e2e-prod");
 const RESULTS = [];
-
-// Fecha futura estable (ventana 12:00–23:00 Lima): hoy + 5 días
-function futureDate(days = 5) {
+const APPT_DATE = (() => {
   const d = new Date();
-  d.setDate(d.getDate() + days);
+  d.setDate(d.getDate() + 5);
   return d.toISOString().slice(0, 10);
-}
-const APPT_DATE = futureDate(5);
-const APPT_TIME = "20:00";
-const CUSTOMER = "E2E F6 Cliente";
-const PHONE = "+51999000006";
-const TABLE_NUMBERS = ["F6E2E-1", "F6E2E-2"];
+})();
+const CUSTOMER = "E2E F6 Cliente Monitor";
+const PHONE = "+51999000007";
 
 function record(name, ok, detail = "") {
   RESULTS.push({ name, ok, detail });
   console.log(`${ok ? "✅" : "❌"} ${name}${detail ? " — " + detail : ""}`);
 }
 
-async function apiLogin() {
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function demoStep(page, label) {
+  console.log(`⏸ demo: ${label}`);
+  if (DEMO) await sleep(DELAY_MS);
+}
+
+async function apiLogin(email, password) {
   const res = await fetch(`${API}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+    body: JSON.stringify({ email, password }),
   });
   const body = await res.json();
-  return body.access_token || body.token || null;
+  return { token: body.access_token || body.token || null, status: res.status };
 }
 
-async function api(pathname, token, opts = {}) {
+async function api(pathname, token, opts = {}, tenantId) {
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+  if (tenantId) headers["X-Tenant-ID"] = String(tenantId);
   const res = await fetch(`${API}${pathname}`, {
     method: opts.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      "X-Tenant-ID": String(TENANT),
-      ...(opts.headers || {}),
-    },
+    headers,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   const text = await res.text();
@@ -87,148 +104,142 @@ function runSql(sql) {
   ).trim();
 }
 
+// Crea usuario temp tenant 3 (patrón reset_demo_passwords de deploy.sh)
+// ⚠️ El hash Argon2 contiene '$' → se pasa por env var para evitar expansión de shell.
+function createTempTenant3User() {
+  const hash = execSync(
+    `docker exec -w /app iaas-backend-prod env PYTHONPATH=/app python -c "from pwdlib import PasswordHash; from pwdlib.hashers.argon2 import Argon2Hasher; print(PasswordHash([Argon2Hasher()]).hash('${PW_T3}'))"`,
+    { encoding: "utf8" },
+  ).trim();
+  // Heredoc con delimitador citado (<<'SQL') → el shell NO expande $ → el hash Argon2 se inserta literal.
+  execSync(
+    `docker exec -i iaas-postgres psql -U ron -d iaas_ronsys <<'SQL'
+INSERT INTO users (email, hashed_password, full_name, role, tenant_id, is_active, is_verified, failed_login_attempts, created_at, updated_at)
+VALUES ('${EMAIL_T3}', '${hash}', '${NAME_T3}', 'admin', ${TENANT3}, true, true, 0, now(), now())
+ON CONFLICT (email) DO UPDATE SET hashed_password=EXCLUDED.hashed_password, role='admin', tenant_id=${TENANT3}, is_active=true, updated_at=now();
+SQL`,
+    { encoding: "utf8", shell: "/bin/bash" },
+  );
+  return true;
+}
+
+function deleteTempTenant3User() {
+  runSql(`DELETE FROM users WHERE email='${EMAIL_T3}'`);
+}
+
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: HEADLESS,
+    chromiumSandbox: false,
+  });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  console.log(`🖥️  E2E F6 PROD ${DEMO ? "--demo (MONITOR DISPLAY :0)" : "--fast (headless)"} · fecha cita: ${APPT_DATE}`);
 
-  let token = null;
-  let fixtureTableIds = [];
+  let tokenT1 = null;
+  let tokenT3 = null;
   let appointmentId = null;
-  let reservedTableId = null;
+  let createdTableId = null;
 
   try {
-    // ── P0: login API (tenant 3) ──────────────────────────────
-    token = await apiLogin();
-    const payload = token
-      ? JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
-      : null;
-    record("P0: login API staff", !!token, `company_id=${payload?.company_id ?? "?"}`);
-    record("P0.1: tenant-id = 3 en payload JWT", payload?.company_id === TENANT);
+    // ═══════════════════ FLUJO A — TENANT 1 (mesas reales) ═══════════════════
+    console.log("\n═══ FLUJO A: TENANT 1 (operativo, mesas reales) ═══");
+    const l1 = await apiLogin(EMAIL_T1, PW_T1);
+    tokenT1 = l1.token;
+    const payload1 = tokenT1 ? JSON.parse(Buffer.from(tokenT1.split(".")[1], "base64").toString()) : {};
+    record("A-P0: login API tenant 1", !!tokenT1, `company_id=${payload1.company_id}`);
 
-    // ── P1: fixtures — 2 mesas de prueba para tenant 3 ────────
-    for (const num of TABLE_NUMBERS) {
-      const r = await api("/api/v1/restaurant/tables", token, {
-        method: "POST",
-        body: { number: num, capacity: 4, section: "E2E" },
-      });
-      if (r.status === 201 && r.json?.id) fixtureTableIds.push(r.json.id);
-    }
-    record(
-      "P1: mesas fixture tenant 3 creadas",
-      fixtureTableIds.length === TABLE_NUMBERS.length,
-      `ids=${fixtureTableIds.join(",")}`,
-    );
-
-    // ── P1.1: availability con mesas reales (tenant 3) ────────
+    // A-P1: availability mesas reales (spec 08 CA-SM-3)
     const avail = await api(
-      `/api/v1/appointments/availability?date=${APPT_DATE}&guests=2&from=${APPT_TIME}&to=21:00`,
-      token,
+      `/api/v1/appointments/availability?date=${APPT_DATE}&guests=2&from=20:00&to=21:00`,
+      tokenT1, {}, 1,
     );
     const slots = avail.json?.slots ?? [];
-    record("P1.1: availability devuelve mesas reales", slots.length > 0, `${slots.length} slot(s)`);
+    record("A-P1: availability mesas reales (tenant 1)", slots.length > 0, `${slots.length} slot(s)`);
 
-    // ── P2: login UI → /restaurante/agenda ────────────────────
+    // A-P2: login UI → agenda
     await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
-    await page.fill('input[type="email"]', EMAIL);
-    await page.fill('input[type="password"]', PASSWORD);
+    await page.fill('input[type="email"]', EMAIL_T1);
+    await page.fill('input[type="password"]', PW_T1);
     await page.getByRole("button", { name: /Iniciar Sesión/ }).click();
     await page.waitForTimeout(2500);
     await page.goto(`${BASE}/restaurante/agenda`, { waitUntil: "networkidle" }).catch(() => {});
     await page.waitForTimeout(2500);
-    const bodyText = await page.locator("body").innerText().catch(() => "");
-    record("P2: /restaurante/agenda cargado", bodyText.includes("Agenda de Citas"), page.url());
-    await page.screenshot({ path: path.join(OUT_DIR, "01-agenda.png"), fullPage: false });
+    const bodyA = await page.locator("body").innerText().catch(() => "");
+    record("A-P2: /restaurante/agenda cargado", bodyA.includes("Agenda de Citas"), page.url());
+    await page.screenshot({ path: path.join(OUT_DIR, "01-agenda-t1.png") });
+    await demoStep(page, "A-P2 agenda tenant 1 (mesas reales)");
 
-    // ── P3: modal Nueva cita + disponibilidad real ────────────
+    // A-P3: modal Nueva cita → slots reales
     await page.getByRole("button", { name: /Nueva cita/ }).click();
     await page.waitForTimeout(1200);
-    // fecha futura en el input date del modal
     const dateInput = page.locator('input[type="date"]').first();
-    if (await dateInput.count()) {
-      await dateInput.fill(APPT_DATE);
-    }
-    await page.locator('input[type="time"]').first().fill(APPT_TIME);
-    await page.waitForTimeout(2500); // esperar GET availability
+    if (await dateInput.count()) await dateInput.fill(APPT_DATE);
+    await page.locator('input[type="time"]').first().fill("20:00");
+    await page.waitForTimeout(3000);
     const slotBtns = page.locator('button:has-text("🪑 Mesa")');
     const slotCount = await slotBtns.count();
-    record("P3: slots de mesas reales en el modal", slotCount > 0, `${slotCount} mesa(s)`);
-    if (slotCount === 0) {
-      const modalText = await page.locator(".fixed.inset-0").innerText().catch(() => "");
-      console.log("  modal:", modalText.slice(0, 300).replace(/\n/g, " | "));
-    }
-    await page.screenshot({ path: path.join(OUT_DIR, "02-modal-disponibilidad.png"), fullPage: false });
+    record("A-P3: slots reales en modal", slotCount > 0, `${slotCount} mesa(s)`);
+    await page.screenshot({ path: path.join(OUT_DIR, "02-modal-disponibilidad-t1.png") });
+    await demoStep(page, "A-P3 modal con disponibilidad real (mesas tenant 1)");
 
-    // ── P4: crear cita (mesa real desde availability) ─────────
+    // A-P4: crear cita (mesa real)
     if (slotCount > 0) {
       await slotBtns.first().click();
-      // reservar la mesa elegida para el check del espejo
-      const firstSlotText = await slotBtns.first().innerText();
-      const mTable = firstSlotText.match(/Mesa\s+(\S+)/);
-      if (mTable) {
-        const tbl = await api(`/api/v1/restaurant/tables?status=available`, token);
-        const rows = (tbl.json ?? []).filter((t) => t.number === mTable[1]);
-        if (rows.length) reservedTableId = rows[0].id;
-      }
     }
     await page.locator('input[placeholder="Nombre y apellido"]').fill(CUSTOMER);
     await page.locator('input[placeholder="+51 999 999 999"]').fill(PHONE);
     await page.getByRole("button", { name: /Reservar mesa/ }).click();
     await page.waitForTimeout(3000);
     const afterCreate = await page.locator("body").innerText().catch(() => "");
-    record("P4: cita creada (201 — mesa reservada)", afterCreate.includes(CUSTOMER), "");
-    await page.screenshot({ path: path.join(OUT_DIR, "03-cita-creada.png"), fullPage: false });
+    record("A-P4: cita creada (201)", afterCreate.includes(CUSTOMER), "");
+    await page.screenshot({ path: path.join(OUT_DIR, "03-cita-creada-t1.png") });
+    await demoStep(page, "A-P4 cita creada en tenant 1");
 
-    // ── P5: verificar en lista (estado Solicitada) ────────────
+    // A-P5: verificar en lista
     const list = await api(
       `/api/v1/appointments?date=${APPT_DATE}&status=solicitada`,
-      token,
+      tokenT1, {}, 1,
     );
-    const items = list.json?.items ?? [];
-    const mine = items.find((i) => i.customer_name === CUSTOMER);
+    const mine = (list.json?.items ?? []).find((i) => i.customer_name === CUSTOMER);
     appointmentId = mine?.id ?? null;
-    record(
-      "P5: cita en lista (solicitada)",
-      !!mine,
-      mine ? `id=${mine.id} mesa=${mine.table_number ?? mine.table_id} tenant=${mine.tenant_id}` : "",
-    );
-    record("P5.1: tenant_id=3 en la cita creada", mine?.tenant_id === TENANT);
+    record("A-P5: cita en lista (solicitada)", !!mine, mine ? `id=${mine.id} mesa=${mine.table_number ?? mine.table_id}` : "");
+    record("A-P5.1: tenant_id=1", mine?.tenant_id === 1);
+    createdTableId = mine?.table_id ?? null;
 
-    // ── P6: confirmar → espejo tables.status='reserved' (D1) ──
+    // A-P6: confirmar → espejo reserved (D1)
     if (appointmentId) {
-      const conf = await api(`/api/v1/appointments/${appointmentId}`, token, {
-        method: "PATCH",
-        body: { status: "confirmada" },
-      });
-      record("P6: confirmar → confirmada", conf.json?.status === "confirmada", `status=${conf.json?.status}`);
-      if (mine?.table_id) {
-        const t = await api(`/api/v1/restaurant/tables/${mine.table_id}`, token);
-        const status = t.json?.status;
-        record("P6.1: espejo mesa = reserved (D1)", status === "reserved", `tables.status=${status}`);
-        reservedTableId = mine.table_id;
+      const conf = await api(`/api/v1/appointments/${appointmentId}`, tokenT1, {
+        method: "PATCH", body: { status: "confirmada" },
+      }, 1);
+      record("A-P6: confirmar → confirmada", conf.json?.status === "confirmada");
+      if (createdTableId) {
+        // GET /tables/{id} tiene un bug pre-existente (MissingGreenlet) → usar lista
+        const t = await api(`/api/v1/restaurant/tables`, tokenT1, {}, 1);
+        const row = (t.json ?? []).find((x) => x.id === createdTableId);
+        record("A-P6.1: espejo mesa = reserved (D1)", row?.status === "reserved", `status=${row?.status}`);
       }
-      // UI: filtrar por la fecha de la cita para verla en la lista
       await page.reload({ waitUntil: "networkidle" }).catch(() => {});
       await page.waitForTimeout(2000);
       const fDate = page.locator('input[type="date"]').first();
       if (await fDate.count()) await fDate.fill(APPT_DATE);
       await page.getByRole("button", { name: /Filtrar/ }).click().catch(() => {});
       await page.waitForTimeout(2500);
-      const confirmedRow = page.locator(`text=${CUSTOMER}`);
-      record("P6.2: UI muestra cita Confirmada", (await confirmedRow.count()) > 0, "");
-      await page.screenshot({ path: path.join(OUT_DIR, "04-cita-confirmada.png"), fullPage: false });
+      record("A-P6.2: UI muestra Confirmada", (await page.locator(`text=${CUSTOMER}`).count()) > 0, "");
+      await page.screenshot({ path: path.join(OUT_DIR, "04-cita-confirmada-t1.png") });
+      await demoStep(page, "A-P6 cita confirmada (espejo mesa=reserved)");
     }
 
-    // ── P7: cancelar → espejo vuelve a 'available' ────────────
+    // A-P7: cancelar → espejo available
     if (appointmentId) {
-      const canc = await api(`/api/v1/appointments/${appointmentId}`, token, {
-        method: "PATCH",
-        body: { status: "cancelada" },
-      });
-      record("P7: cancelar → cancelada", canc.json?.status === "cancelada", `status=${canc.json?.status}`);
-      if (reservedTableId) {
-        const t = await api(`/api/v1/restaurant/tables/${reservedTableId}`, token);
-        record("P7.1: espejo mesa liberada", t.json?.status === "available", `tables.status=${t.json?.status}`);
+      const canc = await api(`/api/v1/appointments/${appointmentId}`, tokenT1, {
+        method: "PATCH", body: { status: "cancelada" },
+      }, 1);
+      record("A-P7: cancelar → cancelada", canc.json?.status === "cancelada");
+      if (createdTableId) {
+        const t = await api(`/api/v1/restaurant/tables`, tokenT1, {}, 1);
+        const row = (t.json ?? []).find((x) => x.id === createdTableId);
+        record("A-P7.1: espejo mesa liberada", row?.status === "available", `status=${row?.status}`);
       }
       await page.reload({ waitUntil: "networkidle" }).catch(() => {});
       await page.waitForTimeout(2000);
@@ -236,33 +247,52 @@ async function main() {
       if (await fDate2.count()) await fDate2.fill(APPT_DATE);
       await page.getByRole("button", { name: /Filtrar/ }).click().catch(() => {});
       await page.waitForTimeout(2500);
-      const canceledRow = page.locator(`text=${CUSTOMER}`);
-      record("P7.2: UI muestra cita Cancelada", (await canceledRow.count()) > 0, "");
-      await page.screenshot({ path: path.join(OUT_DIR, "05-cita-cancelada.png"), fullPage: false });
+      record("A-P7.2: UI muestra Cancelada", (await page.locator(`text=${CUSTOMER}`).count()) > 0, "");
+      await page.screenshot({ path: path.join(OUT_DIR, "05-cita-cancelada-t1.png") });
+      await demoStep(page, "A-P7 cita cancelada (espejo mesa=available)");
     }
 
-    // ── P8: limpieza — borrar cita de prueba + mesas fixture ──
+    // A-P8: limpieza cita de prueba
     if (appointmentId) {
-      runSql(`DELETE FROM appointments WHERE id = ${appointmentId} AND tenant_id = ${TENANT}`);
-      console.log(`🧹 Cita de prueba ${appointmentId} eliminada (SQL)`);
+      runSql(`DELETE FROM appointments WHERE id = ${appointmentId} AND tenant_id = 1`);
+      console.log(`🧹 Cita de prueba tenant 1 (${appointmentId}) eliminada`);
     }
-    for (const tid of fixtureTableIds) {
-      await api(`/api/v1/restaurant/tables/${tid}`, token, { method: "DELETE" });
-      console.log(`🧹 Mesa fixture ${tid} eliminada (API 204)`);
-    }
-    record("P8: limpieza completada", true, `${fixtureTableIds.length} mesa(s) + 1 cita`);
+    const t1Remaining = parseInt(runSql(`SELECT count(*) FROM appointments WHERE tenant_id = 1`) || "0", 10);
+    record("A-P8: citas tenant 1 = 0 tras limpieza", t1Remaining === 0, `appointments=${t1Remaining}`);
 
-    // ── P9: verificación final — BD limpia (tenant 3) ─────────
-    const remaining = parseInt(runSql(
-      `SELECT count(*) FROM appointments WHERE tenant_id = ${TENANT}`,
-    ) || "0", 10);
-    const remainingTables = parseInt(runSql(
-      `SELECT count(*) FROM tables WHERE tenant_id = ${TENANT} AND number LIKE 'F6E2E%'`,
-    ) || "0", 10);
-    record("P9: citas de prueba tenant 3 = 0", remaining === 0, `appointments=${remaining}`);
-    record("P9.1: mesas fixture eliminadas", remainingTables === 0, `tables=${remainingTables}`);
+    // ═══════════════════ FLUJO B — TENANT 3 (desde cero) ═══════════════════
+    console.log("\n═══ FLUJO B: TENANT 3 (desde cero — spec 08 D3) ═══");
+    createTempTenant3User();
+    const l3 = await apiLogin(EMAIL_T3, PW_T3);
+    tokenT3 = l3.token;
+    const payload3 = tokenT3 ? JSON.parse(Buffer.from(tokenT3.split(".")[1], "base64").toString()) : {};
+    record("B-P0: login temp admin tenant 3", !!tokenT3, `company_id=${payload3.company_id}`);
+    record("B-P0.1: tenant-id = 3 en JWT", payload3.company_id === TENANT3);
 
-    await page.screenshot({ path: path.join(OUT_DIR, "06-estado-final.png"), fullPage: false });
+    const avail3 = await api(
+      `/api/v1/appointments/availability?date=${APPT_DATE}&guests=2&from=20:00&to=21:00`,
+      tokenT3, {}, TENANT3,
+    );
+    record("B-P1: availability tenant 3 vacío (0 mesas)", (avail3.json?.slots ?? []).length === 0, `${(avail3.json?.slots ?? []).length} slot(s)`);
+
+    const list3 = await api(`/api/v1/appointments?date=${APPT_DATE}`, tokenT3, {}, TENANT3);
+    record("B-P2: agenda tenant 3 vacía (0 citas)", (list3.json?.items ?? []).length === 0, `total=${list3.json?.total}`);
+
+    const tables3 = await api(`/api/v1/restaurant/tables`, tokenT3, {}, TENANT3);
+    record("B-P3: mesas tenant 3 = 0 (data limpia)", (tables3.json ?? []).length === 0, `${(tables3.json ?? []).length} mesa(s)`);
+
+    await page.screenshot({ path: path.join(OUT_DIR, "06-tenant3-desde-cero.png") });
+    await demoStep(page, "B flujo tenant 3 desde cero (0 mesas, 0 citas)");
+
+    // Limpieza flujo B: usuario temp
+    deleteTempTenant3User();
+    const t3Users = parseInt(runSql(`SELECT count(*) FROM users WHERE tenant_id = ${TENANT3}`) || "0", 10);
+    record("B-P4: usuario temp eliminado", t3Users === 0, `users tenant3=${t3Users}`);
+
+    // Verificación final global
+    const t3Total = parseInt(runSql(`SELECT count(*) FROM appointments WHERE tenant_id = ${TENANT3}`) || "0", 10);
+    record("FINAL: citas tenant 3 = 0", t3Total === 0, `appointments=${t3Total}`);
+    await page.screenshot({ path: path.join(OUT_DIR, "07-estado-final.png") });
   } catch (e) {
     record("EXCEPCIÓN", false, e.message);
     await page.screenshot({ path: path.join(OUT_DIR, "error.png"), fullPage: true }).catch(() => {});
@@ -270,16 +300,17 @@ async function main() {
     await browser.close();
   }
 
-  // ── Resumen ─────────────────────────────────────────────────
   const passed = RESULTS.filter((r) => r.ok).length;
-  console.log(`\n=== E2E F6 PROD: ${passed}/${RESULTS.length} OK ===`);
+  console.log(`\n=== E2E F6 PROD (spec 07 + 08): ${passed}/${RESULTS.length} OK ===`);
   fs.writeFileSync(
     path.join(OUT_DIR, "resumen.json"),
     JSON.stringify(
       {
         fecha: new Date().toISOString(),
-        feature: "F6 Agenda de Citas (Spec 07)",
-        tenant_id: TENANT,
+        feature: "F6 Agenda de Citas (Spec 07) + Spec 08 siembra mesas tenant 1 / limpieza tenant 3",
+        modo: DEMO ? "demo (monitor DISPLAY :0)" : "fast (headless)",
+        tenant_operativo: 1,
+        tenant3: TENANT3,
         appointment_date: APPT_DATE,
         resultados: RESULTS,
       },

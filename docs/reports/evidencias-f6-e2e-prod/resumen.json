@@ -1,98 +1,115 @@
 {
-  "fecha": "2026-08-16T00:48:59.152Z",
-  "feature": "F6 Agenda de Citas (Spec 07)",
-  "tenant_id": 3,
+  "fecha": "2026-08-16T01:37:25.841Z",
+  "feature": "F6 Agenda de Citas (Spec 07) + Spec 08 siembra mesas tenant 1 / limpieza tenant 3",
+  "modo": "demo (monitor DISPLAY :0)",
+  "tenant_operativo": 1,
+  "tenant3": 3,
   "appointment_date": "2026-08-21",
   "resultados": [
     {
-      "name": "P0: login API staff",
+      "name": "A-P0: login API tenant 1",
       "ok": true,
-      "detail": "company_id=3"
+      "detail": "company_id=1"
     },
     {
-      "name": "P0.1: tenant-id = 3 en payload JWT",
+      "name": "A-P1: availability mesas reales (tenant 1)",
       "ok": true,
-      "detail": ""
+      "detail": "399 slot(s)"
     },
     {
-      "name": "P1: mesas fixture tenant 3 creadas",
-      "ok": true,
-      "detail": "ids=33,34"
-    },
-    {
-      "name": "P1.1: availability devuelve mesas reales",
-      "ok": true,
-      "detail": "42 slot(s)"
-    },
-    {
-      "name": "P2: /restaurante/agenda cargado",
+      "name": "A-P2: /restaurante/agenda cargado",
       "ok": true,
       "detail": "http://localhost:8081/restaurante/agenda"
     },
     {
-      "name": "P3: slots de mesas reales en el modal",
+      "name": "A-P3: slots reales en modal",
       "ok": true,
-      "detail": "42 mesa(s)"
+      "detail": "399 mesa(s)"
     },
     {
-      "name": "P4: cita creada (201 — mesa reservada)",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "name": "P5: cita en lista (solicitada)",
-      "ok": true,
-      "detail": "id=2 mesa=F6E2E-1 tenant=3"
-    },
-    {
-      "name": "P5.1: tenant_id=3 en la cita creada",
+      "name": "A-P4: cita creada (201)",
       "ok": true,
       "detail": ""
     },
     {
-      "name": "P6: confirmar → confirmada",
+      "name": "A-P5: cita en lista (solicitada)",
       "ok": true,
-      "detail": "status=confirmada"
+      "detail": "id=5 mesa=9"
     },
     {
-      "name": "P6.1: espejo mesa = reserved (D1)",
-      "ok": true,
-      "detail": "tables.status=reserved"
-    },
-    {
-      "name": "P6.2: UI muestra cita Confirmada",
+      "name": "A-P5.1: tenant_id=1",
       "ok": true,
       "detail": ""
     },
     {
-      "name": "P7: cancelar → cancelada",
-      "ok": true,
-      "detail": "status=cancelada"
-    },
-    {
-      "name": "P7.1: espejo mesa liberada",
-      "ok": true,
-      "detail": "tables.status=available"
-    },
-    {
-      "name": "P7.2: UI muestra cita Cancelada",
+      "name": "A-P6: confirmar → confirmada",
       "ok": true,
       "detail": ""
     },
     {
-      "name": "P8: limpieza completada",
+      "name": "A-P6.1: espejo mesa = reserved (D1)",
       "ok": true,
-      "detail": "2 mesa(s) + 1 cita"
+      "detail": "status=reserved"
     },
     {
-      "name": "P9: citas de prueba tenant 3 = 0",
+      "name": "A-P6.2: UI muestra Confirmada",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "A-P7: cancelar → cancelada",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "A-P7.1: espejo mesa liberada",
+      "ok": true,
+      "detail": "status=available"
+    },
+    {
+      "name": "A-P7.2: UI muestra Cancelada",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "A-P8: citas tenant 1 = 0 tras limpieza",
       "ok": true,
       "detail": "appointments=0"
     },
     {
-      "name": "P9.1: mesas fixture eliminadas",
+      "name": "B-P0: login temp admin tenant 3",
       "ok": true,
-      "detail": "tables=0"
+      "detail": "company_id=3"
+    },
+    {
+      "name": "B-P0.1: tenant-id = 3 en JWT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "B-P1: availability tenant 3 vacío (0 mesas)",
+      "ok": true,
+      "detail": "0 slot(s)"
+    },
+    {
+      "name": "B-P2: agenda tenant 3 vacía (0 citas)",
+      "ok": true,
+      "detail": "total=0"
+    },
+    {
+      "name": "B-P3: mesas tenant 3 = 0 (data limpia)",
+      "ok": true,
+      "detail": "0 mesa(s)"
+    },
+    {
+      "name": "B-P4: usuario temp eliminado",
+      "ok": true,
+      "detail": "users tenant3=0"
+    },
+    {
+      "name": "FINAL: citas tenant 3 = 0",
+      "ok": true,
+      "detail": "appointments=0"
     }
   ]
 }

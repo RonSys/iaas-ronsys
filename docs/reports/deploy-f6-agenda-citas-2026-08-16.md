@@ -136,3 +136,106 @@ GET /api/v1/appointments?date=2026-08-16 (token staff tenant 3) → HTTP 200 {"i
 ---
 
 **Veredicto:** ✅ **F6 AGENDA DE CITAS DESPLEGADO EN PROD** — migración 0021 aplicada, endpoints vivos, E2E en caliente 18/18 con tenant-id=3, espejo de mesas D1 verificado, BD 100% limpia post-E2E, sin impacto en otros servicios. **Sin commits realizados** (working tree intacto — lo commitea Jarvis).
+
+---
+
+# 🚀 ADDENDUM — Spec 08 (Siembra de Mesas/Secciones Tenant 1 + Limpieza Tenant 3)
+
+> **Autor:** DevOps Agent 🔧 · **Fecha:** 2026-08-16 01:40 UTC
+> **Spec:** `docs/specs/03-delivery/08-spec-siembra-mesas-tenant3-v0.1.md` (🟢 APROBADA EN EJECUCIÓN — OK explícito Ron 01:23 UTC)
+> **Veredicto:** ✅ **EJECUTADO 100% + E2E MONITOR 21/21 + BD limpia + tenants 1/5 intactos**
+
+## 0. Backup (obligatorio, patrón F3/F5)
+
+- **Archivo:** `backups/iaas_ronsys_pre_mesas_20260816.dump` (313 KB)
+- **SHA-256:** `3c0b798b5153da32ece8ea95a537792d60b7427643e4bb36e087e5462fbf0d8a`
+- **Verificado:** pg_restore --list → 39 secciones TABLE DATA, exit 0 ✅
+
+## 1. Normalización TENANT 1 (D2)
+
+### Secciones antes → después
+| Antes (10) | Después (3) |
+|---|---|
+| Prueba · Salón Principal · Salón VIP · Terraza · VIP · Zions vip · be · terraza · vip · zona vip | **Terraza** (6 mesas: 1,2,3,4,1000,105) · **Salón Principal** (4: 5,6,7,9) · **VIP** (9: 10,11,12,100,50,14,24,31,104) |
+
+Mapeo aplicado: `Zions vip`/`vip`/`zona vip`/`Salón VIP` → VIP · `terraza` → Terraza · `be` → Salón Principal. Secciones sucias eliminadas (7), sort_order limpio (0/1/2).
+
+### Mesas eliminadas (verificadas 0 referencias)
+| Mesa | id | Referencias |
+|---|---|---|
+| "Prueba" (number 101) | 21 | kitchen_orders: **1** (id 39, CANCELADA 2026-05-15, sin sale — FK SET NULL la preservó como historial) · appointments: 0 · restaurant_sales: 0 |
+| Sin sección (number 30) | 23 | 0 en todas |
+
+> ⚠️ Nota: la mesa "Prueba" (id 21) tenía 1 kitchen_order histórica CANCELADA (2026-05-15). Al ser FK `ON DELETE SET NULL` y el pedido no tener sale asociada, se eliminó la mesa y el pedido histórico quedó con `table_id=NULL` (registro conservado, sin pérdida de datos).
+
+### Verificación agenda F6 tenant 1
+`GET /api/v1/appointments/availability?date=2026-08-17&guests=2&from=20:00&to=21:00` (admin@elsegoviano.pe) → **399 slots** con mesas reales (Terraza/Salón Principal/VIP) ✅ (CA-SM-3)
+
+## 2. Limpieza TENANT 3 (D3) — entidad sí, data no
+
+### Registros eliminados (orden FK-safe)
+| Tabla | Eliminados |
+|---|---|
+| refresh_tokens (user_id → users) | 37 |
+| journal_entry_lines (entry_id → journal_entries) | 3040 |
+| kardex_movements (product_id → products) | 5 |
+| journal_entries (tenant_id) | 1520 |
+| products (tenant_id) | 5 |
+| product_categories (tenant_id) | 6 |
+| users (tenant_id) | 3 |
+| companies.settings → `{}` (DID +5115551234 placeholder eliminado) | 1 UPDATE |
+
+### Verificación post: **0 residuales** en las 24 tablas tenant-scoped ✅
+- `companies` id=3 **conservada** (entidad: El Segoviano, RUC 10777555551, settings `{}`)
+- tenants 1 y 5 intactos: users t1=8/t5=1 · mesas t1=19 · secciones t1=3
+
+## 3. E2E EN CALIENTE EN MONITOR (D4) — **21/21 OK** ✅
+
+**Modo:** `DISPLAY=:0 node scripts/e2e-hot-f6-agenda.cjs --demo` — navegador ABIERTO en el monitor del servidor, pausas visibles (patrón e2e-hot-f3/f5).
+
+### Flujo A — Tenant 1 (mesas reales)
+1. Login API tenant 1 (company_id=1) ✅
+2. Availability: **399 slots** mesas reales ✅
+3. Login UI → `/restaurante/agenda` ✅
+4. Modal Nueva cita → slots reales (399) ✅
+5. Crear cita (201, mesa real, source=in_person) ✅
+6. Verificar lista (solicitada, tenant_id=1) ✅
+7. **Confirmar → espejo `tables.status='reserved'` (D1)** ✅
+8. **Cancelar → espejo `available`** ✅
+9. UI muestra Confirmada/Cancelada (filtro por fecha) ✅
+10. Limpieza → citas tenant 1 = 0 ✅
+
+### Flujo B — Tenant 3 (desde cero, D3)
+1. Usuario temp admin creado (patrón reset_demo_passwords) → login company_id=3 ✅
+2. Availability tenant 3 = **0 slots** (0 mesas — data limpia) ✅
+3. Agenda tenant 3 = **0 citas** ✅
+4. Mesas tenant 3 = **0** ✅
+5. Usuario temp eliminado → users tenant3 = 0 ✅
+
+### Evidencias (`docs/reports/evidencias-f6-e2e-prod/` — 7 PNG + resumen.json)
+| Archivo | Contenido |
+|---|---|
+| `01-agenda-t1.png` | Agenda tenant 1 cargada |
+| `02-modal-disponibilidad-t1.png` | Modal Nueva cita con mesas reales |
+| `03-cita-creada-t1.png` | Cita creada (Solicitada) |
+| `04-cita-confirmada-t1.png` | Cita Confirmada |
+| `05-cita-cancelada-t1.png` | Cita Cancelada |
+| `06-tenant3-desde-cero.png` | Tenant 3 limpio (0 mesas/citas) |
+| `07-estado-final.png` | Estado final post-limpieza |
+| `resumen.json` | 21 resultados detallados |
+
+## 4. Estado final verificado
+
+| Indicador | Valor |
+|---|---|
+| appointments (todos los tenants) | **0** |
+| mesas tenant 1 | 19 (3 secciones limpias) |
+| mesas tenant 3 | 0 |
+| users tenant 3 | 0 |
+| companies id=3 | ✅ conservada, settings `{}` |
+| alembic_version | 0021_appointments |
+| Worker | ✅ procesó `appointment.confirmed` dry-run (D6/R8, sin Meta) |
+| Contenedores iaas-* | ✅ todos healthy/Up |
+| Otros dominios (dash, segoviano, eyfimport, stratify, smart, consultoria) | ✅ 27 contenedores sin cambios |
+
+**Veredicto:** ✅ **SPEC 08 EJECUTADA** — tenant 1 normalizado con agenda F6 operativa (399 slots reales), tenant 3 limpio como entidad sin data, E2E 21/21 visible en el monitor del servidor, BD sin datos de prueba, cero impacto en otros servicios/tenants. **Sin commits** (working tree intacto — lo commitea Jarvis).
